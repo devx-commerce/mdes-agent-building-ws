@@ -191,13 +191,32 @@ def make_protect(names):
     return protect, restore
 
 
+THAI_ONLY = [  # the en agents answer bilingually for English-speaking reviewers; the th agents are Thai-native (14 Oct)
+    (re.compile(r"Thai first, then the same in English", re.I), "in Thai only (no English)"),
+    (re.compile(r"in (short )?Thai,? with (the )?English in brackets", re.I), r"in \1Thai only"),
+    (re.compile(r"\bThai with (the )?English in brackets", re.I), "Thai only"),
+]
+GLOSS = re.compile(r"(?<=[\u0e00-\u0e7f\'’])\s*\(((?:[A-Z][A-Za-z ,'’/&-]{2,80})|(?:[a-z]+(?: [A-Za-z'’/&-]+){1,10}))\)")
+
+
+def thai_only(text):
+    for pat, rep in THAI_ONLY:
+        text = pat.sub(rep, text)
+    return text
+
+
+def drop_glosses(text):
+    """'แผนการค้นคว้าที่เสนอ (Proposed research plan)' -> 'แผนการค้นคว้าที่เสนอ'; keeps field hints such as (docUrl), (from)."""
+    return GLOSS.sub("", text)
+
+
 def translate(g, en_path):
     t = json.loads(en_path.read_text())
     th = json.loads(json.dumps(t))
     protect, restore = make_protect(field_names(th["definition"]["agentFlow"]))
     sl = slots(th)
-    src = [d[k] for d, k in sl]
-    out = g.batched("th", TO_TH, src, prep=protect, post=restore)
+    src = [thai_only(d[k]) for d, k in sl]
+    out = [drop_glosses(x) for x in g.batched("th", TO_TH, src, prep=protect, post=restore)]
     for (d, k), s in zip(sl, out):
         d[k] = s
     th["lang"] = "th"
@@ -214,7 +233,7 @@ def translate(g, en_path):
 def check(g, th_path):
     th = json.loads(th_path.read_text())
     en = json.loads((th_path.parent.parent / "en" / th_path.name).read_text())
-    pairs = [(d[k], e[k2]) for (d, k), (e, k2) in zip(slots(th), slots(en))]
+    pairs = [(d[k], thai_only(e[k2])) for (d, k), (e, k2) in zip(slots(th), slots(en))]  # th builds are Thai-only on purpose
     instr = [(h, e) for h, e in pairs if len(e) > 200]  # instructions and cards: the texts that steer behaviour
     back = g.batched("en", TO_EN, [h for h, _ in instr])
     back = [b if isinstance(b, dict) else {"en": str(b), "issues": []} for b in back]

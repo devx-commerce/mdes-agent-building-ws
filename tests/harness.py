@@ -193,7 +193,7 @@ class Run:
     def session_state(self, sess):
         s = self.api.call("GET", sess)
         labels = s.get("labels", [])
-        status = [l.split("status:", 1)[1] for l in labels if l.startswith("status:")]
+        status = [l.rsplit("status:", 1)[1] for l in labels if "status:" in l and "summary" not in l]
         return (status[-1] if status else None), s
 
     def go(self, aid):

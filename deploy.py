@@ -149,7 +149,7 @@ def ensure_app(api, cfg, app, dry):
 # ---------- compare ----------
 def strip(o):
     if isinstance(o, dict):
-        return {k: strip(v) for k, v in o.items() if k not in DROP}
+        return {k: strip(v) for k, v in o.items() if k not in DROP and v not in ([], {}, None)}  # the platform stores [] as null
     if isinstance(o, list):
         return [strip(v) for v in o]
     return o
