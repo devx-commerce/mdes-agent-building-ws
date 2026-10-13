@@ -39,6 +39,8 @@ def load_config(path):
 def templates(cfg, only, langs):
     out = []
     for p in sorted((ROOT / "agents").glob("*/*/*.json")):
+        if p.name.endswith(".review.json"):
+            continue
         t = json.loads(p.read_text())
         a = cfg["agents"].get(t["id"], {})
         if only and t["id"] not in only:

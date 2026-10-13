@@ -95,6 +95,8 @@ def agent_ids(api):
 
 def template_name(case):
     for p in ROOT.glob(f"agents/*/{case['lang']}/*.json"):
+        if p.name.endswith(".review.json"):
+            continue
         t = json.loads(p.read_text())
         if t["id"] == case["agent"]:
             return t["display_name"]
