@@ -1,0 +1,1530 @@
+{
+ "id": "RES-B",
+ "persona": "researcher",
+ "lang": "th",
+ "display_name": "Survey Analysis (TH)",
+ "description": "วิเคราะห์ข้อมูลแบบสอบถาม (Survey analysis): ตรวจสอบโฟลเดอร์ ข้อมูลแบบสอบถาม ของท่านทุก 30 นาที เมื่อพบไฟล์ข้อมูลใหม่หรือแผนการวิเคราะห์ที่มีการเปลี่ยนแปลง จะตรวจสอบข้อมูลเทียบกับคู่มือลงรหัส สอบถามวิธีจัดการข้อผิดพลาดกับท่าน (Inbox) ดำเนินการวิเคราะห์ตามแผน และบันทึกบทที่ 4 ฉบับใหม่ (ต่อยอดจากฉบับแก้ไขล่าสุดของท่านพร้อมไฮไลต์จุดที่มีการเปลี่ยนแปลง) รวมถึงแผนภูมิและสไลด์ไว้คู่กับฉบับเดิม จากนั้นจะส่งอีเมลแจ้งรายละเอียดที่มีการเปลี่ยนแปลง ทั้งนี้ ไฟล์ข้อมูลแต่ละไฟล์ที่บันทึกไว้ในโฟลเดอร์ดังกล่าวจะต้องรวบรวมผลการตอบแบบสอบถามทั้งหมดจนถึงปัจจุบัน",
+ "_built_from": "tools/translate.py from en/survey-analysis.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_survey_analysis.py (10 Oct 2026): RES-B rebuilt per docs/HOW-WE-BUILD.md",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "ทุก 30 นาที (*/30 8-20 * * *, Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "*/30 8-20 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_setup",
+     "displayName": "ค้นหาโฟลเดอร์ข้อมูล คู่มือลงรหัส แผนการวิเคราะห์ และบันทึกประวัติการวิเคราะห์ข้อมูล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ค้นหารายการที่จำเป็นสำหรับการตรวจสอบนี้ใน Google Drive ของผู้ใช้ที่ลงชื่อเข้าใช้ ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการให้เสร็จสิ้นโดยส่งคืนฟิลด์ผลลัพธ์เสมอ มีสิทธิ์อ่านอย่างเดียว ห้ามเปลี่ยนแปลงสิ่งใด\n1. โฟลเดอร์ข้อมูล: โฟลเดอร์ที่ชื่อขึ้นต้นด้วย ข้อมูลแบบสอบถาม (search_files, เฉพาะโฟลเดอร์เท่านั้น) data_files = ไฟล์ข้อมูลที่อยู่ในโฟลเดอร์ดังกล่าวโดยตรง (CSV, .xlsx, Google Sheets) ในรูปแบบ name | ID | modified time เรียงลำดับจากใหม่สุดไปเก่าสุด\n2. คู่มือลงรหัส: ไฟล์ที่ชื่อขึ้นต้นด้วย คู่มือลงรหัส หรือ codebook (พิจารณาไฟล์ในโฟลเดอร์ระดับบนของโฟลเดอร์ข้อมูลหรือโฟลเดอร์ในระดับเดียวกันก่อน) อ่านคู่มือลงรหัส (read_file_content ซึ่งอาจเป็น Doc, Sheet, PDF หรือตาราง) และแปลงเป็น codebook_json: อาร์เรย์ JSON หนึ่งออบเจกต์ต่อหนึ่งคอลัมน์ข้อมูล ประกอบด้วยคีย์ variable (ชื่อคอลัมน์ที่ตรงกันทุกตัวอักษรในไฟล์ข้อมูลล่าสุด ให้อ่านแถวส่วนหัวของไฟล์ดังกล่าวด้วย read_file_content), type (ค่าใดค่าหนึ่งระหว่าง id, likert, integer, numeric, category, text), values (likert/integer/numeric: ช่วงค่า เช่น 1-5; category: ป้ายกำกับที่อนุญาต คั่นด้วย |), missing (รหัสที่หมายถึงไม่มีคำตอบ คั่นด้วย | หากไม่มีให้เว้นว่างไว้) และ label (คำถาม) ขยายช่วง เช่น q1-q12 ให้เป็นหนึ่งออบเจกต์ต่อหนึ่งคอลัมน์ นำกฎทุกข้อจากคู่มือลงรหัสมาใช้ตามที่ระบุไว้ ห้ามคิดกฎขึ้นเองโดยเด็ดขาด\nแผนการวิเคราะห์: ไฟล์ที่ชื่อขึ้นต้นด้วย แผนการวิเคราะห์ หรือ analysis plan; plan_modified = เวลาที่มีการแก้ไข อ่านแผนการวิเคราะห์ (read_file_content): plan_text = สมมติฐานและการวิเคราะห์ที่ระบุไว้ตามข้อความจริง\n3. บันทึกประวัติ: Google Sheet ชื่อ 'บันทึกการวิเคราะห์ข้อมูล' ในโฟลเดอร์ระดับบนของโฟลเดอร์ข้อมูล ระบุ ID หรือเว้นว่างไว้ หากพบ ให้อ่านไฟล์ดังกล่าว (get_values): last_version = หมายเลขเวอร์ชันสูงสุดที่บันทึกไว้ (ระบุ 0 หากไม่มี); last_data_id และ last_data_modified = ID ไฟล์ข้อมูลและเวลาแก้ไขของแถวล่าสุด; last_plan_modified = เวลาแก้ไขของแผนการวิเคราะห์ในแถวล่าสุด; last_chapter_link = ลิงก์บทที่ 4 ของแถวล่าสุด\n3b. base_chapter_id = Doc ที่จะใช้เริ่มต้นจัดทำบทที่ 4 ฉบับใหม่: บทที่ 4 ของแถวบันทึกล่าสุด (ID จาก last_chapter_link); หากไม่มีแถวบันทึก ให้ใช้ร่างของผู้ใช้เอง ได้แก่ Google Doc ที่ชื่อขึ้นต้นด้วย 'บทที่ 4 ผลการวิจัย' หรือ 'บทที่ 4' ในโฟลเดอร์ระดับบนของโฟลเดอร์ข้อมูล หากไม่พบให้เว้นว่างไว้ has_base = true เฉพาะเมื่อ base_chapter_id ไม่เป็นค่าว่าง\n4. newest = ไฟล์ข้อมูลล่าสุด รอบการทำงานนี้ (Asia/Bangkok): slot_end = เวลาปัจจุบันปัดเศษลงเป็นครึ่งชั่วโมง (นาทีที่ 00 หรือ 30 การทำงานอาจเริ่มช้าได้ไม่เกิน 5 นาที แต่ต้องไม่เริ่มก่อนเวลา); slot_start = slot_end ลบ 30 นาที ยกเว้นรอบเวลา 08:00 น. ซึ่ง slot_start = เวลา 20:30 น. ของเมื่อวาน (รอบการทำงานก่อนหน้า) saved_in_slot = true เฉพาะเมื่อเวลาแก้ไขของ newest หรือ plan_modified มีค่าตั้งแต่วันที่และเวลา slot_start เป็นต้นไป และก่อนหน้า slot_end (เปรียบเทียบในเขตเวลา Asia/Bangkok) new_work = true เฉพาะเมื่อมีไฟล์ข้อมูลและ saved_in_slot และ (ยังไม่มีแถวบันทึก หรือ ID หรือเวลาแก้ไขของ newest แตกต่างจากแถวล่าสุด หรือ plan_modified แตกต่างจาก last_plan_modified) จะไม่มีการเริ่มประมวลผลการเปลี่ยนแปลงที่เก่ากว่าซ้ำที่นี่ เนื่องจากการทำงานในรอบถัดไปจะประมวลผลชุดข้อมูลที่การ์ดยังคงรออยู่ซ้ำซ้อน reason = 'new data file' หรือ 'analysis plan changed' (ภาษาไทย + ภาษาอังกฤษ); เมื่อ new_work เป็น false ให้ระบุเหตุผล (ไม่มีไฟล์ใหม่บันทึกในรอบครึ่งชั่วโมงนี้ หรือเป็นเวอร์ชันที่บันทึกประวัติแล้ว)\n5. output_folder_id = โฟลเดอร์ระดับบนของโฟลเดอร์ข้อมูล; owner_email = อีเมลของเจ้าของโฟลเดอร์ข้อมูล; today = วันที่ปัจจุบันตามเวลา Asia/Bangkok\n6. ready = พบโฟลเดอร์ข้อมูล คู่มือลงรหัส และแผนการวิเคราะห์อย่างละหนึ่งรายการพอดี stop_items = รายการที่ขาดหายไป (เว้นว่างไว้หาก ready)\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์อินพุตระบุไว้ในคำอธิบายของแต่ละเครื่องมือ): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values\nระดับภาษา: ทางการและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่จัดทำขึ้นโดยเด็ดขาด\nการค้นหาไฟล์ตามชื่อ (กฎ HOW-WE-BUILD ข้อ 6, #251): การค้นหาใน Drive จะค้นหาเฉพาะชื่อที่มีคำค้นหาปรากฏอยู่ภายในเท่านั้น ดังนั้นจึงต้องตรวจสอบผลลัพธ์ทุกรายการด้วยตนเอง คำว่า 'ขึ้นต้นด้วย X' หมายถึงอักขระตัวแรกสุดของชื่อต้องเป็น X ตรงกันทุกประการ ชื่อที่มีคำอื่นนำหน้า X เช่น 'Copy of ', 'สำเนาของ ', '(old) ', '(renamed …) ', ตัวเลข วงเล็บ หรือการเว้นวรรค จะถือว่าไม่ตรงกัน แม้ว่าข้อความส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อที่ผ่านเกณฑ์การตรวจสอบนี้ ให้ถือว่าไม่พบไฟล์ดังกล่าว (และแจ้งตามนั้น) ห้ามอนุโลมใช้ชื่อที่มีคำว่า X ปรากฏอยู่ภายในโดยไม่ได้ขึ้นต้นด้วย X เป็นอันขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "data_folder_id": {
+        "description": "ID โฟลเดอร์ข้อมูล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "data_files": {
+        "description": "ไฟล์ข้อมูล เรียงลำดับจากใหม่สุดไปเก่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "newest_id": {
+        "description": "ID ไฟล์ข้อมูลล่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "newest_name": {
+        "description": "ชื่อไฟล์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "newest_modified": {
+        "description": "เวลาที่มีการแก้ไข",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "codebook_id": {
+        "description": "ID คู่มือลงรหัส",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "codebook_json": {
+        "description": "คู่มือลงรหัสในรูปแบบอาร์เรย์ JSON ภายในบรรทัด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "plan_id": {
+        "description": "ID แผนการวิเคราะห์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "plan_modified": {
+        "description": "เวลาแก้ไขของแผนการวิเคราะห์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "plan_text": {
+        "description": "สมมติฐานและการวิเคราะห์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "log_id": {
+        "description": "ID บันทึกประวัติ หรือเว้นว่างไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "last_version": {
+        "description": "เวอร์ชันล่าสุด เป็นจำนวนเต็มไม่มีทศนิยม ระบุ 0 หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "last_data_id": {
+        "description": "ไฟล์ข้อมูลของเวอร์ชันล่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "last_chapter_link": {
+        "description": "ลิงก์บทที่ 4 ล่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "base_chapter_id": {
+        "description": "บทที่ 4 ที่จะใช้เป็นจุดเริ่มต้น หรือเว้นว่างไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "has_base": {
+        "description": "true หาก base_chapter_id ไม่เป็นค่าว่าง",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "new_work": {
+        "description": "true หากมีรายการใหม่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "reason": {
+        "description": "เหตุผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "output_folder_id": {
+        "description": "โฟลเดอร์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "owner_email": {
+        "description": "อีเมลของนักวิจัย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "ready": {
+        "description": "true หากพบ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "stop_items": {
+        "description": "รายการที่ขาดหายไป",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       }
+      },
+      "required": [
+       "data_folder_id",
+       "data_files",
+       "newest_id",
+       "newest_name",
+       "newest_modified",
+       "codebook_id",
+       "codebook_json",
+       "plan_id",
+       "plan_modified",
+       "plan_text",
+       "log_id",
+       "last_version",
+       "last_data_id",
+       "last_chapter_link",
+       "base_chapter_id",
+       "has_base",
+       "new_work",
+       "reason",
+       "output_folder_id",
+       "owner_email",
+       "today",
+       "ready",
+       "stop_items"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "พบโฟลเดอร์ คู่มือลงรหัส และแผนการวิเคราะห์หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "report_setup",
+     "displayName": "ส่งอีเมลแจ้งรายการที่ขาดหายไป",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ระบบการวิเคราะห์แบบสอบถามไม่สามารถ start ได้: ${find_setup.stop_items} ส่งอีเมลเพียง 1 ฉบับเท่านั้นด้วย send_email ไปยัง ${find_setup.owner_email} (หากว่าง ให้ระบุ to เป็นสตริงว่างเพื่อให้ผู้ใช้พิมพ์เอง ห้ามสร้างที่อยู่อีเมลขึ้นเองโดยเด็ดขาด) หัวข้อ: วิเคราะห์ข้อมูลแบบสอบถาม: ยังเริ่มไม่ได้ (survey analysis: cannot start) เนื้อหาเป็นภาษาไทยแบบสั้นพร้อมภาษาอังกฤษในวงเล็บ: ระบุเฉพาะรายการในบรรทัดด้านบนเท่านั้น (รายการที่ขาดหายไป ห้ามระบุไฟล์ที่พบแล้ว) พร้อมชื่อที่ต้องตั้งเพื่อให้ระบบค้นพบในครั้งต่อไป ได้แก่ ข้อมูล = โฟลเดอร์ที่ชื่อขึ้นต้นด้วย ข้อมูลแบบสอบถาม, คู่มือลงรหัส = ไฟล์ที่ชื่อขึ้นต้นด้วย คู่มือลงรหัส, แผนการวิเคราะห์ = ไฟล์ที่ชื่อขึ้นต้นด้วย แผนการวิเคราะห์ จากนั้นระบุหนึ่งบรรทัดว่าไฟล์ข้อมูลแต่ละไฟล์ที่บันทึกไว้จะต้องรวบรวมผลการตอบแบบสอบถามทั้งหมดจนถึงปัจจุบัน (ระบบจะวิเคราะห์ไฟล์ล่าสุด) sent = true เฉพาะเมื่อเครื่องมือส่งคืน message ID ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในข้อความที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าในแหล่งข้อมูลจะมีคำดังกล่าวปรากฏอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์อินพุตระบุไว้ในคำอธิบายของแต่ละเครื่องมือ): Gmail MCP: send_email\nระดับภาษา: ทางการและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่จัดทำขึ้นโดยเด็ดขาด\nเครื่องมือประเภทเขียนจะขอคำยืนยันจากผู้ใช้ เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งพร้อมอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงค่า) และห้ามขอคำยืนยันในรูปแบบข้อความซ้ำอีก หากการบันทึกยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true เฉพาะเมื่อส่งเรียบร้อยแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "has_new_work",
+     "displayName": "มีข้อมูลใหม่หรือแผนการวิเคราะห์เปลี่ยนแปลงหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "New",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.new_work"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing new",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.new_work"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_nothing_new",
+     "displayName": "ไม่มีข้อมูลใหม่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับแจ้งผู้ใช้: ระบุภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของรอบการทำงานนี้: ห้ามตั้งคำถามกับผู้ใช้และห้ามรอคำตอบ\nไม่มีข้อมูลใหม่: ข้อมูล ${find_setup.newest_name}, เวอร์ชันล่าสุด ${find_setup.last_version} เหตุผล: ${find_setup.reason}\nระบุในบรรทัดเดียวว่าไม่มีข้อมูลเปลี่ยนแปลง หากมีการบันทึกไฟล์ข้อมูลไว้ก่อนหน้านี้และยังไม่เคยได้รับการวิเคราะห์ ให้แจ้งให้บันทึกไฟล์ดังกล่าวใหม่อีกครั้ง (หรือแก้ไขแผนการวิเคราะห์) เพื่อให้ระบบทำการวิเคราะห์ในรอบครึ่งชั่วโมงถัดไป\nเขียนเฉพาะข้อมูลตามที่ปรากฏด้านบนเท่านั้น\nระดับภาษา: ทางการและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่จัดทำขึ้นโดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "ensure_log",
+     "displayName": "ตรวจสอบให้แน่ใจว่ามีบันทึกประวัติการวิเคราะห์ข้อมูลอยู่แล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Log ID found: \"${find_setup.log_id}\" หากไม่ว่าง: ไม่ต้องเรียกใช้เครื่องมือใด; log_id = ID นั้น หากว่าง: ให้สร้างขึ้นเพียงหนึ่งครั้ง (ONCE) ด้วย Drive create_file: title 'บันทึกการวิเคราะห์ข้อมูล', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = บรรทัดส่วนหัวตามนี้ทุกประการ: วันที่,เวอร์ชัน,ไฟล์ข้อมูล,ID ไฟล์ข้อมูล,แก้ไขล่าสุดของไฟล์ข้อมูล,แก้ไขล่าสุดของแผน,กฎการจัดการข้อมูล,บทที่ 4,สไลด์,สรุปการเปลี่ยนแปลง ; log_id = ID ที่ได้รับกลับมา จากนั้นอ่านบันทึกด้วย Sheets get_spreadsheet: log_tab = ชื่อแท็บแรก (FIRST tab) ตามที่ปรากฏจริงทุกประการ (ตามที่เครื่องมือส่งกลับมา ห้ามคาดเดาหรือแปลความหมายโดยเด็ดขาด)\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าระบุไว้ในคำอธิบายของเครื่องมือ): Drive MCP: create_file | Sheets MCP: get_spreadsheet\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนข้อมูล (Write tools) จะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความซ้ำอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดดำเนินการและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false พร้อมระบุเหตุผลใน problems\nการค้นหาไฟล์ตามชื่อ (HOW-WE-BUILD rule 6, #251): การค้นหาใน Drive จะค้นพบเฉพาะชื่อที่มีข้อความดังกล่าวปรากฏอยู่ (CONTAIN) ดังนั้นโปรดตรวจสอบผลลัพธ์แต่ละรายการด้วยตนเอง คำว่า 'Starts with X' หมายถึงตัวอักษรเริ่มต้นของชื่อไฟล์ต้องตรงกับ X ทุกประการ หากชื่อไฟล์มีข้อความใดๆ นำหน้า X เช่น 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', ตัวเลข วงเล็บ หรือการเว้นวรรค จะถือว่า NOT a match แม้ว่าข้อความส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อใดผ่านการตรวจสอบนี้ ให้ถือว่าไฟล์ missing (และระบุเช่นนั้น) ห้ามอนุโลมใช้ชื่อที่มีเพียงข้อความ X ปรากฏอยู่ภายในโดยเด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "log_id": {
+        "description": "Log ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "log_tab": {
+        "description": "ชื่อแท็บแรกของบันทึกตามที่ปรากฏจริงทุกประการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "log_id",
+       "log_tab"
+      ]
+     }
+    },
+    {
+     "id": "check_data",
+     "displayName": "ตรวจสอบข้อมูลเทียบกับผังรหัส (codebook)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ANALYSIS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{ANALYSIS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "เรียกใช้ check_survey_data หนึ่งครั้ง (ONCE) ด้วย sourceId ${find_setup.newest_id} และ codebook = JSON array นี้ exactly: ${find_setup.codebook_json} ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามคำถามใดๆ ห้ามรอคำตอบ และต้องจบการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nissues = ข้อความภาษาไทยธรรมดาหนึ่งบรรทัดต่อหนึ่งปัญหา พร้อมตัวเลขและตัวอย่าง ID เช่น 'q12 ควรเป็น 1-5 แต่มี 14 คำตอบที่เป็น 9', 'ผู้ตอบแบบสอบถาม 23 รายเว้นว่างช่องรายได้', 'คอลัมน์ region ใช้ South (ภาษาอังกฤษ) ใน 300 แถว แทนที่จะเป็น ภาคใต้', คอลัมน์ที่ขาดหายไป (missing) หรือคอลัมน์ส่วนเกิน กำหนดให้ has_issues = true หากมีปัญหาใดๆ และ n_rows = จำนวนแถว ห้ามตัดสินใจวิธีจัดการปัญหาเหล่านี้ด้วยตนเองโดยเด็ดขาด\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าระบุไว้ในคำอธิบายของเครื่องมือ): Analysis MCP: check_survey_data, analyse_survey\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "n_rows": {
+        "description": "จำนวนแถว เป็นจำนวนเต็มโดยไม่ใส่ทศนิยม เช่น 1200",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "has_issues": {
+        "description": "เป็น true หากพบปัญหาใดๆ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "issues": {
+        "description": "รายการปัญหา หนึ่งรายการต่อหนึ่งบรรทัด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "ข้อผิดพลาดของเครื่องมือ หากไม่มีให้เว้นว่าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "n_rows",
+       "has_issues",
+       "issues",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "issues_found",
+     "displayName": "พบปัญหาของข้อมูลหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Issues",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_data.has_issues"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No issues",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_data.has_issues"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "handling_rules",
+     "displayName": "ควรจัดการปัญหาของข้อมูลอย่างไร",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ข้อมูลใหม่ (New data): ${find_setup.newest_name} (${check_data.n_rows} แถว rows) · เหตุผล (why): ${find_setup.reason}\nปัญหาที่พบ (Issues found): ${check_data.issues}\n\nพิมพ์วิธีจัดการแต่ละปัญหาในช่องความคิดเห็น เช่น '9 = ไม่ทราบ ให้เป็นค่าว่าง; South = ภาคใต้; คนที่ไม่ตอบรายได้ ให้เก็บไว้แต่ไม่ใช้ในการวิเคราะห์รายได้' แล้วกด Approve เพื่อวิเคราะห์ (Type how to handle each issue in the comment, then Approve to run the analysis; the agent never decides these rules). ถ้าไม่มีปัญหา กด Approve ได้เลย (No issues: just Approve). Reject = หยุด ไม่วิเคราะห์ (stop).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "tell_stopped",
+     "displayName": "หยุดการทำงานโดยผู้วิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nผู้วิจัยได้ทำการ reject ข้อคิดเห็น: \"${handling_rules.approval_feedback}\"\nแจ้งว่าไม่มีการวิเคราะห์หรือการเปลี่ยนแปลงใดๆ เกิดขึ้น\nเขียนเฉพาะข้อมูลที่ปรากฏตามข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     }
+    },
+    {
+     "id": "analyse",
+     "displayName": "ดำเนินการตามแผนการวิเคราะห์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ANALYSIS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{ANALYSIS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ดำเนินการตามแผนการวิเคราะห์บน ${find_setup.newest_id} ตามกฎของผู้วิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามคำถามใดๆ ห้ามรอคำตอบ และต้องจบการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nAnalysis plan: ${find_setup.plan_text}\nIssues found: ${check_data.issues}\nกฎของผู้วิจัย (นำไปใช้ตามที่กำหนดทุกประการ ห้ามเพิ่มกฎเองโดยเด็ดขาด): \"${handling_rules.approval_feedback}\" (หากระบุว่า no value provided แสดงว่าข้อมูลไม่มีปัญหาและไม่มีกฎใดๆ)\n1. แปลงกฎให้เป็นพารามิเตอร์ขาเข้าสำหรับ analyse_survey: ใช้ recode สำหรับการเปลี่ยนแปลงค่าข้อมูล (เช่น South -> ภาคใต้, 9 -> missing), ใช้ excludeIds เฉพาะกรณีที่ระบุให้ตัดผู้ตอบแบบสอบถามออก หากระบุให้คัดตัวแปรใดออกจากการวิเคราะห์รายการหนึ่ง ให้คัดออกเฉพาะการทดสอบนั้นเท่านั้น\n2. เรียกใช้ analyse_survey หนึ่งครั้ง (ONCE) ด้วย sourceId ${find_setup.newest_id}, codebook = JSON array นี้ exactly: ${find_setup.codebook_json}, การทดสอบทุกรายการในแผน (รหัส H1, H2, ...) และ compareWithSourceId = ${find_setup.last_data_id} หากไม่ว่างและไม่ใช่ไฟล์เดียวกัน\n3. results = สถิติเชิงพรรณนาและการทดสอบทุกรายการตามที่ส่งกลับมา (statistic, p, n, means) โดยคัดลอกมาตามจริงทุกประการ changes = เขียนเป็นภาษาไทยและมีภาษาอังกฤษในวงเล็บ จำนวนหนึ่งหรือสองบรรทัด: หาก ${find_setup.last_version} เป็น 0 หรือ empty: ให้ระบุ 'เวอร์ชันแรก (first version)' หากไม่ใช่ ให้ตรวจสอบบทก่อนหน้า ${find_setup.base_chapter_id} ด้วย Drive read_file_content และเปรียบเทียบ: ระบุการทดสอบทุกรายการที่แผนเพิ่มเข้ามาหรือตัดออก (เช่น 'เพิ่ม H5: … (added H5)'), ผลลัพธ์ทุกรายการที่มีการเปลี่ยนแปลงระดับนัยสำคัญ และค่าเฉลี่ยทุกค่าที่มีการเปลี่ยนแปลงตั้งแต่ 0.1 ขึ้นไป หากข้อมูลหรือแผนมีการเปลี่ยนแปลงแต่ไม่มีผลลัพธ์ใดเปลี่ยนแปลง ให้ระบุตามข้อเท็จจริงดังกล่าวอย่างชัดเจน ห้ามเขียน 'first version' เมื่อ last_version มีค่าตั้งแต่ 1 ขึ้นไป (#256) chart_csv = CSV สำหรับแผนภูมิหนึ่งภาพที่แสดงการเปรียบเทียบกลุ่มหลัก (แถวส่วนหัว + หนึ่งแถวต่อหนึ่งกลุ่ม ตัวเลขปัดเศษเป็นทศนิยม 2 ตำแหน่ง เช่น 2.87) version = ${find_setup.last_version} + 1\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าระบุไว้ในคำอธิบายของเครื่องมือ): Analysis MCP: check_survey_data, analyse_survey | Drive MCP: read_file_content\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "results": {
+        "description": "ตัวเลขทั้งหมดตามที่ส่งกลับมา",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "changes": {
+        "description": "สิ่งที่เปลี่ยนแปลงเมื่อเทียบกับเวอร์ชันก่อนหน้า",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "chart_csv": {
+        "description": "CSV สำหรับแผนภูมิหลัก",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "chart_title": {
+        "description": "ชื่อแผนภูมิ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "version": {
+        "description": "หมายเลขเวอร์ชันใหม่ เป็นจำนวนเต็มโดยไม่ใส่ทศนิยม เช่น 2",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "rules_applied": {
+        "description": "กฎตามที่ได้นำไปปรับใช้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "ok": {
+        "description": "เป็น true หากการวิเคราะห์ได้ดำเนินการแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       }
+      },
+      "required": [
+       "results",
+       "changes",
+       "chart_csv",
+       "chart_title",
+       "version",
+       "rules_applied",
+       "ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "analysis_ok",
+     "displayName": "การวิเคราะห์ทำงานแล้วหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Done",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "analyse.ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Failed",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "analyse.ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_analysis_failed",
+     "displayName": "แจ้งว่าการวิเคราะห์ล้มเหลว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nการวิเคราะห์ไม่สามารถดำเนินการได้ รายละเอียด: ${analyse.problems}\nแจ้งว่าไม่มีการเปลี่ยนแปลงใดๆ เกิดขึ้น\nเขียนเฉพาะข้อมูลที่ปรากฏตามข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     }
+    },
+    {
+     "id": "base_found",
+     "displayName": "มีบทก่อนหน้าที่จะใช้เป็นจุดเริ่มต้นหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Yes",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_base"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_base"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "write_chapter",
+     "displayName": "เขียนบทที่ 4 (เวอร์ชันแรก)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สร้าง Google Doc ใหม่หนึ่งไฟล์ (ONE new Google Doc) ด้วย Drive create_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html', textContent = โค้ด HTML ทั้งหมด ห้ามสร้างสิ่งอื่นใดเพิ่มเติม\nจัดทำเป็นภาษาไทย (รูปแบบวิชาการสำหรับวารสาร TCI): 4.1 ข้อมูลและกฎการทำความสะอาดข้อมูล (${analyse.rules_applied}; n = ${check_data.n_rows}), 4.2 สถิติเชิงพรรณนา (ตารางแสดง ร้อยละ และ ค่าเฉลี่ย), 4.3 การทดสอบสมมติฐาน (การทดสอบแต่ละรายการพร้อม statistic, p และ n รวมถึงระบุว่าสมมติฐานได้รับการสนับสนุนหรือไม่), 4.4 สรุปผล ใช้เฉพาะตัวเลขเหล่านี้เท่านั้น exactly: ${analyse.results} กำหนดให้ doc_id = ID ที่ได้รับกลับมา; created = true เฉพาะกรณีที่มี ID ส่งกลับมาเท่านั้น ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในส่วนใดๆ ของงานที่สร้างขึ้นหรือส่งออกไปโดยเด็ดขาด แม้ว่าในแหล่งข้อมูลจะมีคำดังกล่าวปรากฏอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าระบุไว้ในคำอธิบายของเครื่องมือ): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนข้อมูล (Write tools) จะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความซ้ำอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดดำเนินการและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false พร้อมระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Doc ID ของบท",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "เป็น true เฉพาะกรณีที่สร้างสำเร็จเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "copy_chapter",
+     "displayName": "คัดลอกบทล่าสุดของผู้วิจัยเป็นเวอร์ชันใหม่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ทำสำเนา Doc ${find_setup.base_chapter_id} ด้วย Drive copy_file: ชื่อเรื่อง 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id} ห้ามแก้ไขไฟล์ต้นฉบับโดยเด็ดขาด ห้ามทำสำเนาสิ่งอื่นใด doc_id = ID ของสำเนาใหม่; created = true เฉพาะเมื่อได้รับ ID กลับมาเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: copy_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Doc ID ของบทใหม่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true เฉพาะเมื่อทำสำเนาแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_chapter",
+     "displayName": "ปรับปรุงเฉพาะส่วนที่มีการเปลี่ยนแปลง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "บทใหม่ ${copy_chapter.doc_id} เป็นสำเนาของเวอร์ชันล่าสุดของเธอ ให้คงข้อความ หัวข้อ และลำดับเดิมไว้ อ่านเอกสารดังกล่าวด้วย Docs read_doc (หัวข้อของแต่ละส่วนและเนื้อหา) ผลการวิจัยใหม่ (ใช้เฉพาะตัวเลขเหล่านี้ทุกประการ): ${analyse.results} สิ่งที่เปลี่ยนแปลงไปจาก version ก่อนหน้า: ${analyse.changes} กฎเกณฑ์ applied: ${analyse.rules_applied}; n = ${check_data.n_rows}\nสำหรับแต่ละส่วนที่ผลการวิจัยใหม่ทำให้ตัวเลขหรือความหมายเปลี่ยนแปลงไป (ไม่เกิน 4 ส่วน โดยทั่วไปคือ 4.1 rules/n, 4.3 tests, 4.4 summary) ให้เรียกใช้ Docs replace_section หนึ่งครั้ง พร้อมระบุหัวข้อของส่วนนั้นและเนื้อหาใหม่ในรูปแบบ Markdown เป็นภาษาไทย: ให้คงทุกประโยคที่ยังคงถูกต้องตรงตามความเป็นจริงไว้ทุกคำ เปลี่ยนแปลงเฉพาะตัวเลขและประโยคที่ผลการวิจัยใหม่ทำให้เกิดการเปลี่ยนแปลง เพิ่มเนื้อหาใหม่เฉพาะจุดที่แผนกำหนดไว้เท่านั้น (เช่น สมมติฐานใหม่) กำหนดให้ทุกประโยคที่มีการเปลี่ยนแปลงหรือเพิ่มเข้ามาเป็นตัว**หนา** ตามด้วย (ปรับปรุงใน v${analyse.version}) ห้ามเพิ่มย่อหน้าแจ้งการเปลี่ยนแปลงไว้ภายในส่วนเนื้อหา และเมื่อแทนที่ส่วนใด ให้ตัดย่อหน้าที่ขึ้นต้นด้วย 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (บรรทัดแจ้งการเปลี่ยนแปลงเดิม) ออก บรรทัดแจ้งการเปลี่ยนแปลง (#256): ย่อหน้าแรกของสำเนาคือบรรทัดของเวอร์ชันก่อนหน้าที่ขึ้นต้นว่า 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (สิ่งที่เปลี่ยนแปลงไปจากเวอร์ชันก่อนหน้า) ให้แทนที่ด้วย Docs replace_text หนึ่งครั้ง: find = ย่อหน้าแรกทั้งหมดนั้นตรงตามที่ read_doc แสดงทุกประการ, replace = 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน (v${analyse.version}): ' + ${analyse.changes} และไม่มีข้อความอื่นใด หากย่อหน้าแรกไม่ได้ขึ้นต้นในลักษณะดังกล่าว ให้ข้ามการเรียกใช้นี้ ส่วนที่ 4.2 มีรูปภาพแผนภูมิของเวอร์ชันก่อนหน้า และจะมีการแทรกแผนภูมิใหม่หลังจากขั้นตอนนี้: ให้แทนที่ส่วนที่ 4.2 เสมอ (เนื้อหาข้อความ ตัวเลขที่ปรับปรุงให้เป็นปัจจุบันหากมีการเปลี่ยนแปลง โดยไม่มีรูปภาพ) เพื่อลบแผนภูมิเดิมออก (แผนภูมิที่ทำสำเนามาจะซ้อนทับกัน: v6 มี 3 รูป, #259) ส่วนอื่นที่ไม่มีการเปลี่ยนแปลงให้คงไว้ตามเดิม sections = หัวข้อที่ได้ทำการแทนที่; updated = true เฉพาะเมื่อการแทนที่ทั้งหมดได้รับการยืนยันแล้วเท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Docs MCP: read_doc, replace_text, replace_section\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sections": {
+        "description": "หัวข้อที่ถูกแทนที่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "updated": {
+        "description": "true เฉพาะเมื่อได้รับการยืนยันทั้งหมดแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "sections",
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "chapter_ref",
+     "displayName": "บทที่สร้างขึ้นคือบทใด",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "ส่งคืนเฉพาะข้อมูล: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามสอบถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการเสร็จสิ้นด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือ ผลลัพธ์เวอร์ชันแรก: doc ${write_chapter.doc_id}, created ${write_chapter.created}, problems ${write_chapter.problems} ผลลัพธ์การทำสำเนา: doc ${copy_chapter.doc_id}, created ${copy_chapter.created}; sections updated ${update_chapter.sections}, updated ${update_chapter.updated}, problems ${update_chapter.problems} มีเพียงเส้นทางใดเส้นทางหนึ่งจากสองเส้นทางนี้เท่านั้นที่ทำงาน: ค่าของอีกเส้นทางหนึ่งจะระบุว่า 'no value provided' doc_id = Doc ID จริงของเส้นทางที่ทำงาน; created = true เฉพาะเมื่อเส้นทางนั้นสร้าง Doc สำเร็จ (สำหรับเส้นทางการทำสำเนา: ทำสำเนาแล้ว แม้ว่าการปรับปรุงส่วนย่อยจะไม่สำเร็จก็ตาม); problems = ปัญหาของเส้นทางดังกล่าว (เว้นว่างหากไม่มีปัญหา)\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Doc ID ของบท",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true หากมี Doc ของบทอยู่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "chapter_made",
+     "displayName": "บันทึกบทแล้วหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Saved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "chapter_ref.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not saved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "chapter_ref.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_chapter_failed",
+     "displayName": "แจ้งว่าไม่สามารถบันทึกบทได้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือ นี่เป็นข้อความสุดท้ายของการทำงานนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nไม่สามารถบันทึกบทดังกล่าวได้ รายละเอียด: ${chapter_ref.problems}\nผลลัพธ์: ${analyse.results}\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "chart_sheet",
+     "displayName": "บันทึกข้อมูลแผนภูมิ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สร้าง Google Sheet หนึ่งไฟล์ด้วย Drive create_file: ชื่อเรื่อง 'ข้อมูลกราฟ – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = ${analyse.chart_csv} ทุกประการ sheet_id = ID ที่ส่งคืน\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sheet_id": {
+        "description": "Sheet ID ของข้อมูลแผนภูมิ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sheet_id"
+      ]
+     }
+    },
+    {
+     "id": "chart",
+     "displayName": "สร้างแผนภูมิ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เรียกใช้ Sheets create_chart หนึ่งครั้ง บนสเปรดชีต ${chart_sheet.sheet_id} (แผ่นงานแรก, ข้อมูลทั้งหมด): แผนภูมิ COLUMN ชื่อเรื่อง '${analyse.chart_title}' chart_id = chart ID ที่ส่งคืน; made = true เฉพาะเมื่อได้รับค่ากลับมาเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: create_chart\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "chart_id": {
+        "description": "Chart ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "made": {
+        "description": "true เฉพาะเมื่อสร้างแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "chart_id",
+       "made"
+      ]
+     }
+    },
+    {
+     "id": "insert_chart",
+     "displayName": "ใส่แผนภูมิลงในบท",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "หาก ${chart.made} เป็น false ห้ามเรียกใช้เครื่องมือและกำหนด inserted = false มิฉะนั้นให้เรียกใช้ Docs insert_sheets_chart หนึ่งครั้ง: เอกสาร ${chapter_ref.doc_id}, สเปรดชีต ${chart_sheet.sheet_id}, แผนภูมิ ${chart.chart_id}, ที่ส่วนท้ายของส่วนที่ 4.2 inserted = true เฉพาะเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Docs MCP: insert_sheets_chart\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "inserted": {
+        "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "inserted",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "make_slides",
+     "displayName": "ปรับปรุงสไลด์ (เวอร์ชันใหม่)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สร้างชุดสไลด์ใหม่หนึ่งชุดด้วย Slides create_presentation_from_outline: ชื่อเรื่อง 'สไลด์ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, สไลด์ภาษาไทย 6-8 หน้าสำหรับการประชุมทางวิชาการ: สิ่งที่เปลี่ยนแปลงไปจากเวอร์ชันก่อนหน้า (${analyse.changes}), กลุ่มตัวอย่างและการทำความสะอาดข้อมูล, ข้อมูลเชิงพรรณนาที่สำคัญ, ผลลัพธ์ของแต่ละสมมติฐาน, การเปรียบเทียบกลุ่มหลัก, สรุปผล ใช้เฉพาะ numbers เหล่านี้เท่านั้น: ${analyse.results} ห้ามแก้ไขชุดสไลด์ก่อนหน้าโดยเด็ดขาด deck_id = ID ที่ส่งคืน; created = true เฉพาะเมื่อได้รับค่ากลับมาเท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Slides MCP: create_presentation_from_outline\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "deck_id": {
+        "description": "Deck ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "เป็น true เฉพาะกรณีที่สร้างสำเร็จเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "deck_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "log_version",
+     "displayName": "บันทึกประวัติเวอร์ชันนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เพิ่ม 1 แถวลงในบันทึก ${ensure_log.log_id} ด้วย Sheets append_rows, range = ชื่อแท็บ ${ensure_log.log_tab} ในเครื่องหมาย quotes เดี่ยว: ${find_setup.today}, ${analyse.version}, ${find_setup.newest_name}, ${find_setup.newest_id}, ${find_setup.newest_modified}, ${find_setup.plan_modified}, ${analyse.rules_applied}, https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, ${analyse.changes} กำหนด appended = true เฉพาะเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในตัวเครื่องมือเอง): Sheets MCP: append_rows\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภท Write tools จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันในรูปแบบข้อความอีก หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนเขตข้อมูลผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "email_note",
+     "displayName": "ส่งอีเมลบันทึกการเปลี่ยนแปลง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งอีเมลจำนวน 1 ฉบับถ้วนด้วย send_email ไปยัง ${find_setup.owner_email} (หากว่าง ให้ to = สตริงว่างเพื่อให้ผู้ใช้พิมพ์) หัวข้อ: ผลวิเคราะห์ข้อมูลแบบสอบถาม v${analyse.version} (survey analysis v${analyse.version}) เนื้อหาเป็นภาษาไทยแบบกระชับ: สิ่งที่เปลี่ยนแปลงในข้อมูล (${find_setup.reason}: ${find_setup.newest_name}, ${check_data.n_rows} แถว; rules: ${analyse.rules_applied}), สิ่งที่เปลี่ยนแปลงในผลลัพธ์ (${analyse.changes}), และไฟล์ใหม่: บทที่ https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, สไลด์ https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, บันทึก https://docs.google.com/spreadsheets/d/${ensure_log.log_id}/edit. ทั้งนี้ยังคงเก็บเวอร์ชันก่อนหน้าไว้ กำหนด sent = true เฉพาะเมื่อเครื่องมือส่งคืน message ID แล้วเท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าในแหล่งข้อมูลต้นทางจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในตัวเครื่องมือเอง): Gmail MCP: send_email\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภท Write tools จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันในรูปแบบข้อความอีก หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนเขตข้อมูลผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true เฉพาะเมื่อส่งเรียบร้อยแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "แจ้งว่าดำเนินการเสร็จสิ้น",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ ที่เรียบง่ายถึงผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nเวอร์ชัน ${analyse.version} บท: https://docs.google.com/document/d/${chapter_ref.doc_id}/edit สไลด์: https://docs.google.com/presentation/d/${make_slides.deck_id}/edit แผนภูมิใน chapter: ${insert_chart.inserted} อีเมล sent: ${email_note.sent} การเปลี่ยนแปลง: ${analyse.changes}\nระบุรายการลิงก์และสิ่งที่เปลี่ยนแปลง\nเขียนเฉพาะข้อมูลตามที่ระบุไว้ข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_setup"
+    },
+    {
+     "sourceNodeId": "find_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "report_setup",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "has_new_work",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "has_new_work",
+     "targetNodeId": "tell_nothing_new",
+     "routeString": "Nothing new"
+    },
+    {
+     "sourceNodeId": "has_new_work",
+     "targetNodeId": "ensure_log",
+     "routeString": "New"
+    },
+    {
+     "sourceNodeId": "ensure_log",
+     "targetNodeId": "check_data"
+    },
+    {
+     "sourceNodeId": "check_data",
+     "targetNodeId": "issues_found"
+    },
+    {
+     "sourceNodeId": "issues_found",
+     "targetNodeId": "handling_rules",
+     "routeString": "Issues"
+    },
+    {
+     "sourceNodeId": "issues_found",
+     "targetNodeId": "analyse",
+     "routeString": "No issues"
+    },
+    {
+     "sourceNodeId": "handling_rules",
+     "targetNodeId": "tell_stopped",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "handling_rules",
+     "targetNodeId": "analyse",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "analyse",
+     "targetNodeId": "analysis_ok"
+    },
+    {
+     "sourceNodeId": "analysis_ok",
+     "targetNodeId": "tell_analysis_failed",
+     "routeString": "Failed"
+    },
+    {
+     "sourceNodeId": "analysis_ok",
+     "targetNodeId": "base_found",
+     "routeString": "Done"
+    },
+    {
+     "sourceNodeId": "base_found",
+     "targetNodeId": "copy_chapter",
+     "routeString": "Yes"
+    },
+    {
+     "sourceNodeId": "base_found",
+     "targetNodeId": "write_chapter",
+     "routeString": "No"
+    },
+    {
+     "sourceNodeId": "copy_chapter",
+     "targetNodeId": "update_chapter"
+    },
+    {
+     "sourceNodeId": "update_chapter",
+     "targetNodeId": "chapter_ref"
+    },
+    {
+     "sourceNodeId": "write_chapter",
+     "targetNodeId": "chapter_ref"
+    },
+    {
+     "sourceNodeId": "chapter_ref",
+     "targetNodeId": "chapter_made"
+    },
+    {
+     "sourceNodeId": "chapter_made",
+     "targetNodeId": "tell_chapter_failed",
+     "routeString": "Not saved"
+    },
+    {
+     "sourceNodeId": "chapter_made",
+     "targetNodeId": "chart_sheet",
+     "routeString": "Saved"
+    },
+    {
+     "sourceNodeId": "chart_sheet",
+     "targetNodeId": "chart"
+    },
+    {
+     "sourceNodeId": "chart",
+     "targetNodeId": "insert_chart"
+    },
+    {
+     "sourceNodeId": "insert_chart",
+     "targetNodeId": "make_slides"
+    },
+    {
+     "sourceNodeId": "make_slides",
+     "targetNodeId": "log_version"
+    },
+    {
+     "sourceNodeId": "log_version",
+     "targetNodeId": "email_note"
+    },
+    {
+     "sourceNodeId": "email_note",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

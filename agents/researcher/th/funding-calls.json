@@ -1,0 +1,2334 @@
+{
+ "id": "RES-C",
+ "persona": "researcher",
+ "lang": "th",
+ "display_name": "Funding Calls (TH)",
+ "description": "ติดตามประกาศทุน (Funding calls): ทุกวันจันทร์เวลา 07:00 น. จะค้นหาประกาศทุนใหม่จากรายชื่อแหล่งทุนของคุณและเว็บไซต์ ประเมินความสอดคล้องกับประวัตินักวิจัยของคุณ จัดเตรียมชุดเริ่มต้นและกำหนดส่งในปฏิทินสำหรับประกาศที่มีความเหมาะสมสูง ส่งสรุปประจำสัปดาห์ทางอีเมล และหลังจากที่คุณเลือก go / skip (Inbox) จะจัดตั้งโฟลเดอร์ข้อเสนอโครงการและแจ้งเตือนรายการที่ยังขาดก่อนถึงกำหนดส่ง ทุกเช้าจะนำผลการพิจารณาทุนที่คุณบันทึกไว้ในบันทึกประกาศทุน (ได้รับทุน / ไม่ได้รับทุน ใน สถานะ) เพิ่มลงในประวัตินักวิจัยของคุณ",
+ "_built_from": "tools/translate.py from en/funding-calls.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "ทุกวัน เวลา 07:00 น. (Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 7 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_setup",
+     "displayName": "ค้นหาประวัตินักวิจัย รายชื่อแหล่งทุน และบันทึกประกาศทุน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ค้นหาสิ่งที่จำเป็นสำหรับการตรวจสอบประจำสัปดาห์นี้ใน Google Drive ของผู้ใช้ที่เข้าสู่ระบบ ส่งคืนข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ คุณมีหน้าที่อ่านเท่านั้นและต้องไม่เปลี่ยนแปลงสิ่งใด\nการจับคู่ชื่อจะพิจารณาจากจุดเริ่มต้นของชื่อ (START) (HOW-WE-BUILD rule 6) เฉพาะไฟล์เท่านั้น (ไม่รวมโฟลเดอร์) และสิ่งใดก็ตามที่อยู่ภายในโฟลเดอร์ซึ่งมีชื่อขึ้นต้นด้วย ข้อเสนอโครงการ – (โฟลเดอร์ข้อเสนอโครงการของตัวเอเจนต์เอง) หรือที่ขึ้นต้นด้วย 'Copy of' / สำเนา จะไม่ถูกนำมาใช้โดยเด็ดขาด\n1. ประวัตินักวิจัย: ไฟล์ที่ชื่อขึ้นต้นด้วย ประวัตินักวิจัย (ให้อ่านไฟล์นี้): profile = หัวข้อ, คำสำคัญ, สรุปประวัติย่อ (CV), ผลงานตีพิมพ์ และเกณฑ์ภายในของมหาวิทยาลัย (จำนวนวันก่อนกำหนดส่งของแหล่งทุนที่สำนักวิจัยต้องได้รับข้อเสนอโครงการ; internal_days โดยมีค่าเริ่มต้นเป็น 7 เฉพาะในกรณีที่ประวัตินักวิจัยไม่ได้ระบุไว้)\n2. รายชื่อแหล่งทุน: ไฟล์ที่ชื่อขึ้นต้นด้วย รายชื่อแหล่งทุน (ให้อ่านไฟล์นี้): funders = แหล่งทุนแต่ละแห่งพร้อมเว็บไซต์\n3. ข้อเสนอโครงการเดิม: ไฟล์ที่ชื่อขึ้นต้นด้วย ข้อเสนอโครงการเดิม: past = name | ID | ได้รับทุนหรือไม่ | ความเห็นหลักของผู้ทรงคุณวุฒิ (ให้อ่านทีละไฟล์)\n4. บันทึกประกาศทุน: Google Sheet ที่มีชื่อว่า 'บันทึกประกาศทุน' ในโฟลเดอร์ของประวัตินักวิจัย; ค่า ID ของไฟล์หรือค่าว่าง; หากพบ, log_rows = ทุกแถวในรูปแบบข้อความพร้อมหมายเลขแถว; last_check = วันที่ล่าสุดที่อยู่ในนั้น (หากไม่มี ให้ใช้ 7 วันก่อนวันนี้)\n5. output_folder_id = โฟลเดอร์หลักของประวัตินักวิจัย; owner_email = อีเมลของเจ้าของประวัตินักวิจัย; today = วันนี้ในเขตเวลา Asia/Bangkok; weekday = ชื่อวันในสัปดาห์ภาษาอังกฤษ search_day = true ก็ต่อเมื่อวันนี้เป็นวันจันทร์เท่านั้น\n5b. ผลการพิจารณาที่ต้องบันทึก (client doc step 12) รอบเวลาของการทำงานนี้ (Asia/Bangkok): slot_end = วันนี้ 07:00 น.; slot_start = เมื่อวานนี้ 07:00 น. (การทำงานอาจเริ่มช้าได้ไม่เกิน 5 นาที แต่จะไม่เริ่มก่อนเวลา) log_changed = true ก็ต่อเมื่อเวลาแก้ไขของบันทึกประกาศทุน (get_file_metadata) อยู่ในหรือหลัง slot_start และก่อน slot_end profile_is_doc = true ก็ต่อเมื่อประวัตินักวิจัยเป็น Google Doc หาก log_changed: results = ทุกแถวในบันทึกที่ สถานะ (status) เป็น ได้รับทุน (funded) หรือ ไม่ได้รับทุน (not funded) (ยอมรับ funded / not funded ด้วยเช่นกัน) และชื่อประกาศทุนยังไม่ได้ปรากฏอยู่ในประวัตินักวิจัยภายใต้หัวข้อที่ขึ้นต้นด้วย 'ผลการพิจารณาทุน'; แต่ละรายการ = ชื่อประกาศทุน | ผลการพิจารณา | ความเห็นของผู้ทรงคุณวุฒิจากคอลัมน์ ความเห็นผู้ทรงคุณวุฒิ (หรือคอลัมน์ใดก็ตามที่ส่วนหัวมีคำว่า ความเห็น; หากไม่มีให้เว้นว่าง) has_results = true ก็ต่อเมื่อ log_changed และ results ไม่ว่างเปล่า (การเปรียบเทียบกับประวัตินักวิจัย ไม่เพียงแค่วันที่ ทำให้ผลการพิจารณาที่การ์ดยังคงรอดำเนินการอยู่ไม่ถูกเพิ่มซ้ำ เนื่องจากบันทึกไม่ได้ถูกแก้ไขใหม่อีก)\n6. ready = พบประวัตินักวิจัยและรายชื่อแหล่งทุนอย่างละ 1 รายการพอดี stop_items = สิ่งที่ขาดหายไป (ว่างหาก ready)\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nการค้นหาไฟล์ด้วยชื่อ (HOW-WE-BUILD rule 6, #251): การค้นหาใน Drive จะค้นหาเฉพาะชื่อที่มีข้อความนั้นอยู่ (CONTAIN) เท่านั้น ดังนั้นโปรดตรวจสอบผลลัพธ์แต่ละรายการด้วยตนเอง 'ขึ้นต้นด้วย X' หมายความว่าอักขระตัวแรกสุดของชื่อต้องเป็น X ทุกประการ ชื่อที่มีสิ่งใดก็ตามอยู่ก่อนหน้า X เช่น 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', ตัวเลข, วงเล็บ หรือการเว้นวรรค จะถือว่าไม่ตรงกัน แม้ว่าข้อความส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อใดผ่านการตรวจสอบนี้ ให้ถือว่าไฟล์ missing (ให้ระบุตามนี้) และห้ามยอมรับชื่อที่มีเพียงแค่คำว่า X ปรากฏอยู่โดยเด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "profile_id": {
+        "description": "ID ของประวัตินักวิจัย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "profile": {
+        "description": "หัวข้อ, คำสำคัญ, ประวัติย่อ (CV), ผลงานตีพิมพ์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "internal_days": {
+        "description": "จำนวนวันก่อนกำหนดส่งของแหล่งทุน",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "funders": {
+        "description": "แหล่งทุนและเว็บไซต์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "past": {
+        "description": "ข้อเสนอโครงการในอดีตพร้อมผลการพิจารณาและความเห็นของผู้ทรงคุณวุฒิ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "log_id": {
+        "description": "ID ของบันทึกประกาศทุน หรือ ค่าว่าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "log_rows": {
+        "description": "แถวในบันทึกประกาศทุน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "last_check": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "output_folder_id": {
+        "description": "โฟลเดอร์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "owner_email": {
+        "description": "อีเมลของนักวิจัย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "weekday": {
+        "description": "Monday ... Sunday",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "search_day": {
+        "description": "true หากการค้นหาประจำสัปดาห์ดำเนินการในวันนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "log_changed": {
+        "description": "true หากบันทึกประกาศทุนมีการเปลี่ยนแปลงตั้งแต่การทำงานรอบก่อน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "profile_is_doc": {
+        "description": "true หากประวัตินักวิจัยเป็น Google Doc",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "results": {
+        "description": "ผลการพิจารณาที่จะเพิ่มลงในประวัตินักวิจัย",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 15
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "call": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "outcome": {
+           "description": "ได้รับทุน หรือ ไม่ได้รับทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "comments": {
+           "description": "ความเห็นผู้ทรงคุณวุฒิ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "call",
+          "outcome",
+          "comments"
+         ]
+        }
+       },
+       "has_results": {
+        "description": "true หากต้องเพิ่มผลการพิจารณาในขณะนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "ready": {
+        "description": "true หากพบ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "stop_items": {
+        "description": "สิ่งที่ขาดหายไป",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       }
+      },
+      "required": [
+       "profile_id",
+       "profile",
+       "internal_days",
+       "funders",
+       "past",
+       "log_id",
+       "log_rows",
+       "last_check",
+       "output_folder_id",
+       "owner_email",
+       "today",
+       "weekday",
+       "search_day",
+       "log_changed",
+       "profile_is_doc",
+       "results",
+       "has_results",
+       "ready",
+       "stop_items"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "พบประวัตินักวิจัยและรายชื่อแหล่งทุนหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "report_setup",
+     "displayName": "ส่งอีเมลแจ้งสิ่งที่ขาดหายไป",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "การตรวจสอบประกาศทุนประจำสัปดาห์ไม่สามารถ start: ${find_setup.stop_items} ส่งอีเมลจำนวน 1 ฉบับเท่านั้นด้วย send_email ไปยัง ${find_setup.owner_email} (หากว่าง to = สตริงว่างเพื่อให้ผู้ใช้พิมพ์) หัวเรื่อง: ติดตามประกาศทุน: ยังเริ่มไม่ได้ (funding calls: cannot start) เนื้อหาเป็นภาษาไทยแบบสั้นโดยมีภาษาอังกฤษในวงเล็บ: ระบุรายการเฉพาะในบรรทัดข้างต้นเท่านั้น (ซึ่งเป็นรายการที่ขาดหายไป ห้ามระบุไฟล์ที่พบแล้ว) พร้อมทั้งระบุชื่อที่ต้องตั้งเพื่อให้สามารถค้นพบได้ในครั้งต่อไป: ประวัตินักวิจัย = ไฟล์ที่ชื่อขึ้นต้นด้วย ประวัตินักวิจัย, รายชื่อแหล่งทุน = ไฟล์ที่ชื่อขึ้นต้นด้วย รายชื่อแหล่งทุน sent = true ก็ต่อเมื่อเครื่องมือส่งคืน message ID ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่คุณสร้างหรือส่งอย่างเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือการเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันในรูปแบบข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์ของคุณโดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true ก็ต่อเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "ensure_log",
+     "displayName": "ตรวจสอบให้แน่ใจว่ามีบันทึกประกาศทุนอยู่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ID ของบันทึกประกาศทุน found: \"${find_setup.log_id}\" หากไม่ว่าง: ไม่ต้องเรียกใช้เครื่องมือใด log_id = ID นั้น หากว่าง: ให้สร้างขึ้น 1 ครั้งด้วย Drive create_file: title 'บันทึกประกาศทุน', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = บรรทัดส่วนหัวตามนี้ทุกประการ: วันที่พบ,ชื่อประกาศ,แหล่งทุน,ลิงก์,กำหนดส่งแหล่งทุน,กำหนดส่งภายใน,ระดับความเหมาะสม,สถานะ,ชุดเริ่มต้น,โฟลเดอร์ข้อเสนอ,ความเห็นผู้ทรงคุณวุฒิ ; log_id = ID ที่ได้รับคืน จากนั้นอ่านบันทึกด้วย Sheets get_spreadsheet: log_tab = ชื่อที่แน่นอนของแท็บแรก (FIRST tab) (ตามที่เครื่องมือส่งคืนมา ห้ามคาดเดาหรือแปลความหมาย)\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: create_file | Sheets MCP: get_spreadsheet\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือการเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันในรูปแบบข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์ของคุณโดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems\nการค้นหาไฟล์ด้วยชื่อ (HOW-WE-BUILD rule 6, #251): การค้นหาใน Drive จะค้นหาเฉพาะชื่อที่มีข้อความนั้นอยู่ (CONTAIN) เท่านั้น ดังนั้นโปรดตรวจสอบผลลัพธ์แต่ละรายการด้วยตนเอง 'ขึ้นต้นด้วย X' หมายความว่าอักขระตัวแรกสุดของชื่อต้องเป็น X ทุกประการ ชื่อที่มีสิ่งใดก็ตามอยู่ก่อนหน้า X เช่น 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', ตัวเลข, วงเล็บ หรือการเว้นวรรค จะถือว่าไม่ตรงกัน แม้ว่าข้อความส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อใดผ่านการตรวจสอบนี้ ให้ถือว่าไฟล์ missing (ให้ระบุตามนี้) และห้ามยอมรับชื่อที่มีเพียงแค่คำว่า X ปรากฏอยู่โดยเด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "log_id": {
+        "description": "ID ของบันทึกประกาศทุน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "log_tab": {
+        "description": "ชื่อที่แน่นอนของแท็บแรกในบันทึก",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "log_id",
+       "log_tab"
+      ]
+     }
+    },
+    {
+     "id": "results_found",
+     "displayName": "มีผลการพิจารณาทุนที่ต้องบันทึกหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Record",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_results"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No results",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_results"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "record_results",
+     "displayName": "เพิ่มผลการพิจารณาลงในประวัตินักวิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เพิ่มผลการพิจารณาทุนเหล่านี้ลงในประวัตินักวิจัย ${find_setup.profile_id}: ${find_setup.results}\nหาก ${find_setup.profile_is_doc} เป็น true: ให้เรียกใช้ Docs append_to_doc จำนวน 1 ครั้งด้วย markdown แบบสั้น: '### ผลการพิจารณาทุน ${find_setup.today}' จากนั้นให้ขึ้นบรรทัดใหม่ตามผลแต่ละรายการ: ประกาศ (call): <call>; ผล (outcome): <outcome>; ความเห็นผู้ทรงคุณวุฒิ (reviewer comments): <comments> ให้คงบรรทัดก่อนหน้าไว้ทั้งหมดและห้ามแก้ไขสิ่งอื่นใด หากไม่ใช่ Google Doc: ไม่ต้องเรียกใช้เครื่องมือใด, added = false, problems = 'the profile is not a Google Doc; convert it to a Google Doc so results can be added' และ added = true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่คุณสร้างหรือส่งอย่างเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Docs MCP: append_to_doc\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือการเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันในรูปแบบข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์ของคุณโดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "added": {
+        "description": "true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "added",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "is_search_day",
+     "displayName": "ดำเนินการค้นหาประจำสัปดาห์ในวันนี้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Search",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.search_day"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not today",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.search_day"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_day",
+     "displayName": "สรุปการดำเนินงานวันนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและเข้าใจง่ายแจ้งผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nวันนี้ ${find_setup.today} (${find_setup.weekday}): ไม่มีการค้นหาประจำสัปดาห์ (ระบบทำงานทุกวันจันทร์) ผลลัพธ์ที่บันทึกเพิ่มลงใน profile: ${record_results.added} (${find_setup.results}; ${record_results.problems}) ค่าที่แสดงข้อความลักษณะ <no value provided ...> หมายความว่าไม่มีการบันทึกผลลัพธ์ในวันนี้\nระบุสิ่งที่การทำงานรอบนี้ได้ดำเนินการใน 1 หรือ 2 บรรทัด ระบุวิธีบันทึกผลลัพธ์: ในบันทึกประกาศทุน ให้ระบุ ได้รับทุน (funded) หรือ ไม่ได้รับทุน (not funded) ในคอลัมน์ สถานะ (status) ของประกาศทุนนั้น และระบุความเห็นของผู้ประเมินใน ความเห็นผู้ทรงคุณวุฒิ การทำงานในเช้าวันถัดไปจะนำข้อมูลดังกล่าวไปเพิ่มในโปรไฟล์\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "search_calls",
+     "displayName": "ค้นหาประกาศทุนใหม่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "1. เรียกใช้ deep_research_plan หนึ่งครั้ง โดยระบุ sources = web และ question: 'Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.'\n2. เรียกใช้ deep_research_run หนึ่งครั้ง ด้วย session_id, folder_id ${find_setup.output_folder_id} ดังกล่าว และ title 'ประกาศทุนใหม่ – ${find_setup.today}' ห้ามเรียกใช้ deep_research_check (ขั้นตอนหลังจากนี้จะรอการทำงานดังกล่าว)\njob_id = jobId ที่ได้รับกลับมา; started = true ก็ต่อเมื่อได้รับ jobId กลับมา ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_plan, deep_research_run\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "job_id": {
+        "description": "Job ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "started": {
+        "description": "true ก็ต่อเมื่อ started เท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "job_id",
+       "started",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "search_started",
+     "displayName": "เริ่มการค้นหาแล้วหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "search_calls.started"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "search_calls.started"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_started",
+     "displayName": "แจ้งว่าการค้นหาไม่ได้เริ่มต้น",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและเข้าใจง่ายแจ้งผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nไม่สามารถเริ่มการค้นหาประจำสัปดาห์ได้ รายละเอียด: ${search_calls.problems}\nระบุว่าไม่มีการตรวจสอบประกาศทุนในสัปดาห์นี้\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "wait_research",
+     "displayName": "รอผลการสืบค้นข้อมูล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check โดยกำหนด jobId = ${search_calls.job_id} และ waitSeconds = 240 ในระหว่างที่ status เป็น running ให้เรียกใช้อีกครั้งเสมอ: ห้ามหยุดในขณะที่สถานะเป็น running หากการเรียกใช้ส่งกลับ error ให้เรียกใช้อีกครั้ง และหยุดหลังจากเกิด error ติดต่อกัน 3 ครั้งเท่านั้น เรียกใช้ได้ไม่เกิน 15 ครั้ง ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ status = status ล่าสุดที่ได้รับกลับมา; calls = จำนวนครั้งที่เรียกใช้เพื่อตรวจสอบ\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "status ล่าสุดที่ได้รับกลับมา",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "calls": {
+        "description": "จำนวนครั้งที่เรียกใช้เพื่อตรวจสอบ",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "status",
+       "calls"
+      ]
+     }
+    },
+    {
+     "id": "research_result",
+     "displayName": "อ่านผลการสืบค้นข้อมูล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check เพียงหนึ่งครั้ง โดยกำหนด jobId = ${search_calls.job_id} และ waitSeconds = 0 ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ ส่งกลับข้อมูลตามที่ได้รับกลับมาทุกประการ: status, doc_id, link (คือ docUrl), references (จำนวนนับ); research_ok = true ก็ต่อเมื่อ status เป็น done และ doc_id ไม่ว่างเปล่า; problems = error ดังกล่าว หรือ 'still running after the wait' หาก status เป็น running\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "done / running / failed / not_found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "doc_id": {
+        "description": "Doc ID ของรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "ลิงก์รายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "references": {
+        "description": "แหล่งอ้างอิง",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "research_ok": {
+        "description": "true ก็ต่อเมื่อ done พร้อมรายงานเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       }
+      },
+      "required": [
+       "status",
+       "doc_id",
+       "link",
+       "references",
+       "research_ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "search_done",
+     "displayName": "การค้นหาเสร็จสิ้นแล้วหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Finished",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Failed",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_search_failed",
+     "displayName": "แจ้งว่าการค้นหาล้มเหลว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและเข้าใจง่ายแจ้งผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nการค้นหาประจำสัปดาห์ไม่เสร็จสมบูรณ์ รายละเอียด: ${research_result.problems}\nระบุว่าไม่มีการตรวจสอบประกาศทุนในสัปดาห์นี้\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "rate_calls",
+     "displayName": "อ่านและประเมินประกาศทุนแต่ละรายการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ประเมินประกาศทุนประจำสัปดาห์นี้เทียบกับโปรไฟล์ของนักวิจัย ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ \nอ่านรายงาน (Doc ID ${research_result.doc_id}) ด้วย read_file_content; อ่านหน้าประกาศทุนผ่านข้อความในรายงานเท่านั้น โปรไฟล์: ${find_setup.profile} ประกาศทุนที่เคยตรวจสอบแล้ว (ให้ข้าม): ${find_setup.log_rows} วันนี้ ${find_setup.today}; rule ภายใน: ${find_setup.internal_days} วันก่อนวันปิดรับของแหล่งทุน\nการตรวจสอบสถานะการเปิดรับ (ดำเนินการด้วยตนเอง ห้ามเชื่อป้ายกำกับของรายงาน เช่น 'still open' / ยังเปิดรับ เนื่องจากรายงานอาจระบุวันที่ปัจจุบันไม่ถูกต้อง): แปลงปี พ.ศ. เป็น ค.ศ. (2569 = 2026); ประกาศทุนจะเปิดรับก็ต่อเมื่อวันปิดรับของแหล่งทุนอยู่หลังวันนี้ ${find_setup.today} ประกาศทุนที่วันปิดรับอยู่ก่อนวันนี้ถือว่าปิดรับแล้ว: ให้ตัดออกจาก calls ประกาศทุนที่ไม่มีวันปิดรับที่แน่ชัด ให้ประเมินได้สูงสุดเป็น possible เท่านั้น ห้ามประเมินเป็น strong โดยให้ระบุคำเตือน 'ยังไม่ทราบวันปิดรับ (deadline unknown)'\ncalls = ประกาศทุนใหม่แต่ละรายการที่ยังเปิดรับ: title, funder, link (URL ตรงตามที่ปรากฏในรายงานทุกประการ), deadline, internal_deadline = deadline ลบด้วยจำนวนวันภายใน, budget, duration, eligibility, fit, rating (strong = หัวข้อตรงตามเกณฑ์ และมีคุณสมบัติครบถ้วน และมีเวลาเพียงพอก่อนถึงกำหนดส่งภายใน; possible = ตรงบางส่วน; not = ไม่เกี่ยวข้อง), warnings (ตามความเป็นจริง เช่น 'requires private-sector co-funding; no partner on this topic in your profile') has_strong = true หากมี strong ใดๆ strong_list = ประกาศทุนที่เป็น strong ในรูปแบบบรรทัด 'title (deadline)' has_relevant = true หากประกาศทุนใดๆ เป็น strong หรือ possible relevant_list = ประกาศทุนที่เป็น strong และ possible ในรูปแบบบรรทัด 'title (rating, deadline)' โดยเรียงลำดับ strong ก่อน\nreminders = ประกาศทุนในบันทึกที่มี status เป็น go ซึ่งมีกำหนดส่งภายในไม่เกิน 14 วัน: title, deadline, proposal folder link; has_reminders = true หากมีรายการใดๆ ห้ามสร้างประกาศทุน ลิงก์ วันที่ หรือจำนวนเงินขึ้นมาเองโดยเด็ดขาด\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: read_file_content\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "calls": {
+        "description": "ประกาศทุนใหม่ที่ได้รับการประเมิน",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "funder": {
+           "description": "แหล่งทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "link": {
+           "description": "URL ประกาศ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "deadline": {
+           "description": "วันปิดรับของแหล่งทุน YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "internal_deadline": {
+           "description": "วันปิดรับของสำนักวิจัย YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "budget": {
+           "description": "วงเงินงบประมาณสูงสุด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "duration": {
+           "description": "ระยะเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "eligibility": {
+           "description": "คุณสมบัติและเงื่อนไข",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "fit": {
+           "description": "เหตุผลที่สอดคล้องหรือไม่สอดคล้อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "rating": {
+           "description": "strong / possible / not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "warnings": {
+           "description": "คำเตือนตามความเป็นจริง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          }
+         },
+         "required": [
+          "title",
+          "funder",
+          "link",
+          "deadline",
+          "internal_deadline",
+          "budget",
+          "duration",
+          "eligibility",
+          "fit",
+          "rating",
+          "warnings"
+         ]
+        }
+       },
+       "has_strong": {
+        "description": "true หากมีรายการที่ตรงเกณฑ์ระดับ strong",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "strong_list": {
+        "description": "ประกาศทุนระดับ strong บรรทัดละหนึ่งรายการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "has_relevant": {
+        "description": "true หากมีรายการที่เป็น strong หรือ possible",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "relevant_list": {
+        "description": "ประกาศทุนระดับ strong และ possible บรรทัดละหนึ่งรายการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "possible_count": {
+        "description": "รายการที่ตรงเกณฑ์ระดับ possible",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "not_count": {
+        "description": "ไม่เกี่ยวข้อง",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "reminders": {
+        "description": "ประกาศทุนสถานะ go ที่มีกำหนดส่งภายใน 14 วัน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "has_reminders": {
+        "description": "true หากมี",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       }
+      },
+      "required": [
+       "calls",
+       "has_strong",
+       "strong_list",
+       "has_relevant",
+       "relevant_list",
+       "possible_count",
+       "not_count",
+       "reminders",
+       "has_reminders"
+      ]
+     }
+    },
+    {
+     "id": "relevant_found",
+     "displayName": "มีประกาศทุนที่เกี่ยวข้องหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Relevant",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_relevant"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "None relevant",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_relevant"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "starter_packs",
+     "displayName": "Starter pack สำหรับแต่ละรายการที่ตรงเกณฑ์ระดับ strong",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เฉพาะประกาศทุนระดับ strong เท่านั้นที่จะได้รับชุดเริ่มต้น หากไม่มีประกาศทุนใดใน ${rate_calls.calls} ได้รับการประเมินระดับ strong: ไม่ต้องเรียกใช้เครื่องมือใด, packs = empty, created = true หากมี สำหรับแต่ละประกาศทุนระดับ strong (ไม่เกิน 3 รายการ) ให้สร้าง Google Doc จำนวน 1 ไฟล์ด้วย Drive create_file: ชื่อ 'ชุดเริ่มต้น – <call title>', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html' เนื้อหาเป็นภาษาไทย: (1) สรุป 1 หน้า: สิ่งที่ผู้ให้ทุนต้องการ คุณสมบัติผู้สมัคร งบประมาณ ระยะเวลา วันสำคัญ (วันสิ้นสุดรับสมัครของผู้ให้ทุนและวันสิ้นสุดรับสมัครของสำนักงานบริหารการวิจัย) (2) รายการตรวจสอบเอกสารที่ต้องใช้ทั้งหมด (3) โครงร่างข้อเสนอโครงการฉบับแรกที่นำส่วนที่โดดเด่นที่สุดของข้อเสนอโครงการเดิมมาปรับใช้ใหม่ และแก้ไขจุดอ่อนที่ผู้ประเมินระบุไว้ out: ${find_setup.past} (4) ข้อควรระวังตามความเป็นจริง พร้อมแนบลิงก์ประกาศทุน ห้ามสร้างสิ่งอื่นใดเพิ่มเติม packs = title | Doc ID ต่อชุด; created = true เฉพาะเมื่อการสร้างทุกรายการส่งคืน ID ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "packs": {
+        "description": "ชุดเริ่มต้น",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "doc_id": {
+           "description": "Doc ID",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "title",
+          "doc_id"
+         ]
+        }
+       },
+       "created": {
+        "description": "true เฉพาะเมื่อสร้างครบทั้งหมด",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "packs",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "deadlines",
+     "displayName": "เพิ่มกำหนดเวลาลงในปฏิทิน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เฉพาะประกาศทุนระดับ strong เท่านั้นที่จะได้รับการเพิ่มกำหนดเวลาลงในปฏิทิน หากไม่มีประกาศทุนใดใน ${rate_calls.calls} ได้รับการประเมินระดับ strong: ไม่ต้องเรียกใช้เครื่องมือใด, events = empty, created = true หากมี สำหรับแต่ละประกาศทุนระดับ strong ให้สร้างกิจกรรมตลอดวันจำนวน 2 กิจกรรมด้วย Calendar create_event บนปฏิทินหลัก (ไม่มีผู้เข้าร่วมอื่น) ความหมายของตลอดวันคือ startTime = ระบุเฉพาะวันที่ (YYYY-MM-DD ไม่ระบุเวลา ไม่ระบุค่าชดเชยเวลา) และ endTime = ระบุเฉพาะวันที่ของวันถัดไป ห้ามสร้างกิจกรรมในวันที่ผ่านมาแล้วก่อนวันนี้ ${find_setup.today}: 'ส่งสำนักงานบริหารการวิจัย: <title>' สำหรับวันสิ้นสุดการรับสมัครภายใน และ 'ปิดรับข้อเสนอ: <title>' สำหรับวันสิ้นสุดการรับสมัครของผู้ให้ทุน แต่ละกิจกรรมให้ระบุลิงก์ประกาศทุนไว้ในคำอธิบายและตั้งการแจ้งเตือนล่วงหน้า 14 วัน (override reminders: popup และ email) events = ลิงก์ของกิจกรรม; created = true เฉพาะเมื่อได้รับ ID ของทุกกิจกรรมส่งคืนกลับมา\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Calendar MCP: create_event\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "events": {
+        "description": "ลิงก์กิจกรรม",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true เฉพาะเมื่อสร้างครบทั้งหมด",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "events",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "digest",
+     "displayName": "ส่งอีเมลสรุปประจำสัปดาห์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งอีเมลจำนวน 1 ฉบับเท่านั้นด้วย send_email ถึง ${find_setup.owner_email} (หากว่าง ให้ to = ข้อความว่างเพื่อให้ผู้ใช้พิมพ์) หัวข้อ: ประกาศทุนประจำสัปดาห์ ${find_setup.today} (weekly funding digest) เนื้อหาภาษาไทยแบบกระชับ: รายการที่ตรงระดับ strong ก่อน (ชื่อประกาศ ผู้ให้ทุน กำหนดเวลา งบประมาณ เหตุผลที่เหมาะสม ข้อควรระวัง ลิงก์ชุดเริ่มต้นจาก ${starter_packs.packs}) ตามด้วยรายการที่ตรงระดับ possible (ชื่อประกาศ ผู้ให้ทุน กำหนดเวลา เหตุผลที่จัดเป็นระดับ possible ลิงก์ประกาศทุน) จากนั้นตามด้วย 'not relevant: N' ประกาศทุน: ${rate_calls.calls} บรรทัดสุดท้าย: ตัดสินใจ go / skip ในกล่อง Inbox ของ Gemini Enterprise (decide go / skip in your Inbox) sent = true เฉพาะเมื่อเครื่องมือส่งคืน message ID ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true ก็ต่อเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "log_calls",
+     "displayName": "บันทึกประกาศทุน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เพิ่มแถวจำนวน 1 แถวต่อประกาศทุนใน ${rate_calls.calls} ลงในบันทึกประกาศทุน ${ensure_log.log_id} ด้วย Sheets append_rows ใน 1 การเรียกใช้, range = ชื่อแท็บ ${ensure_log.log_tab} ในเครื่องหมาย quotes เดี่ยว: ${find_setup.today}, title, funder, link, deadline, internal deadline, rating, status (strong หรือ possible: รอตัดสินใจ (waiting for decision); not: บันทึกไว้ (noted)), starter pack link = สำหรับประกาศทุนที่มีชุดเริ่มต้นใน ${starter_packs.packs} (จับคู่ตามชื่อเรื่อง) https://docs.google.com/document/d/<its doc_id>/edit หากไม่มีให้ใส่ - จากนั้น - appended = true เฉพาะเมื่อได้รับการยืนยัน\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Sheets MCP: append_rows\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "go_skip",
+     "displayName": "go หรือ skip?",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ประกาศทุนที่เกี่ยวข้อง (Relevant calls, strong first):\n${rate_calls.relevant_list}\nชุดเริ่มต้น (starter packs, strong only): ${starter_packs.packs}\n\nพิมพ์ในช่องความคิดเห็น 'go: <ชื่อประกาศ>' หรือ 'skip: <ชื่อประกาศ>' ทีละบรรทัด และถ้าต้องการเชิญผู้ร่วมวิจัย 'invite: <ชื่อ> <อีเมล> <ชื่อประกาศ>' แล้วกด Approve (Type go / skip per call, and optional invite lines, then Approve). Reject = skip ทั้งหมด (skip all).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "read_go",
+     "displayName": "อ่านผลการตัดสินใจ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "comment: \"${go_skip.approval_feedback}\" ประกาศทุน (ตัดสินใจเฉพาะระดับ strong และ possible เท่านั้น): ${rate_calls.calls} ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการให้เสร็จสิ้นโดยส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือใดๆ\ngo = ประกาศทุนระดับ strong หรือ possible ที่ระบุว่า go (จับคู่ชื่อเรื่องอย่างยืดหยุ่น); skip = ประกาศทุนระดับ strong หรือ possible ที่ระบุว่า skip หรือไม่ได้ระบุถึง (ห้ามรวมประกาศทุนระดับ not: รายการเหล่านั้นให้คงสถานะ บันทึกไว้ (noted)) has_go = true หากมีรายการใดเป็น go, invites = รายการเชิญแต่ละบรรทัด: name, email, call title; has_invites = true หากมี ห้ามเพิ่มการตัดสินใจที่ไม่ได้ระบุไว้โดยเด็ดขาด\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "go": {
+        "description": "ประกาศทุนที่จะดำเนินการต่อ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "funder": {
+           "description": "แหล่งทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "link": {
+           "description": "URL ประกาศ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "deadline": {
+           "description": "วันปิดรับของแหล่งทุน YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "internal_deadline": {
+           "description": "วันปิดรับของสำนักวิจัย YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "budget": {
+           "description": "วงเงินงบประมาณสูงสุด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "duration": {
+           "description": "ระยะเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "eligibility": {
+           "description": "คุณสมบัติและเงื่อนไข",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "fit": {
+           "description": "เหตุผลที่สอดคล้องหรือไม่สอดคล้อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "rating": {
+           "description": "strong / possible / not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "warnings": {
+           "description": "คำเตือนตามความเป็นจริง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          }
+         },
+         "required": [
+          "title",
+          "funder",
+          "link",
+          "deadline",
+          "internal_deadline",
+          "budget",
+          "duration",
+          "eligibility",
+          "fit",
+          "rating",
+          "warnings"
+         ]
+        }
+       },
+       "skip_titles": {
+        "description": "ประกาศทุนที่ข้าม",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "has_go": {
+        "description": "true หากมีรายการใดเป็น go",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "invites": {
+        "description": "คำเชิญ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 3
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "name": {
+           "description": "ชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "อีเมล",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "call": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "name",
+          "email",
+          "call"
+         ]
+        }
+       },
+       "has_invites": {
+        "description": "true หากมี",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "go",
+       "skip_titles",
+       "has_go",
+       "invites",
+       "has_invites"
+      ]
+     }
+    },
+    {
+     "id": "go_found",
+     "displayName": "มีรายการใดเป็น go หรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Go",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_go"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No go",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_go"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "proposal_folders",
+     "displayName": "จัดตั้งโฟลเดอร์ข้อเสนอโครงการแต่ละรายการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สำหรับแต่ละประกาศทุนใน ${read_go.go}: (1) สร้างโฟลเดอร์ด้วย Drive create_file (โฟลเดอร์ mimeType) 'ข้อเสนอโครงการ – <title>' ใน ${find_setup.output_folder_id} (2) สร้าง Google Doc จำนวน 1 ไฟล์ในโฟลเดอร์ดังกล่าว 'แผนงานและเช็กลิสต์ – <title>' (contentMimeType text/html): นำโครงร่างและรายการตรวจสอบเอกสารจากชุดเริ่มต้น (${starter_packs.packs}) หรือสำหรับประกาศทุนที่ไม่มีชุดเริ่มต้น ให้สร้างจากรายละเอียดของประกาศทุนและข้อเสนอโครงการเดิม (${find_setup.past}) พร้อมจัดทำกรอบเวลาการทำงานแบบย้อนกลับจากวันสิ้นสุดการรับสมัครภายใน (เช่น สัปดาห์ที่ 1: ยืนยันผู้ร่วมโครงการ; สัปดาห์ที่ 2: วัตถุประสงค์และระเบียบวิธีวิจัย; สัปดาห์ที่ 3: งบประมาณ; สัปดาห์ที่ 4: การตรวจทานภายใน) โดยระบุวันที่จริง (3) คัดลอกประวัติ ${find_setup.profile_id} ไปไว้ในโฟลเดอร์ด้วย copy_file ตั้งชื่อว่า 'สำเนาประวัติ – <title>' (ห้ามใช้ชื่อเริ่มต้นว่า 'Copy of …' โดยเด็ดขาด) ห้ามสร้างสิ่งอื่นใดเพิ่มเติม folders = title | folder link ต่อประกาศทุน; created = true เฉพาะเมื่อทุกประกาศทุนส่งคืน ID ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: create_file, copy_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "folders": {
+        "description": "โฟลเดอร์ข้อเสนอโครงการ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "ชื่อประกาศทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "link": {
+           "description": "ลิงก์โฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "title",
+          "link"
+         ]
+        }
+       },
+       "created": {
+        "description": "true เฉพาะเมื่อสร้างครบทั้งหมด",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "folders",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_go",
+     "displayName": "บันทึก go / skip",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ในบันทึกประกาศทุน ${ensure_log.log_id} (แท็บ ${ensure_log.log_tab}) ให้อัปเดตแถวของแต่ละประกาศทุนที่เป็น go (ค้นหาตามชื่อประกาศด้วย update_rows_by_key ในคอลัมน์ ชื่อประกาศ): สถานะ = go, โฟลเดอร์ข้อเสนอ = ลิงก์โฟลเดอร์จาก ${proposal_folders.folders}; แต่ละประกาศทุนที่ถูกข้าม (${read_go.skip_titles}): สถานะ = skip โดย updated = true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: update_rows_by_key\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "updated"
+      ]
+     }
+    },
+    {
+     "id": "invites_found",
+     "displayName": "เชิญผู้ร่วมวิจัยหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Invite",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_invites"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No invites",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_invites"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "draft_invites",
+     "displayName": "ร่างคำเชิญ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "ร่างคำเชิญภาษาไทยที่สั้นกระชับและสุภาพจำนวน 1 ฉบับต่อบุคคลใน ${read_go.invites}: ประกาศทุน (ชื่อประกาศ, แหล่งทุน, กำหนดส่ง), เหตุผลที่ความเชี่ยวชาญของบุคคลดังกล่าวมีความเหมาะสม, สิ่งที่ต้องการจากบุคคลดังกล่าวและกำหนดเวลาที่ต้องส่ง และแจ้งว่า ดร.ปิยะ จะติดตามผลในภายหลัง ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามสอบถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการเสร็จสิ้นด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือใด ๆ drafts = รายบุคคล: name, email, subject, body\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "drafts": {
+        "description": "ร่างคำเชิญ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "name": {
+           "description": "ชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "อีเมล",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "subject": {
+           "description": "ชื่อเรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "body": {
+           "description": "เนื้อความ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "name",
+          "email",
+          "subject",
+          "body"
+         ]
+        }
+       }
+      },
+      "required": [
+       "drafts"
+      ]
+     }
+    },
+    {
+     "id": "approve_invites",
+     "displayName": "ส่งคำเชิญหรือไม่",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ร่างคำเชิญผู้ร่วมวิจัย (ร่างคำเชิญ): ${draft_invites.drafts}\nApprove = ส่งตามนี้ (ส่งตามที่ร่างไว้). Reject = ไม่ส่ง (ไม่ส่ง).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "send_invites",
+     "displayName": "ส่งคำเชิญที่ได้รับอนุมัติแล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งร่างคำเชิญที่ได้รับอนุมัติแต่ละฉบับใน ${draft_invites.drafts} ด้วย send_email โดยส่ง 1 อีเมลต่อหนึ่งคน ไปยังบุคคลดังกล่าวเท่านั้น (ไม่มี CC/BCC) พร้อมชื่อเรื่องและเนื้อความของอีเมลนั้น ห้ามส่งสิ่งอื่นใด sent = จำนวนฉบับที่ส่ง ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด ไม่ว่าในแหล่งข้อมูลจะมีคำดังกล่าวหรือไม่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "อีเมลที่ส่งแล้ว",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_skip_all",
+     "displayName": "บันทึก: ข้าม",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ในบันทึกประกาศทุน ${ensure_log.log_id} (แท็บ ${ensure_log.log_tab}) ให้กำหนด สถานะ = skip สำหรับทุกประกาศทุนในสัปดาห์นี้ที่มีระดับเป็น strong หรือ possible (${rate_calls.relevant_list}) ด้วย Sheets update_rows_by_key ในคอลัมน์ ชื่อประกาศ โดย updated = true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: update_rows_by_key\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "updated"
+      ]
+     }
+    },
+    {
+     "id": "one_line_note",
+     "displayName": "บันทึกข้อความสั้นหนึ่งบรรทัด (ไม่มีประกาศที่เกี่ยวข้อง)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งอีเมลฉบับสั้นจำนวน 1 ฉบับเท่านั้นด้วย send_email ไปยัง ${find_setup.owner_email} (หากว่าง ให้ to = ข้อความว่างเพื่อให้ผู้ใช้พิมพ์) ชื่อเรื่อง: ประกาศทุนประจำสัปดาห์ ${find_setup.today}: ไม่มีประกาศที่เกี่ยวข้อง (no relevant calls this week) เนื้อความ: 1 บรรทัดเป็นภาษาไทยและมีภาษาอังกฤษในวงเล็บ: มีการตรวจสอบประกาศทุนใหม่จำนวนกี่รายการ (${rate_calls.not_count} ไม่เกี่ยวข้อง) และไม่มีรายการใดตรงกับประวัติของผู้รับ โดย sent = true ก็ต่อเมื่อเครื่องมือส่งคืน message ID เท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด ไม่ว่าในแหล่งข้อมูลจะมีคำดังกล่าวหรือไม่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true ก็ต่อเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "log_quiet",
+     "displayName": "บันทึกประกาศทุน (ไม่มีประกาศที่เกี่ยวข้อง)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "หาก ${rate_calls.calls} ว่าง ไม่ต้องเรียกใช้เครื่องมือใด ๆ และกำหนด appended = true หากไม่ว่าง ให้เพิ่ม 1 แถวต่อหนึ่งประกาศทุนลงในบันทึกประกาศทุน ${ensure_log.log_id} ด้วย Sheets append_rows ในการเรียกครั้งเดียว (ONE call), range = ชื่อแท็บ ${ensure_log.log_tab} ในเครื่องหมาย quotes เดี่ยว: ${find_setup.today}, title, funder, link, deadline, internal deadline, rating, บันทึกไว้ (noted), -, - โดย appended = true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: append_rows\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true ก็ต่อเมื่อได้รับการยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "reminders_due",
+     "displayName": "ถึงกำหนดส่งการแจ้งเตือนกำหนดเวลาหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_reminders"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No reminders",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_reminders"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_reminders",
+     "displayName": "แจ้งเตือนรายการเอกสารที่ยังขาด",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สำหรับประกาศทุนที่ครบกำหนด soon: ${rate_calls.reminders} สำหรับแต่ละประกาศ ให้แสดงรายการไฟล์ในโฟลเดอร์ข้อเสนอโครงการของประกาศนั้น (search_files) และเปรียบเทียบกับเอกสาร Doc รายการตรวจสอบ เพื่อค้นหาว่าเอกสารจำเป็นใดที่ยังขาดอยู่ จากนั้นส่งอีเมลจำนวน 1 ฉบับเท่านั้นด้วย send_email ไปยัง ${find_setup.owner_email} (หากว่าง ให้ to = ข้อความว่าง): ชื่อเรื่อง 'ใกล้กำหนดส่งข้อเสนอโครงการ (proposal deadlines soon)' โดยมี 1 บล็อกต่อหนึ่งประกาศทุน: title, internal deadline, missing items, folder link ทั้งนี้ sent = true ก็ต่อเมื่อเครื่องมือส่งคืน message ID เท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด ไม่ว่าในแหล่งข้อมูลจะมีคำดังกล่าวหรือไม่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: search_files, read_file_content | Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความอีก หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true ก็ต่อเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "สรุปประจำสัปดาห์นี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ เรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใด ๆ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nRelevant (strong first): ${rate_calls.relevant_list}. Possible: ${rate_calls.possible_count}. Not relevant: ${rate_calls.not_count}. Reminders due: ${rate_calls.has_reminders}. ผลการพิจารณาทุนที่เพิ่มลงในประวัติ today: ${record_results.added} (${find_setup.results}) – ค่าที่ระบุว่า <no value provided ...> หมายถึงไม่มี Search report: ${research_result.link}\nระบุในไม่กี่บรรทัดว่าการตรวจสอบประจำสัปดาห์นี้พบสิ่งใดและได้รับการบันทึกไว้ที่ใด (the calls log บันทึกประกาศทุน)\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_setup"
+    },
+    {
+     "sourceNodeId": "find_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "report_setup",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "ensure_log",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "ensure_log",
+     "targetNodeId": "results_found"
+    },
+    {
+     "sourceNodeId": "results_found",
+     "targetNodeId": "record_results",
+     "routeString": "Record"
+    },
+    {
+     "sourceNodeId": "results_found",
+     "targetNodeId": "is_search_day",
+     "routeString": "No results"
+    },
+    {
+     "sourceNodeId": "record_results",
+     "targetNodeId": "is_search_day"
+    },
+    {
+     "sourceNodeId": "is_search_day",
+     "targetNodeId": "search_calls",
+     "routeString": "Search"
+    },
+    {
+     "sourceNodeId": "is_search_day",
+     "targetNodeId": "tell_day",
+     "routeString": "Not today"
+    },
+    {
+     "sourceNodeId": "search_calls",
+     "targetNodeId": "search_started"
+    },
+    {
+     "sourceNodeId": "search_started",
+     "targetNodeId": "wait_research",
+     "routeString": "Started"
+    },
+    {
+     "sourceNodeId": "search_started",
+     "targetNodeId": "tell_not_started",
+     "routeString": "Not started"
+    },
+    {
+     "sourceNodeId": "wait_research",
+     "targetNodeId": "research_result"
+    },
+    {
+     "sourceNodeId": "research_result",
+     "targetNodeId": "search_done"
+    },
+    {
+     "sourceNodeId": "search_done",
+     "targetNodeId": "tell_search_failed",
+     "routeString": "Failed"
+    },
+    {
+     "sourceNodeId": "search_done",
+     "targetNodeId": "rate_calls",
+     "routeString": "Finished"
+    },
+    {
+     "sourceNodeId": "rate_calls",
+     "targetNodeId": "relevant_found"
+    },
+    {
+     "sourceNodeId": "relevant_found",
+     "targetNodeId": "starter_packs",
+     "routeString": "Relevant"
+    },
+    {
+     "sourceNodeId": "relevant_found",
+     "targetNodeId": "one_line_note",
+     "routeString": "None relevant"
+    },
+    {
+     "sourceNodeId": "starter_packs",
+     "targetNodeId": "deadlines"
+    },
+    {
+     "sourceNodeId": "deadlines",
+     "targetNodeId": "digest"
+    },
+    {
+     "sourceNodeId": "digest",
+     "targetNodeId": "log_calls"
+    },
+    {
+     "sourceNodeId": "log_calls",
+     "targetNodeId": "go_skip"
+    },
+    {
+     "sourceNodeId": "go_skip",
+     "targetNodeId": "read_go",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "go_skip",
+     "targetNodeId": "update_skip_all",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "read_go",
+     "targetNodeId": "go_found"
+    },
+    {
+     "sourceNodeId": "go_found",
+     "targetNodeId": "proposal_folders",
+     "routeString": "Go"
+    },
+    {
+     "sourceNodeId": "go_found",
+     "targetNodeId": "update_skip_all",
+     "routeString": "No go"
+    },
+    {
+     "sourceNodeId": "proposal_folders",
+     "targetNodeId": "update_go"
+    },
+    {
+     "sourceNodeId": "update_go",
+     "targetNodeId": "invites_found"
+    },
+    {
+     "sourceNodeId": "invites_found",
+     "targetNodeId": "draft_invites",
+     "routeString": "Invite"
+    },
+    {
+     "sourceNodeId": "invites_found",
+     "targetNodeId": "reminders_due",
+     "routeString": "No invites"
+    },
+    {
+     "sourceNodeId": "draft_invites",
+     "targetNodeId": "approve_invites"
+    },
+    {
+     "sourceNodeId": "approve_invites",
+     "targetNodeId": "send_invites",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "approve_invites",
+     "targetNodeId": "reminders_due",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "send_invites",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "update_skip_all",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "one_line_note",
+     "targetNodeId": "log_quiet"
+    },
+    {
+     "sourceNodeId": "log_quiet",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "reminders_due",
+     "targetNodeId": "send_reminders",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "reminders_due",
+     "targetNodeId": "tell_done",
+     "routeString": "No reminders"
+    },
+    {
+     "sourceNodeId": "send_reminders",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

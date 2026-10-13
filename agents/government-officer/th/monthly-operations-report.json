@@ -1,0 +1,2639 @@
+{
+ "id": "GOV-A",
+ "persona": "government-officer",
+ "lang": "th",
+ "display_name": "Monthly Operations Report (TH)",
+ "description": "รายงานผลการดำเนินงานประจำเดือน (Monthly operations report): ตรวจสอบว่าอำเภอใดส่งไฟล์ของเดือนนี้มายังโฟลเดอร์แล้วบ้าง แจ้งเตือนอำเภอที่ยังไม่ได้ส่ง และจัดเตรียมรายงานประจำเดือนรวมถึงชุดสไลด์สรุปผลการดำเนินงาน (briefing deck) ทำงานอัตโนมัติทุกวัน: กำหนดเวลาการทำงานได้เอง (Actions > Set up triggers) ใช้รายชื่ออำเภอของคุณ (รายชื่ออำเภอ) หากยังไม่มี ระบบจะสร้างขึ้นใหม่เพื่อให้กรอกข้อมูล",
+ "_built_from": "tools/translate.py from en/monthly-operations-report.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/gov/build_monthly_operations_report.py (v5, 12 Oct 2026): schedule; month from today's date; creates a missing district list or month folder; one report per month (draft waiting / work note); reminders from 1 day before the deadline, at most every 2 days; no built-in folders, months, offices, emails or templates; every write checked.",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "ทุกวัน เวลา 08:00 น. (schedule)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 8 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_inputs",
+     "displayName": "ค้นหาไฟล์ของเดือนนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ค้นหาสิ่งที่จำเป็นสำหรับรายงานประจำเดือนนี้ทั้งหมดใน Google Drive ของผู้ใช้ที่เข้าสู่ระบบ ทำหน้าที่อ่านข้อมูลเท่านั้น ห้ามเปลี่ยนแปลงสิ่งใด ส่งคืนเฉพาะข้อมูล: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด และห้ามรอคำตอบ ให้จบการทำงานโดยส่งคืนเขตข้อมูลผลลัพธ์ (output fields) เสมอ (ขั้นตอนหลังจากนี้จะสื่อสารกับผู้ใช้)\nการทำงานรอบนี้เริ่มต้นตามกำหนดเวลา (schedule): ไม่มีการส่งข้อความจากผู้ใช้\n\n1. วันนี้และเดือน today = วันที่ของวันนี้ในเขตเวลา Asia/Bangkok (YYYY-MM-DD) รายงานนี้จัดทำขึ้นสำหรับเดือนก่อนหน้าเดือนของวันนี้ month_label = เดือนดังกล่าวที่เขียนในรูปแบบเดียวกับชื่อโฟลเดอร์: ชื่อย่อเดือนภาษาไทย เว้นวรรคหนึ่งครั้ง และปี พ.ศ. สองหลัก (ตัวอย่างเช่น การประมวลผลในเดือนตุลาคมจะจัดทำรายงานของเดือนกันยายน) prev_month_label = เดือนก่อนหน้า month_label ที่เขียนในรูปแบบเดียวกัน\n\n2. รายชื่ออำเภอ ใช้ search_files ค้นหาไฟล์ Google Sheets และ CSV ที่ชื่อขึ้นต้นด้วย รายชื่ออำเภอ (รวมไฟล์ที่แชร์กับผู้ใช้) list_status: found = พบตรงกันหนึ่งไฟล์พอดี; ambiguous = พบมากกว่าหนึ่งไฟล์; missing = ไม่พบ หาก found: list_id = ID ของไฟล์, list_link = ลิงก์ของไฟล์, list_folder_id = โฟลเดอร์ต้นทาง (get_file_metadata); ให้อ่านข้อมูลทั้งหมด รายชื่ออำเภอมีข้อมูลหนึ่งแถวต่อหนึ่งอำเภอ (คอลัมน์: ลำดับ, อำเภอ, อีเมลผู้ประสานงาน, กำหนดส่ง) แถวที่เซลล์ อำเภอ ลงท้ายด้วย (ตั้งค่า) ถือเป็น SETTINGS ไม่ใช่อำเภอ: อีเมลหัวหน้าสำนักงาน (ตั้งค่า) = อีเมลของหัวหน้าสำนักงาน (ค่าในคอลัมน์ที่สาม) ห้ามนับ ตรวจสอบ หรือแจ้งเตือนแถวการตั้งค่าในฐานะอำเภอเด็ดขาด district_count = จำนวนแถวอำเภอที่มีชื่ออำเภอ (ไม่นับแถวการตั้งค่าและแถวว่าง) district_emails = อีเมลผู้ประสานงานของแถวเหล่านั้น คั่นด้วยเครื่องหมายจุลภาค head_email = การตั้งค่าอีเมลของหัวหน้าสำนักงาน (เว้นว่างหากไม่มี)\n\n3. โฟลเดอร์ส่งงาน โฟลเดอร์ที่ชื่อขึ้นต้นด้วย ผลการดำเนินงาน และมี month_label ให้ค้นหาโดยตรงภายใน list_folder_id ก่อน หากไม่พบที่นั่น ให้ค้นหาทั่วทั้ง Drive (รวมโฟลเดอร์ที่แชร์กับผู้ใช้) folder_status เป็น found / ambiguous / missing เช่นเดียวกับรายการรายชื่อ folder_id = ID ของโฟลเดอร์เมื่อ found\n\n4. เดือนที่แล้ว ค้นหา Google Doc ที่ชื่อว่า บันทึกการทำงาน ตามด้วย prev_month_label (บันทึกการทำงานของเดือนที่แล้ว) หาก found ให้อ่านข้อมูล: ไฟล์นี้จะระบุลิงก์รายงานและชุดสไลด์ที่ approved ของเดือนที่แล้ว ให้กำหนดค่า prev_note_id, prev_report_id และ prev_deck_id จากข้อมูลดังกล่าว หากไม่มีบันทึก ให้ค้นหาโดยตรงในโฟลเดอร์รายงาน (โฟลเดอร์ต้นทางของโฟลเดอร์ส่งงาน ห้ามค้นหาภายในโฟลเดอร์ส่งงาน ซึ่งไฟล์ภายในนั้นเป็นของอำเภอเอง) สำหรับ Google Doc ที่ชื่อขึ้นต้นด้วย รายงานผลการดำเนินงาน มี prev_month_label และไม่มีคำว่า ร่าง (prev_report_id) และไฟล์ Google Slides ที่ชื่อขึ้นต้นด้วย สรุปผลการดำเนินงาน และมี prev_month_label (prev_deck_id) ไฟล์ของอำเภอจะขึ้นต้นด้วย อำเภอ และไม่ใช่รายงานของเดือนที่แล้วเด็ดขาด report_status เป็น found / ambiguous / missing deck_status: found หรือ none เมื่อไม่มีชุดสไลด์ของเดือนที่แล้ว (กรณีนี้จะใช้สไลด์แบบพื้นฐาน ซึ่งไม่เป็นปัญหา) ลิงก์ Slides ในข้อความทดสอบจะแทนที่ prev_deck_id\n\n5. ดำเนินการแล้วหรือไม่ โฟลเดอร์รายงานคือโฟลเดอร์ที่จัดเก็บรายงานหรือบันทึกการทำงานของเดือนที่แล้ว หากไม่พบทั้งสองอย่าง ให้ใช้โฟลเดอร์ต้นทางของโฟลเดอร์ส่งงาน หากไม่มีโฟลเดอร์ส่งงาน ให้ใช้ list_folder_id ให้ค้นหาโดยตรงในโฟลเดอร์นั้น (ห้ามค้นหาในโฟลเดอร์ย่อย ซึ่งใช้เก็บเอกสารเก่า) เพื่อหา Google Doc ที่ชื่อ บันทึกการทำงาน ตามด้วย month_label (บันทึกการทำงานของเดือนนี้) already_done = true เฉพาะกรณีที่มีไฟล์ดังกล่าวอยู่ จากนั้นให้อ่านข้อมูลและนำลิงก์รายงาน ชุดสไลด์ และบันทึกของเดือนนี้ใส่ใน done_links\n\n6. มีร่างรออยู่หรือไม่ เฉพาะกรณีที่ already_done เป็น false: ให้ค้นหาโดยตรงในโฟลเดอร์รายงานเดียวกันเพื่อหา Google Docs ที่ชื่อขึ้นต้นด้วย 'รายงานผลการดำเนินงาน ' ตามด้วย month_label และ ' (ร่าง' draft_waiting = true หากมีอย่างน้อยหนึ่งไฟล์ draft_links = ชื่อและลิงก์ของไฟล์เหล่านั้น\n\n7. รายการที่ไม่พบ (แต่ละค่าเป็น true/false):\n- need_fix = true หาก list_status, folder_status หรือ report_status เป็น ambiguous fix_items = หนึ่งบรรทัดต่อหนึ่ง item ที่ ambiguous: 'item | option name: link ; option name: link' หากไม่ใช่ ให้เว้นว่าง\n- list_missing = true หาก list_status เป็น missing\n- list_empty = true หาก found รายชื่ออำเภอ และ district_count เป็น 0\n- folder_missing = true หาก folder_status เป็น missing\nhome_folder_id = list_folder_id หาก found รายชื่ออำเภอ หากไม่พบ ให้ใช้โฟลเดอร์ต้นทางของโฟลเดอร์ส่งงานหากพบ หากไม่พบ ให้เว้นว่าง (My Drive)\n\nใช้เฉพาะชื่อ, ID และลิงก์ที่เครื่องมือส่งคืนเท่านั้น ห้ามสร้างขึ้นเอง หากเครื่องมือทำงาน failed ให้ระบุไว้ใน problems\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าระบุไว้ในคำอธิบายเครื่องมือ): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) เด็ดขาด\nการค้นหาไฟล์ด้วยชื่อ (HOW-WE-BUILD rule 6, #251): การค้นหาใน Drive จะค้นพบเฉพาะชื่อที่มีข้อความดังกล่าว (CONTAIN) เท่านั้น จึงต้องตรวจสอบผลลัพธ์ทุกรายการด้วยตนเอง คำว่า 'ขึ้นต้นด้วย X' หมายถึงอักขระแรกสุดของชื่อต้องเป็น X พอดี ชื่อที่มีข้อความใดๆ หน้า X เช่น 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', ตัวเลข วงเล็บ หรือการเว้นวรรค จะถือว่าไม่ตรงกัน (NOT a match) แม้ว่าส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อใดผ่านการตรวจสอบนี้ แสดงว่าไฟล์ดังกล่าว missing (ให้ระบุตามนั้น) ห้ามอนุโลมใช้ชื่อที่มีเพียงข้อความ X เด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "today": {
+        "description": "YYYY-MM-DD ใน Asia/Bangkok",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "month_label": {
+        "description": "เดือนของรายงานตามรูปแบบชื่อโฟลเดอร์ (ชื่อย่อเดือนภาษาไทย, ปี พ.ศ. 2 หลัก)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "prev_month_label": {
+        "description": "เดือนก่อนหน้า ในรูปแบบเดียวกัน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "list_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "list_id": {
+        "description": "ID ของรายชื่ออำเภอ เว้นว่างไว้เว้นแต่จะเป็น found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "list_link": {
+        "description": "ลิงก์ของรายชื่ออำเภอ เว้นว่างไว้เว้นแต่จะเป็น found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "list_folder_id": {
+        "description": "โฟลเดอร์ต้นทางของรายชื่ออำเภอ เว้นว่างไว้เว้นแต่จะเป็น found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "district_count": {
+        "description": "แถวอำเภอที่มีชื่ออำเภอ (ไม่นับแถวการตั้งค่า)",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "district_emails": {
+        "description": "อีเมลผู้ประสานงาน คั่นด้วยเครื่องหมายจุลภาค",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "head_email": {
+        "description": "อีเมลของหัวหน้าสำนักงานจากแถวการตั้งค่า เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "folder_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "folder_id": {
+        "description": "ID ของโฟลเดอร์ส่งงาน เว้นว่างไว้เว้นแต่จะเป็น found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "prev_note_id": {
+        "description": "ID ของบันทึกการทำงานของเดือนที่แล้ว เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "report_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "prev_report_id": {
+        "description": "ID ของรายงานที่ approved ของเดือนที่แล้ว เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "deck_status": {
+        "description": "found | none (plain slides)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "prev_deck_id": {
+        "description": "ID ของรูปแบบการออกแบบสไลด์ เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "already_done": {
+        "description": "true หากมีบันทึกการทำงานของเดือนนี้อยู่แล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "done_links": {
+        "description": "ลิงก์รายงาน ชุดสไลด์ และบันทึกของเดือนนี้เมื่อ already_done",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "draft_waiting": {
+        "description": "true หากมีร่างรายงานสำหรับเดือนนี้อยู่ในโฟลเดอร์รายงาน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "draft_links": {
+        "description": "ชื่อและลิงก์ของร่างรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "need_fix": {
+        "description": "true หากพบรายการที่ตรงกันมากกว่าหนึ่งรายการสำหรับรายชื่อ โฟลเดอร์ หรือรายงานของเดือนที่แล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "fix_items": {
+        "description": "ข้อมูลเท่านั้น: item | options (name: link) เว้นว่างหาก need_fix เป็น false",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       },
+       "list_missing": {
+        "description": "true หากไม่มีรายชื่ออำเภอ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 23
+        }
+       },
+       "list_empty": {
+        "description": "true หากรายชื่ออำเภอไม่มีข้อมูลอำเภอ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 24
+        }
+       },
+       "folder_missing": {
+        "description": "true หากไม่มีโฟลเดอร์ส่งงานสำหรับเดือนนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 25
+        }
+       },
+       "home_folder_id": {
+        "description": "ตำแหน่งสำหรับจัดเก็บรายชื่อหรือโฟลเดอร์ใหม่ เว้นว่าง = My Drive",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 26
+        }
+       },
+       "problems": {
+        "description": "สิ่งที่ไม่พบหรือไม่สามารถอ่านได้ เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 27
+        }
+       }
+      },
+      "required": [
+       "today",
+       "month_label",
+       "prev_month_label",
+       "list_status",
+       "list_id",
+       "list_link",
+       "list_folder_id",
+       "district_count",
+       "district_emails",
+       "head_email",
+       "folder_status",
+       "folder_id",
+       "prev_note_id",
+       "report_status",
+       "prev_report_id",
+       "deck_status",
+       "prev_deck_id",
+       "already_done",
+       "done_links",
+       "draft_waiting",
+       "draft_links",
+       "need_fix",
+       "fix_items",
+       "list_missing",
+       "list_empty",
+       "folder_missing",
+       "home_folder_id",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "already_done",
+     "displayName": "ดำเนินการของเดือนนี้แล้วหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Already done",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.already_done"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not done yet",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.already_done"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_already_done",
+     "displayName": "แจ้งว่าดำเนินการเรียบร้อยแล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับแจ้งผู้ใช้: ระบุภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามตั้งคำถามกับผู้ใช้และห้ามรอคำตอบ\nรายงานของเดือนนี้ (${find_inputs.month_label}) ได้รับการ approved แล้ว และมีบันทึกการทำงานอยู่แล้ว ลิงก์: ${find_inputs.done_links}\nแจ้งเป็นข้อความ 2 หรือ 3 บรรทัดว่าไม่มีการสร้างรายการใหม่และแสดงลิงก์ดังกล่าว\nเขียนตามข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) เด็ดขาด"
+     }
+    },
+    {
+     "id": "draft_waiting",
+     "displayName": "มีร่างรอการตรวจสอบหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Draft waiting",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.draft_waiting"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No draft",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.draft_waiting"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_draft_waiting",
+     "displayName": "แจ้งว่ามีร่างรออยู่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับแจ้งผู้ใช้: ระบุภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามตั้งคำถามกับผู้ใช้และห้ามรอคำตอบ\nมีร่างรายงานสำหรับ ${find_inputs.month_label} อยู่ในรายงาน folder แล้ว: ${find_inputs.draft_links}\nแจ้งว่าไม่มีการสร้างรายการใหม่เพื่อให้มีรายงานเพียงฉบับเดียว หากการ์ดตรวจสอบ (review card) รออยู่ เอกสารดังกล่าวจะอยู่ใน Inbox ของแอปพลิเคชัน และหากร่างถูกปฏิเสธหรือไม่ผ่านการอนุมัติ หรือประสงค์จะจัดทำใหม่ ให้เปลี่ยนชื่อหรือลบไฟล์ร่าง (ร่าง) ออก จากนั้นการทำงานรอบถัดไปจะสร้างฉบับใหม่ขึ้นมา\nเขียนตามข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) เด็ดขาด"
+     }
+    },
+    {
+     "id": "need_fix",
+     "displayName": "พบรายการที่ตรงกันมากกว่าหนึ่งรายการหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Fix",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.need_fix"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "One each",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.need_fix"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_what_to_fix",
+     "displayName": "แจ้งสิ่งที่ต้องแก้ไข",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับแจ้งผู้ใช้: ระบุภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามตั้งคำถามกับผู้ใช้และห้ามรอคำตอบ\nเดือน: ${find_inputs.month_label}\nรายการที่พบตรงกันมากกว่าหนึ่งรายการ (item | options): ${find_inputs.fix_items}\nแจ้งว่ายังไม่มีการตรวจสอบหรือส่งสิ่งใด แสดงรายการแต่ละรายการเป็นภาษาไทยโดยระบุภาษาอังกฤษในวงเล็บ พร้อมตัวเลือกเป็นชื่อและลิงก์ แจ้งว่าการทำงานรอบถัดไปจะดำเนินการได้เมื่อมีรายการที่ตรงกันเพียงหนึ่งรายการเท่านั้น: ให้เปลี่ยนชื่อหรือย้ายรายการที่ไม่ต้องการใช้งานออกไป\nเขียนตามข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) เด็ดขาด"
+     }
+    },
+    {
+     "id": "list_missing",
+     "displayName": "ไม่มีรายชื่ออำเภอหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "No list",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "List found",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_list",
+     "displayName": "สร้างรายชื่ออำเภอ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ผู้ใช้ยังไม่มีรายชื่ออำเภอ โปรดสร้างให้ผู้ใช้ในรูปแบบ Google Sheet ที่ผู้ใช้จะกรอกข้อมูลได้\nอาร์กิวเมนต์ create_file: title 'รายชื่ออำเภอ'; contentMimeType 'text/csv' (Drive จะแปลงเป็น Google Sheet); parentId ${find_inputs.home_folder_id} (ละเว้น parentId หากว่าง: My Drive); textContent = สองบรรทัดนี้พอดี โดยคั่นด้วยการขึ้นบรรทัดใหม่จริง (ห้ามใช้ตัวอักษรแบ็กสแลชและ n โดยเด็ดขาด):\nลำดับ,อำเภอ,อีเมลผู้ประสานงาน,กำหนดส่ง\n,อีเมลหัวหน้าสำนักงาน (ตั้งค่า),,\nห้ามเพิ่มอำเภอตัวอย่าง: ทุกแถวที่ผู้ใช้ปล่อยว่างไว้จะถูกนับเป็นอำเภอจริง\nเรียกใช้ create_file หนึ่งครั้ง ห้ามสร้างไฟล์อื่น ห้ามแชร์ ย้าย อัปเดต หรือลบสิ่งใดลงถังขยะ created = true เฉพาะเมื่อเครื่องมือส่งคืน ID เท่านั้น; file_id = ID ดังกล่าว; link = ลิงก์ของไฟล์ ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ที่เหมือนเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true เฉพาะเมื่อเครื่องมือส่งคืน ID เท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "file_id": {
+        "description": "ID ของรายการใหม่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "ลิงก์ไปยังรายการใหม่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "created",
+       "file_id",
+       "link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "list_made",
+     "displayName": "สร้างรายการแล้วหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_list.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_list.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_list_created",
+     "displayName": "แจ้งให้กรอกข้อมูลในรายการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nสร้างรายชื่ออำเภอใหม่แล้ว created: ${create_list.link}\nระบุว่าสร้างขึ้นเนื่องจากไม่พบรายการเดิม แจ้งลิงก์ และ: วิธีการกรอกข้อมูล เป็นภาษาไทยพร้อมภาษาอังกฤษในวงเล็บ: หนึ่งแถวต่อหนึ่งอำเภอ: ลำดับ (No.), อำเภอ (district name, as it appears in the district's file names), อีเมลผู้ประสานงาน (coordinator email), กำหนดส่ง (deadline: the day of the month, for example 5) ในแถว อีเมลหัวหน้าสำนักงาน (ตั้งค่า) (setting: Head of office email) ให้ใส่อีเมลของหัวหน้าในคอลัมน์ที่สาม การทำงานตามกำหนดการรอบถัดไปจะใช้ข้อมูลนี้\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "tell_list_not_created",
+     "displayName": "แจ้งว่าไม่ได้สร้างรายการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nรายละเอียด: ${create_list.problems}\nระบุว่าไม่สามารถสร้างรายชื่ออำเภอได้ ตามที่รายละเอียดระบุไว้ และการทำงานตามกำหนดการรอบถัดไปจะพยายามดำเนินการอีกครั้ง\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "list_empty",
+     "displayName": "รายการไม่มีอำเภอใช่หรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Empty",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_empty"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Has districts",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_empty"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_fill_list",
+     "displayName": "แจ้งว่ารายการว่างเปล่า",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nอำเภอ list: ${find_inputs.list_link} (ยังไม่มีอำเภอในรายการ)\nระบุว่าไม่มีการตรวจสอบหรือส่งข้อมูลใดๆ เนื่องจากรายชื่ออำเภอยังไม่มีอำเภอ แจ้งลิงก์ และ: วิธีการกรอกข้อมูล เป็นภาษาไทยพร้อมภาษาอังกฤษในวงเล็บ: หนึ่งแถวต่อหนึ่งอำเภอ: ลำดับ (No.), อำเภอ (district name, as it appears in the district's file names), อีเมลผู้ประสานงาน (coordinator email), กำหนดส่ง (deadline: the day of the month, for example 5) ในแถว อีเมลหัวหน้าสำนักงาน (ตั้งค่า) (setting: Head of office email) ให้ใส่อีเมลของหัวหน้าในคอลัมน์ที่สาม การทำงานตามกำหนดการรอบถัดไปจะใช้ข้อมูลนี้\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "folder_missing",
+     "displayName": "ไม่มีโฟลเดอร์ประจำเดือนใช่หรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "No folder",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.folder_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Folder found",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.folder_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_folder",
+     "displayName": "สร้างโฟลเดอร์ประจำเดือน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ยังไม่มีโฟลเดอร์การส่งงานสำหรับ ${find_inputs.month_label} โปรดสร้างขึ้นเพื่อให้แต่ละอำเภอสามารถอัปโหลดไฟล์ได้\nอาร์กิวเมนต์ create_file: title 'ผลการดำเนินงาน ${find_inputs.month_label}'; contentMimeType 'application/vnd.google-apps.folder'; ไม่มีเนื้อหา; parentId ${find_inputs.home_folder_id} (ละเว้น parentId หากว่าง: My Drive)\nเรียกใช้ create_file หนึ่งครั้ง ห้ามสร้างไฟล์อื่น ห้ามแชร์ ย้าย อัปเดต หรือลบสิ่งใดลงถังขยะ created = true เฉพาะเมื่อเครื่องมือส่งคืน ID เท่านั้น; file_id = ID ดังกล่าว; link = ลิงก์ของโฟลเดอร์ ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์ที่เหมือนเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true เฉพาะเมื่อเครื่องมือส่งคืน ID เท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "file_id": {
+        "description": "ID ของโฟลเดอร์ใหม่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "ลิงก์ไปยังโฟลเดอร์ใหม่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "created",
+       "file_id",
+       "link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "folder_made",
+     "displayName": "สร้างโฟลเดอร์แล้วหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_folder.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_folder.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_folder_not_created",
+     "displayName": "แจ้งว่าไม่ได้สร้างโฟลเดอร์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nรายละเอียด: ${create_folder.problems}\nระบุว่าไม่สามารถสร้างโฟลเดอร์ประจำเดือนได้ ตามที่รายละเอียดระบุไว้ และการทำงานตามกำหนดการรอบถัดไปจะพยายามดำเนินการอีกครั้ง\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "tell_folder_created",
+     "displayName": "แจ้งให้แชร์โฟลเดอร์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นและกระชับสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และห้ามรอคำตอบ\nโฟลเดอร์ใหม่สำหรับ ${find_inputs.month_label}: ${create_folder.link}\nอีเมลผู้ประสานงานอำเภอจาก list: ${find_inputs.district_emails}\nระบุว่าได้สร้างโฟลเดอร์แล้ว และเพื่อให้แต่ละอำเภอสามารถอัปโหลดได้ ให้ผู้ใช้เปิดโฟลเดอร์ คลิก แชร์ (Share) และเพิ่มอีเมลเหล่านี้เป็น ผู้แก้ไข (Editor) (เอเจนต์นี้ไม่สามารถแชร์ไฟล์ได้) และตั้งแต่การทำงานรอบถัดไปเป็นต้นไป ระบบจะตรวจสอบว่ามีอำเภอใดส่งแล้วบ้าง\nเขียนเฉพาะสิ่งที่ข้อมูลข้างต้นระบุไว้เท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความใดก็ตามที่เขียน (ข้อความ อีเมล เอกสาร สไลด์) โดยเด็ดขาด"
+     }
+    },
+    {
+     "id": "check_submissions",
+     "displayName": "ตรวจสอบว่าอำเภอใดส่งแล้วบ้าง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ท่านทำหน้าที่ตรวจสอบว่าอำเภอใดส่งไฟล์ประจำเดือนแล้วบ้าง โดยอ่านข้อมูลเท่านั้น ไม่แก้ไขสิ่งใด\n\nข้อมูลที่พบก่อนหน้า: วันนี้ ${find_inputs.today}; เดือน ${find_inputs.month_label}; folder ID ${find_inputs.folder_id}; district list ID ${find_inputs.list_id}; last month's report ID ${find_inputs.prev_report_id}; slide design ID ${find_inputs.prev_deck_id} (empty = plain slides); last month's work note ID ${find_inputs.prev_note_id}\n1. อ่านรายชื่ออำเภอทั้งหมด ตารางรายชื่ออำเภอมีอำเภอละหนึ่งแถว (คอลัมน์: ลำดับ, อำเภอ, อีเมลผู้ประสานงาน, กำหนดส่ง) แถวที่ช่อง อำเภอ ลงท้ายด้วย (ตั้งค่า) คือ SETTINGS ไม่ใช่อำเภอ: อีเมลหัวหน้าสำนักงาน (ตั้งค่า) = อีเมลของหัวหน้าสำนักงาน (ค่าในคอลัมน์ที่สาม) ห้ามตรวจนับ ตรวจสอบ หรือติดตามแถวที่เป็นการตั้งค่าในฐานะอำเภอโดยเด็ดขาด head_email = การตั้งค่าอีเมลของหัวหน้าสำนักงาน\n\n2. กำหนดส่งของแต่ละอำเภอ: วันที่ของเดือนในช่อง กำหนดส่ง (เช่น 5, วันที่ 5 หรือวันที่แบบเต็ม ซึ่งระบุเลขวันที่) ในเดือนของวันนี้: เดือนถัดจากเดือนของรายงาน deadline = วันที่ดังกล่าวในรูปแบบ YYYY-MM-DD หากช่องว่างหรืออ่านไม่ได้: ให้ deadline เป็น empty และระบุใน problems (ห้ามคาดเดาวันที่โดยเด็ดขาด)\n\n3. แสดงรายการทุกไฟล์ที่อยู่ในโฟลเดอร์โดยตรง (ไม่รวมโฟลเดอร์ย่อย) อำเภอจะถือว่าส่งแล้วหากชื่อไฟล์มีชื่ออำเภอ ไม่ว่าจะมีหรือไม่มีคำว่า อำเภอ นำหน้า สำหรับไฟล์ที่ชื่อไม่ตรงกับอำเภอใด ให้เปิดไฟล์ด้วย read_file_content และจับคู่ตามชื่ออำเภอที่ระบุไว้ภายในไฟล์ แสดงรายการไฟล์ที่ยังคงไม่ตรงกับอำเภอใดใน unmatched_files\n\n4. folder_shared = true หากอีเมลผู้ประสานงานคนใดจากรายชื่อ หรือใครก็ตามที่มีลิงก์ สามารถแก้ไขโฟลเดอร์ส่งงานได้ (get_file_permissions บน ${find_inputs.folder_id})\n\n5. save_folder_id = โฟลเดอร์ที่เก็บรายงานของเดือนที่แล้ว หากไม่มี ให้ใช้โฟลเดอร์หลัก (parent folder) ของโฟลเดอร์ส่งงาน ตรวจสอบว่าใครสามารถดู save_folder_id ได้ด้วย get_file_permissions: shared_with_districts = true หากอีเมลผู้ประสานงานคนใดจากรายชื่อ หรือใครก็ตามที่มีลิงก์ สามารถดูได้\n\n6. month_th = month_label ที่เขียนเป็นภาษาไทยแบบเต็มพร้อมปี พ.ศ. 4 หลัก template_id = slide design ID (empty = plain slides)\n\ncheck_ok = true เฉพาะกรณีที่อ่านได้ทั้งรายชื่ออำเภอและโฟลเดอร์เท่านั้น\nused_text = รายการโดยย่อสำหรับผู้ใช้ เป็นภาษาไทยพร้อมภาษาอังกฤษในวงเล็บ: โฟลเดอร์, รายชื่ออำเภอ, รายงานของเดือนที่แล้ว, รูปแบบสไลด์ (หรือ plain slides) โดยระบุชื่อและลิงก์ของแต่ละรายการ พร้อมอีเมลของหัวหน้าสำนักงานและข้อความ: หากต้องการเปลี่ยนแปลง ให้แก้ไขในรายชื่ออำเภอ\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือนั้น ๆ): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata, get_file_permissions\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "check_ok": {
+        "description": "true เฉพาะกรณีที่อ่านรายชื่ออำเภอและโฟลเดอร์แล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "folder_id": {
+        "description": "โฟลเดอร์ส่งงานที่ใช้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "list_link": {
+        "description": "ลิงก์ไปยังรายชื่ออำเภอที่ใช้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "prev_report_id": {
+        "description": "รายงานของเดือนที่แล้วที่ใช้; empty = ไม่มีการเปรียบเทียบ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "prev_note_id": {
+        "description": "บันทึกการทำงานของเดือนที่แล้ว; empty หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "template_id": {
+        "description": "รูปแบบสไลด์ที่ใช้; empty = plain slides",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "save_folder_id": {
+        "description": "ตำแหน่งที่บันทึกรายงาน สไลด์ และบันทึกข้อความ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "shared_with_districts": {
+        "description": "true หากอำเภอสามารถดู save_folder_id ได้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "folder_shared": {
+        "description": "true หากอำเภอสามารถอัปโหลดไปยังโฟลเดอร์ส่งงานได้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "head_email": {
+        "description": "อีเมลของหัวหน้าสำนักงานจากรายชื่อ; empty หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "month_label": {
+        "description": "เดือนตามที่ปรากฏในชื่อโฟลเดอร์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "month_th": {
+        "description": "เดือนภาษาไทยแบบเต็มพร้อมปี พ.ศ. 4 หลัก",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "total_districts": {
+        "description": "อำเภอในรายชื่อ",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "submitted_count": {
+        "description": "อำเภอที่ส่งแล้ว",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "submitted": {
+        "description": "หนึ่งรายการต่อหนึ่งอำเภอที่ส่งแล้ว",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 14
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "ชื่ออำเภอตามที่ปรากฏในรายชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "file_name": {
+           "description": "ชื่อไฟล์ตรงตามที่ปรากฏใน Drive",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "file_id": {
+           "description": "Drive ID ของไฟล์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "district",
+          "file_name",
+          "file_id"
+         ]
+        }
+       },
+       "missing": {
+        "description": "หนึ่งรายการต่อหนึ่งอำเภอที่ไม่มีไฟล์",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 15
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "ชื่ออำเภอตามที่ปรากฏในรายชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "อีเมลผู้ประสานงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "deadline": {
+           "description": "กำหนดส่ง YYYY-MM-DD; empty หากอ่านไม่ได้",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "deadline"
+         ]
+        }
+       },
+       "unmatched_files": {
+        "description": "ชื่อไฟล์ที่ไม่ตรงกับอำเภอใด",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 16
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "has_missing": {
+        "description": "true หากมีอำเภอที่ยังไม่ได้ส่ง",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "used_text": {
+        "description": "สิ่งที่นำมาใช้ สำหรับผู้ใช้ (ภาษาไทยพร้อมภาษาอังกฤษในวงเล็บ)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "problems": {
+        "description": "สิ่งที่ทำให้การตรวจสอบหยุดลงหรือสิ่งที่ผู้ใช้ต้องแก้ไข; empty หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       }
+      },
+      "required": [
+       "check_ok",
+       "folder_id",
+       "list_link",
+       "prev_report_id",
+       "prev_note_id",
+       "template_id",
+       "save_folder_id",
+       "shared_with_districts",
+       "folder_shared",
+       "head_email",
+       "month_label",
+       "month_th",
+       "total_districts",
+       "submitted_count",
+       "submitted",
+       "missing",
+       "unmatched_files",
+       "has_missing",
+       "used_text",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "could_check",
+     "displayName": "สามารถตรวจสอบได้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Checked",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.check_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Could not check",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.check_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_cannot_check",
+     "displayName": "แจ้งสิ่งที่จำเป็นต้องใช้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใด ๆ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nProblems: ${check_submissions.problems}\nระบุอย่างตรงไปตรงมาว่าสิ่งใดอ่านไม่ได้และต้องแก้ไขอย่างไร โดยการทำงานตามกำหนดการรอบถัดไปจะตรวจสอบอีกครั้ง\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "anyone_missing",
+     "displayName": "มีอำเภอใดที่ยังไม่ได้ส่งหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Someone missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.has_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "All sent",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.has_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "plan_reminders",
+     "displayName": "พิจารณาว่าต้องติดตามอำเภอใดในวันนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ท่านทำหน้าที่พิจารณาว่าต้องส่งหนังสือติดตามไปยังอำเภอใดในวันนี้ โดยอ่านข้อมูลเท่านั้น ไม่แก้ไขสิ่งใด\nวันนี้: ${find_inputs.today}\nอำเภอที่ยังไม่ได้ส่ง (อำเภอ, อีเมล, กำหนดส่ง): ${check_submissions.missing}\nชื่อและลิงก์ของโฟลเดอร์ส่งงานคือ in: ${check_submissions.used_text}\nสำหรับแต่ละ district:\n1. remind_from = กำหนดส่งลบ 1 วัน หากกำหนดส่งเป็น empty: ไม่ต้องติดตาม ให้ระบุลงใน not_yet พร้อมระบุ 'no deadline in the list'\n2. หากวันนี้เป็นวันก่อน remind_from: ยังไม่ถึงกำหนด ให้ระบุลงใน not_yet พร้อมวันที่ remind_from\n3. นอกเหนือจากนั้น ให้ค้นหาในจดหมายที่ส่งแล้วของผู้ใช้ (search_threads) เพื่อหาการติดตามไปยังอีเมลของอำเภอดังกล่าวที่ชื่อเรื่องขึ้นต้นด้วย หนังสือติดตาม และมีชื่อของโฟลเดอร์ last_reminder = วันที่ของฉบับล่าสุด (empty หากไม่มี) หาก last_reminder คือวันนี้หรือเมื่อวาน: ยังไม่ถึงกำหนด ให้ระบุลงใน recent พร้อมวันที่ดังกล่าว นอกเหนือจากนั้นถือว่าถึงกำหนด: ให้เพิ่มลงใน to_remind โดยมี earlier = last_reminder\nremind_now = true หาก to_remind มีอย่างน้อยหนึ่งอำเภอ\nใช้วันที่จากรายชื่อและจากจดหมายที่ค้นพบเท่านั้น ห้ามสร้างวันที่ขึ้นมาเองโดยเด็ดขาด\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือนั้น ๆ): Gmail MCP: search_threads\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "to_remind": {
+        "description": "อำเภอที่ต้องติดตามในวันนี้",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "ชื่ออำเภอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "อีเมลผู้ประสานงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "deadline": {
+           "description": "กำหนดส่ง YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "earlier": {
+           "description": "วันที่ของหนังสือติดตามฉบับล่าสุด; empty หากไม่มี",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "deadline",
+          "earlier"
+         ]
+        }
+       },
+       "not_yet": {
+        "description": "อำเภอที่ยังไม่ถึงกำหนด พร้อมวันที่เริ่มติดตามของแต่ละอำเภอ (หรือเหตุผลที่ไม่ต้องติดตาม)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "recent": {
+        "description": "อำเภอที่ได้ติดตามแล้วในวันนี้หรือเมื่อวาน พร้อมวันที่",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "remind_now": {
+        "description": "true หากมีรายการที่ถึงกำหนดในวันนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "to_remind",
+       "not_yet",
+       "recent",
+       "remind_now",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "remind_now",
+     "displayName": "มีรายการที่ต้องติดตามในวันนี้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "plan_reminders.remind_now"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not today",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "plan_reminders.remind_now"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_waiting",
+     "displayName": "แจ้งรายชื่อผู้ที่ส่งแล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ห้ามใช้เครื่องมือใด ๆ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\n${check_submissions.submitted_count} จาก ${check_submissions.total_districts} อำเภอได้ส่งงานแล้วสำหรับ ${find_inputs.month_label}\nยังไม่sent: ${check_submissions.missing}\nยังไม่ถึงกำหนดส่งการแจ้งเตือน yet: ${plan_reminders.not_yet}\nติดตามแล้ว recently: ${plan_reminders.recent}\nอำเภอสามารถอัปโหลดไปยัง folder: ${check_submissions.folder_shared}\nไฟล์ที่ไม่ตรงกับ district: ${check_submissions.unmatched_files}\nProblems: ${check_submissions.problems} ${plan_reminders.problems}\nระบุว่ามีกี่อำเภอที่ส่งแล้วและอำเภอใดยังไม่ได้ส่ง, การติดตามจะเริ่มขึ้นเมื่อใด (หรือได้รับการติดตามครั้งล่าสุดเมื่อใด), หากอำเภอยังไม่สามารถอัปโหลดได้ ให้ระบุว่าผู้ใช้ควรแชร์โฟลเดอร์ไปยังอีเมลผู้ประสานงานในฐานะ Editor, และการทำงานตามกำหนดการรอบถัดไปจะตรวจสอบอีกครั้ง ข้อความสั้นกระชับ\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "send_reminders",
+     "displayName": "ส่งหนังสือติดตาม",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ท่านทำหน้าที่ส่งอีเมลหนังสือติดตามที่สุภาพหนึ่งฉบับไปยังแต่ละอำเภอด้านล่าง โดยส่งจาก Gmail ของผู้ใช้ที่เข้าสู่ระบบ\nอำเภอที่ต้องติดตามในวันนี้ (อำเภอ, อีเมล, กำหนดส่ง, วันที่ของหนังสือติดตามฉบับล่าสุด): ${plan_reminders.to_remind}\nโฟลเดอร์ที่แชร์ (ชื่อและลิงก์) อยู่ในรายการสิ่งที่ได้used: ${check_submissions.used_text}\n\nสำหรับแต่ละอำเภอ ให้เรียกใช้ send_email จำนวน once ครั้งอย่างแม่นยำ:\n1. To: ส่งไปยังอีเมลของอำเภอดังกล่าวเท่านั้น ห้ามระบุที่อยู่อื่น ห้ามมี CC ห้ามมี BCC หากอำเภอไม่มีอีเมล ไม่ต้องส่งสิ่งใดและบันทึกเป็น failed\n2. Subject: หนังสือติดตาม – ชื่อของโฟลเดอร์ – ชื่ออำเภอ\n3. Body เป็นภาษาไทยทางการและสุภาพ ในรูปแบบหนังสือราชการที่ไม่ระบุเพศ (ไม่มีคำว่า ครับ หรือ ค่ะ): ขึ้นต้นระบุผู้ประสานงานของอำเภอ (เรียน ผู้ประสานงาน ตามด้วยชื่ออำเภอ); หากเคยมีหนังสือติดตามฉบับก่อนหน้า ให้อ้างถึงพร้อมระบุวันที่ (ตามที่ได้แจ้งไปเมื่อ และตามด้วยวันที่); ระบุว่ายังไม่ได้รับรายงานผลการดำเนินงานประจำเดือนของอำเภอในโฟลเดอร์ที่แชร์ พร้อมแนบลิงก์ของโฟลเดอร์ และขอให้อัปโหลดภายในกำหนดส่ง; ลงท้ายด้วยคำว่า จึงเรียนมาเพื่อโปรดดำเนินการ\n\nผู้ใช้จะเห็น confirm card สำหรับแต่ละอีเมล และอาจแก้ไขหรือยกเลิกได้ ห้ามส่งสิ่งอื่นใด; ห้ามสร้างแบบร่าง ป้ายกำกับ หรือตัวกรอง ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งไม่ว่าตำแหน่งใด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือนั้น ๆ): Gmail MCP: send_email\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมอย่างเคร่งครัด (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "reminders": {
+        "description": "หนึ่งรายการต่อหนึ่งอำเภอที่ได้รับการติดตาม",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "ชื่ออำเภอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "ผู้รับที่ใช้",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "status": {
+           "description": "sent หรือ failed",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "earlier": {
+           "description": "วันที่ของหนังสือติดตามฉบับล่าสุด; empty หากไม่มี",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "status",
+          "earlier"
+         ]
+        }
+       },
+       "sent_count": {
+        "description": "อีเมลที่ส่งจริง",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "reminders",
+       "sent_count",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_reminders",
+     "displayName": "แจ้งว่าได้ส่งหนังสือติดตามฉบับใดไปแล้วบ้าง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความภาษาอังกฤษแบบเดียวกัน ไม่ใช้เครื่องมือใด ๆ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\n${check_submissions.submitted_count} จาก ${check_submissions.total_districts} อำเภอได้ส่งข้อมูลสำหรับ ${find_inputs.month_label} แล้ว\nการแจ้งเตือน: ${send_reminders.reminders}\nยังไม่ถึงกำหนด yet: ${plan_reminders.not_yet}\nอำเภอสามารถอัปโหลดไปยัง folder: ${check_submissions.folder_shared}\nไฟล์ที่ไม่ตรงกับ district ใด ๆ: ${check_submissions.unmatched_files}\nสิ่งที่ได้รับการ used: ${check_submissions.used_text}\nปัญหา: ${send_reminders.problems}\nระบุจำนวนอำเภอที่ส่งแล้ว รายการแจ้งเตือนแต่ละรายการ (sent / failed และวันที่แจ้งเตือนก่อนหน้านี้หากมี) ไฟล์ใด ๆ ที่ไม่ตรงกับอำเภอใดเลย (ชื่อไฟล์ควรมีชื่ออำเภอกำกับอยู่) แจ้งว่าที่อยู่ต่าง ๆ นำมาจากรายชื่ออำเภอ (${check_submissions.list_link}) ซึ่งสามารถแก้ไขได้ และรอบการทำงานตามกำหนดการครั้งถัดไปจะตรวจสอบอีกครั้งและจัดทำรายงานเมื่อได้รับไฟล์ครบถ้วน\nเขียนเฉพาะข้อมูลที่ระบุไว้ข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "read_and_table",
+     "displayName": "อ่านไฟล์ลงในตารางเดียว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ท่านมีหน้าที่จัดทำตารางข้อมูลที่สอดคล้องกันหนึ่งตารางจากการส่งข้อมูลของอำเภอประจำเดือนนี้ (${check_submissions.month_th}) ท่านมีหน้าที่อ่านเท่านั้น ไม่แก้ไขสิ่งใด\nไฟล์ที่ต้องอ่าน หนึ่งอำเภอ each: ${check_submissions.submitted}\n1. อ่านทุกไฟล์ให้ครบถ้วนด้วย read_file_content โดยใช้ file_id ห้ามพึ่งพาข้อความสั้นจากการค้นหา หากเอกสารสแกนหรือรูปภาพไม่มีข้อความที่ใช้งานได้ ให้อ่านอีกครั้งด้วย read_file_text และ ocrLanguage th\n2. สรุปข้อมูลของแต่ละอำเภอ ได้แก่ งบประมาณที่ได้รับ งบประมาณที่เบิกจ่าย จำนวนโครงการ (ทั้งหมด, แล้วเสร็จ, อยู่ระหว่างดำเนินการ, ยังไม่เริ่ม) จำนวนเรื่องร้องเรียนศูนย์ดำรงธรรมทั้งหมด และเรื่องร้องเรียนด้านการประปา\n3. แปลงหน่วยเงินทั้งหมดเป็น ล้านบาท (1 ล้านบาท = 1,000,000 บาท) และบันทึกหน่วยต้นทาง disbursement_pct = disbursed / allocated * 100 ทศนิยมหนึ่งตำแหน่ง\n4. ห้ามคาดเดาโดยเด็ดขาด ค่าที่ขาดหายไป ว่างเปล่า หรืออ่านไม่ออก ให้ระบุเป็น -1 พร้อมระบุข้อความแจ้งเตือน (flag) ชี้แจงรายละเอียดและตำแหน่งอย่างชัดเจน โครงการที่มีสถานะว่างเปล่าให้นับรวมใน projects_total แต่ไม่จัดอยู่ในสถานะใด และให้ติด flag ไว้\nเขียน flag ทุกรายการเป็นภาษาไทย ส่งคืนหนึ่งแถวต่อหนึ่งอำเภอตามลำดับข้างต้น ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าเอกสารต้นทางจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยเครื่องมือแล้ว): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "problems": {
+        "description": "สิ่งใดก็ตามที่เป็นอุปสรรคในการอ่านไฟล์ หากไม่มีให้เว้นว่างไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "rows": {
+        "description": "หนึ่งแถวต่อหนึ่งอำเภอ",
+        "type": "ARRAY",
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "complaints_total": {
+           "description": "เรื่องร้องเรียนศูนย์ดำรงธรรมทั้งหมด; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "projects_in_progress": {
+           "description": "โครงการที่อยู่ระหว่างดำเนินการ; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_unit": {
+           "description": "หน่วยเงินที่ใช้ในไฟล์ต้นฉบับ: บาท หรือ ล้านบาท เว้นว่างไว้หากไม่มีไฟล์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "budget_disbursed_mb": {
+           "description": "งบประมาณที่เบิกจ่ายในหน่วย ล้านบาท (แปลงค่าแล้วหากต้นทางเป็น บาท); ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          },
+          "projects_not_started": {
+           "description": "โครงการที่ยังไม่เริ่ม; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "projects_done": {
+           "description": "โครงการที่แล้วเสร็จ; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 11
+           }
+          },
+          "district": {
+           "description": "ชื่ออำเภอถูกต้องตรงตามที่ปรากฏใน รายชื่ออำเภอ – demo (TEST).csv",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "file_name": {
+           "description": "ไฟล์การส่งข้อมูลที่ใช้ เว้นว่างไว้หากไม่มี",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "projects_total": {
+           "description": "โครงการพัฒนาจังหวัดทั้งหมด; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "disbursement_pct": {
+           "description": "disbursed / allocated * 100 ทศนิยมหนึ่งตำแหน่ง; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 12
+           }
+          },
+          "flags": {
+           "description": "สิ่งใดก็ตามที่ไม่ชัดเจน ขาดหายไป แปลงค่าแล้ว หรือไม่สามารถเปรียบเทียบได้ ในรูปแบบภาษาไทยหรือภาษาอังกฤษ ให้ส่งค่ารายการว่างหากไม่มี",
+           "type": "ARRAY",
+           "items": {
+            "type": "STRING"
+           },
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "budget_allocated_mb": {
+           "description": "งบประมาณที่ได้รับในหน่วย ล้านบาท (แปลงค่าแล้วหากต้นทางเป็น บาท); ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "complaints_water": {
+           "description": "ในจำนวนนี้เป็นเรื่องร้องเรียนด้านการประปา; ระบุ -1 หากไม่ทราบข้อมูล",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          }
+         },
+         "required": [
+          "flags",
+          "projects_total",
+          "projects_not_started",
+          "file_name",
+          "projects_in_progress",
+          "complaints_water",
+          "source_unit",
+          "budget_allocated_mb",
+          "district",
+          "complaints_total",
+          "budget_disbursed_mb",
+          "projects_done",
+          "disbursement_pct"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "rows",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "compare_months",
+     "displayName": "เปรียบเทียบกับเดือนที่แล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ท่านมีหน้าที่เปรียบเทียบตัวเลขของเดือนนี้กับเดือนที่แล้ว ท่านมีหน้าที่อ่านเท่านั้น ไม่แก้ไขสิ่งใด\ntable ของเดือนนี้: ${read_and_table.rows}\n1. อ่านรายงานของเดือนที่แล้ว (ID ${check_submissions.prev_report_id}) และบันทึกการทำงานของเดือนที่แล้ว (ID ${check_submissions.prev_note_id} โดย 'สิ่งที่ต้องตรวจสอบในเดือนถัดไป' มีความสำคัญ) หาก ID ว่างเปล่าแสดงว่าไม่มีเอกสารดังกล่าว ในกรณีนี้ให้ระบุ 'not comparable' สำหรับทุกการเปลี่ยนแปลงและแจ้งในปัญหา\n2. สำหรับทุกอำเภอและทุกตัวชี้วัด (% การเบิกจ่าย, โครงการที่แล้วเสร็จ, เรื่องร้องเรียนทั้งหมด, เรื่องร้องเรียนด้านการประปา) ให้แสดงข้อมูลเดือนที่แล้วเทียบกับเดือนนี้ รวมถึงยอดรวมของจังหวัด (รวม) ด้วยเช่นกัน\n3. ใช้ตัวเลขจากแหล่งข้อมูลเหล่านี้เท่านั้น หากค่าของเดือนนี้เป็น -1 (ไม่ทราบข้อมูล) ให้ระบุ 'not comparable'\nflag หมายถึง 'โปรดตรวจสอบค่านี้' ห้ามระบุว่าตัวเลขผิด (ห้ามใช้คำว่า คลาดเคลื่อน, ผิดพลาด) การเปลี่ยนแปลงของค่าร้อยละให้ระบุเป็นหน่วย จุด: เช่น เขียนว่า ลดลง 21.0 จุด (จาก 62.0% เป็น 41.0%) ห้ามใช้หน่วย % และให้เว้นวรรคหนึ่งเคาะหลังชื่ออำเภอเสมอ\n4. key_changes_th: เขียนข้อความสั้น ๆ 3 ถึง 5 บรรทัด (bullets) เป็นภาษาไทยสำหรับ ประเด็นสำคัญประจำเดือน (การเปลี่ยนแปลงที่มากที่สุด, เรื่องร้องเรียนที่เพิ่มขึ้นเป็นเท่าตัว, ข้อมูลที่ขาดหายไป และเรื่องใด ๆ ที่บันทึกเดือนที่แล้วกำหนดให้ตรวจสอบ) ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าเอกสารต้นทางจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยเครื่องมือแล้ว): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "changes": {
+        "description": "หนึ่งรายการต่อหนึ่งอำเภอและหนึ่งตัวชี้วัด",
+        "type": "ARRAY",
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "indicator": {
+           "description": "ชื่อตัวชี้วัด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "district": {
+           "description": "อำเภอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "note": {
+           "description": "เหตุผลที่ประเด็นนี้สำคัญ หรือ not comparable",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "change": {
+           "description": "ผลต่าง เช่น -21.0 จุด หรือ x2.0",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "last_month": {
+           "description": "ค่าของเดือนสิงหาคมตามที่ระบุในรายงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "this_month": {
+           "description": "ค่าของเดือนกันยายน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "change",
+          "indicator",
+          "district",
+          "this_month",
+          "note",
+          "last_month"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "key_changes_th": {
+        "description": "ข้อความสั้น (bullets) ภาษาไทยสำหรับ ประเด็นสำคัญประจำเดือน",
+        "type": "ARRAY",
+        "items": {
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "changes",
+       "key_changes_th",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "create_report",
+     "displayName": "ยกร่างรายงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "จัดทำรายงานผลการดำเนินงานประจำเดือนนี้ (${check_submissions.month_th}) เป็น Google Doc จำนวน 1 ฉบับที่พร้อมสำหรับหัวหน้าหน่วยงาน\nข้อมูลประจำเดือนนี้ (หนึ่งแถวต่อหนึ่งอำเภอ): ${read_and_table.rows}\nการเปรียบเทียบกับmonthที่แล้ว: ${compare_months.changes}\nchangesสำคัญ: ${compare_months.key_changes_th}\nลำดับแรก ให้อ่านรายงานของเดือนที่แล้ว (ID ${check_submissions.prev_report_id}) ด้วย read_file_content และปฏิบัติตามการจัดวาง แถบหัวกระดาษ (banner) และระดับภาษาที่เป็นทางการ หาก ID ว่าง ให้ใช้รูปแบบโครงสร้างด้านล่างตามที่เป็นอยู่\nเขียนด้วยภาษาทางการตามแบบระเบียบงานสารบรรณไทย หัวข้อตามorderนี้:\n1. บรรทัดแถบหัวกระดาษ: คัดลอกบรรทัดระบุหน่วยงานและส่วนราชการให้ตรงกับรายงานของเดือนที่แล้วทุกประการ หากไม่มีรายงานของเดือนที่แล้ว ให้เว้นแถบหัวกระดาษไว้\n2. <h1> รายงานผลการดำเนินงานประจำเดือน ตามด้วย ${check_submissions.month_th} แล้วตามด้วยข้อความหนึ่งบรรทัด: สำหรับการประชุมหัวหน้าส่วนราชการประจำเดือน\n3. <h2> บทสรุปผู้บริหาร: ความยาว 3-4 ประโยค ระบุจำนวนอำเภอที่ส่งรายงาน งบประมาณรวมที่ได้รับการจัดสรรและการเบิกจ่ายพร้อมร้อยละในภาพรวม รายการที่มีการเพิ่มขึ้นมากที่สุดและลดลงมากที่สุด และประเด็นที่ต้องนำเรียนหัวหน้าหน่วยงานเพื่อพิจารณา\n4. <h2> ประเด็นสำคัญประจำเดือน: สรุปประเด็นสำคัญเป็นข้อๆ 3-5 ข้อจากการเปลี่ยนแปลงที่สำคัญ\n5. <h2> 1. ผลการเบิกจ่ายงบประมาณ: ตาราง อำเภอ | งบที่ได้รับจัดสรร (ล้านบาท) | เบิกจ่ายแล้ว (ล้านบาท) | ร้อยละ | เทียบเดือนก่อน (จุด); อำเภอละหนึ่งแถว จากนั้นเป็นแถว รวม ตัวหนา (ผลรวมของงบที่ได้รับจัดสรร ผลรวมของการเบิกจ่าย ร้อยละภาพรวม = เบิกจ่ายรวม / จัดสรรรวม x 100 และการเปลี่ยนแปลงของร้อยละภาพรวมในหน่วย จุด)\n6. <h2> 2. โครงการตามแผนพัฒนาจังหวัด: ตาราง อำเภอ | ทั้งหมด | แล้วเสร็จ | อยู่ระหว่างดำเนินการ | ยังไม่เริ่ม | ไม่ระบุสถานะ; จากนั้นเป็นแถว รวม ตัวหนา\n7. <h2> 3. เรื่องร้องเรียนศูนย์ดำรงธรรม: ตาราง อำเภอ | ทั้งหมด | การประปา | เทียบเดือนก่อน (ทั้งหมด); จากนั้นเป็นแถว รวม ตัวหนา\n8. <h2> ข้อมูลที่ต้องตรวจสอบ: รายการละหนึ่งข้อสำหรับค่าที่ถูกตั้งข้อสังเกต และหนึ่งข้อสำหรับทุกการแปลงหน่วย (เช่น บาท → ล้านบาท) ให้ระบุ 'ไม่มี' หากไม่มีข้อมูลที่ต้องตรวจสอบ\n9. <h2> ข้อเสนอและสิ่งที่ต้องติดตาม: การดำเนินการที่เป็นรูปธรรม 2-4 ข้อ โดยแต่ละข้อต้องระบุชื่ออำเภอและสิ่งที่ควรดำเนินการ\nเกณฑ์การระบุตัวเลข: จำนวนเงินในหน่วย ล้านบาท โดยมีทศนิยม 2 ตำแหน่งอย่างเคร่งครัด (10.19 ห้ามใช้ 10.1935); ร้อยละมีทศนิยม 1 ตำแหน่ง; การเปลี่ยนแปลงของร้อยละให้ระบุเป็น 'จุด' (ลดลง 14.6 จุด) ห้ามระบุเป็น %; ค่าที่ไม่ทราบให้ระบุ 'ไม่มีข้อมูล' ห้ามใช้ -1 เคาะวรรคหนึ่งครั้งหลังชื่ออำเภอก่อนคำกริยา ใช้เฉพาะตัวเลขข้างต้นเท่านั้น ห้ามสร้างตัวเลขขึ้นเองโดยเด็ดขาด\nรูปแบบ: HTML ที่มี <h1>, <h2>, <p>, <ul>, และ <table border=\"1\"> elements with a bold header row (<th>) and numbers right-aligned (style=\"text-align:right\") จริง\nชื่อเรื่อง: ค้นหาในโฟลเดอร์ ${check_submissions.save_folder_id} โดยตรงเพื่อหา Google Docs ที่ชื่อขึ้นต้นด้วย 'รายงานผลการดำเนินงาน ${check_submissions.month_label} (ร่าง' หากไม่มี ให้ใช้ชื่อเรื่องว่า 'รายงานผลการดำเนินงาน ${check_submissions.month_label} (ร่าง)'; หากมี ให้เพิ่มหมายเลขลำดับถัดไป เช่น (ร่าง 2)\nวิธีการดำเนินการ: เรียกใช้ create_file หนึ่งครั้ง ด้วยชื่อเรื่องดังกล่าว, parentId ${check_submissions.save_folder_id}, contentMimeType 'text/html', และ textContent = HTML ทั้งหมด (ไม่มีฟิลด์เนื้อหาอื่น) ห้ามกำหนด disableConversionToGoogleType ห้ามสร้างไฟล์อื่น ห้ามแชร์ ย้าย อัปเดต หรือย้ายสิ่งใดลงถังขยะ file_id = ID ที่เครื่องมือส่งคืน; created = true เฉพาะเมื่อเครื่องมือส่งคืน ID เท่านั้น; file_title = ชื่อเรื่องที่ใช้ ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในส่วนใดก็ตามของเอกสารที่สร้างหรือส่ง แม้ว่าแหล่งข้อมูลต้นทางจะปรากฏคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์อินพุตระบุไว้ในคำอธิบายของเครื่องมือ): Drive MCP: search_files, read_file_content, get_file_metadata, create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true เฉพาะเมื่อไฟล์มีอยู่จริงแล้วในขณะนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "method": {
+        "description": "เครื่องมือและแนวทางที่ใช้ดำเนินการอย่างชัดเจน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "file_title": {
+        "description": "ชื่อเรื่อง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "สิ่งที่ไม่สำเร็จและเหตุผล ให้เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "content_mime_type_used": {
+        "description": "contentMimeType ที่ส่งไปยังเครื่องมือสร้าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "file_id": {
+        "description": "ID ของไฟล์ที่สร้างขึ้น ให้เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "problems",
+       "method",
+       "file_id",
+       "file_title",
+       "created",
+       "content_mime_type_used"
+      ]
+     }
+    },
+    {
+     "id": "report_made",
+     "displayName": "สร้างรายงานแล้วหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_report.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_report.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_created",
+     "displayName": "แจ้งว่าไม่ได้จัดทำรายงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ ข้อความนี้เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nระบบไม่ได้สร้าง Doc รายงาน รายละเอียด: ${create_report.problems}\nแจ้งว่าไม่มีการบันทึกหรือส่งข้อมูลใดๆ และระบบจะพยายามดำเนินการอีกครั้งในรอบการทำงานตามกำหนดการถัดไป\nเขียนเฉพาะข้อมูลที่ระบุไว้ข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)"
+     }
+    },
+    {
+     "id": "review_report",
+     "displayName": "ตรวจทานรายงาน",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "กรุณาตรวจทานร่างรายงาน (Please review the draft report): https://docs.google.com/document/d/${create_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ (Values to check): ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nถ้าต้องการให้แก้ ให้กด Reject และเขียนสิ่งที่ต้องแก้ (To have it redone, click Reject and write what to change.)\nแชร์กับอำเภอ (Shared with districts): ${check_submissions.shared_with_districts}: if true, the districts can see the folder where this draft is saved.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "check_comment",
+     "displayName": "อ่านความคิดเห็นของผู้ตรวจทาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "ผู้ตรวจทานปฏิเสธรายงานพร้อมระบุcommentนี้: \"${review_report.approval_feedback}\" กำหนด has_comment = true หากความคิดเห็นมีคำขอให้แก้ไขจริง (ไม่ว่างเปล่า และไม่ใช่มีเพียงการเว้นวรรค) ไม่ต้องใช้เครื่องมือใดๆ",
+      "connectorToolSelections": []
+     },
+     "outputSchema": {
+      "properties": {
+       "has_comment": {
+        "description": "true หากผู้ตรวจทานเขียนระบุสิ่งที่ต้องการให้แก้ไข",
+        "type": "BOOLEAN"
+       }
+      },
+      "required": [
+       "has_comment"
+      ]
+     }
+    },
+    {
+     "id": "changes_requested",
+     "displayName": "มีการขอให้แก้ไขหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Rebuild with comment",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_comment.has_comment"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_comment.has_comment"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "rebuild_report",
+     "displayName": "จัดทำรายงานใหม่ตามความคิดเห็น",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ผู้ตรวจทาน REJECTED ร่าง '${create_report.file_title}' (ID ${create_report.file_id}) และasked: \"${review_report.approval_feedback}\" โปรดอ่านร่างดังกล่าวก่อน (อาจมีการแก้ไขของผู้ตรวจทานเอง ให้คงการแก้ไขเหล่านั้นไว้) ดำเนินการปรับแก้ตามที่ร้องขอทุกรายการ และคงข้อมูลส่วนที่เหลือให้ถูกต้อง\nข้อมูลประจำเดือนนี้ (หนึ่งแถวต่อหนึ่งอำเภอ): ${read_and_table.rows}\nการเปรียบเทียบกับmonthที่แล้ว: ${compare_months.changes}\nchangesสำคัญ: ${compare_months.key_changes_th}\nขั้นแรกให้อ่านรายงานของเดือนที่แล้ว (ID ${check_submissions.prev_report_id}) ด้วย read_file_content และปฏิบัติตามโครงสร้าง แถบข้อความส่วนหัว (banner) และระดับภาษาที่เป็นทางการ หาก ID ว่างอยู่ ให้ใช้โครงสร้างด้านล่างนี้ตามเดิม\nเขียนด้วยรูปแบบภาษาราชการ ลำดับหัวข้อตามorderนี้:\n1. แถบข้อความส่วนหัว: คัดลอกข้อความระบุหน่วยงานและส่วนราชการตามรายงานของเดือนที่แล้วทุกประการ หากไม่มีรายงานของเดือนที่แล้ว ให้ละเว้นแถบข้อความส่วนหัว\n2. <h1> รายงานผลการดำเนินงานประจำเดือน ตามด้วย ${check_submissions.month_th} จากนั้นตามด้วยหนึ่งบรรทัด: สำหรับการประชุมหัวหน้าส่วนราชการประจำเดือน\n3. <h2> บทสรุปผู้บริหาร: 3-4 ประโยค: จำนวนอำเภอที่ส่งข้อมูล งบประมาณรวมที่ได้รับการจัดสรรและเบิกจ่ายพร้อมร้อยละในภาพรวม รายการที่มีการเพิ่มขึ้นมากที่สุดและลดลงมากที่สุด และประเด็นที่หัวหน้าส่วนราชการต้องให้ความสำคัญ\n4. <h2> ประเด็นสำคัญประจำเดือน: 3-5 หัวข้อย่อยจากการเปลี่ยนแปลงสำคัญ\n5. <h2> 1. ผลการเบิกจ่ายงบประมาณ: ตาราง อำเภอ | งบที่ได้รับจัดสรร (ล้านบาท) | เบิกจ่ายแล้ว (ล้านบาท) | ร้อยละ | เทียบเดือนก่อน (จุด); หนึ่งแถวต่อหนึ่งอำเภอ จากนั้นเป็นแถว รวม ตัวหนา (ผลรวมงบจัดสรร ผลรวมเบิกจ่าย ร้อยละภาพรวม = เบิกจ่ายรวม / จัดสรรรวม x 100 และการเปลี่ยนแปลงของร้อยละภาพรวมในหน่วย จุด)\n6. <h2> 2. โครงการตามแผนพัฒนาจังหวัด: ตาราง อำเภอ | ทั้งหมด | แล้วเสร็จ | อยู่ระหว่างดำเนินการ | ยังไม่เริ่ม | ไม่ระบุสถานะ; จากนั้นเป็นแถว รวม ตัวหนา\n7. <h2> 3. เรื่องร้องเรียนศูนย์ดำรงธรรม: ตาราง อำเภอ | ทั้งหมด | การประปา | เทียบเดือนก่อน (ทั้งหมด); จากนั้นเป็นแถว รวม ตัวหนา\n8. <h2> ข้อมูลที่ต้องตรวจสอบ: หนึ่งหัวข้อย่อยต่อหนึ่งค่าที่ถูกทำเครื่องหมาย (flagged value) และหนึ่งหัวข้อย่อยสำหรับทุกการแปลงหน่วย (เช่น บาท → ล้านบาท) เขียนว่า 'ไม่มี' หากไม่มีข้อมูลต้องตรวจสอบ\n9. <h2> ข้อเสนอและสิ่งที่ต้องติดตาม: การดำเนินงานที่เป็นรูปธรรม 2-4 ข้อ โดยแต่ละข้อต้องระบุชื่ออำเภอและสิ่งที่ควรดำเนินการ\nเกณฑ์การระบุตัวเลข: จำนวนเงินในหน่วย ล้านบาท โดยมีทศนิยม 2 ตำแหน่งเท่านั้น (10.19 ห้ามใช้ 10.1935); ร้อยละมีทศนิยม 1 ตำแหน่ง; การเปลี่ยนแปลงของร้อยละให้ระบุในหน่วย 'จุด' (ลดลง 14.6 จุด) ห้ามระบุเป็น %; ค่าที่ไม่ทราบให้ระบุว่า 'ไม่มีข้อมูล' ห้ามใช้ -1 เว้นวรรคหนึ่งครั้งหลังชื่ออำเภอก่อนคำกริยา ใช้เฉพาะตัวเลขข้างต้นเท่านั้น ห้ามสร้างตัวเลขขึ้นเองโดยเด็ดขาด\nรูปแบบ: HTML ที่มี <h1>, <h2>, <p>, <ul> และ <table border=\"1\"> elements with a bold header row (<th>) and numbers right-aligned (style=\"text-align:right\") จริง\nชื่อเรื่อง: '${create_report.file_title} – ฉบับแก้ไข'\nวิธีดำเนินการ: เรียกใช้ create_file หนึ่งครั้ง ด้วยชื่อเรื่องดังกล่าว parentId ${check_submissions.save_folder_id}, contentMimeType 'text/html' และ textContent = HTML ทั้งหมด (ไม่มีฟิลด์เนื้อหาอื่น) ห้ามกำหนดค่า disableConversionToGoogleType ห้ามสร้างไฟล์อื่น ห้ามแชร์ ย้าย อัปเดต หรือลบสิ่งใดลงถังขยะ file_id = ID ที่เครื่องมือส่งกลับมา; created = true เฉพาะเมื่อเครื่องมือส่งกลับ ID; file_title = ชื่อเรื่องที่ใช้ ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ระบุไว้ในเครื่องมือ): Drive MCP: search_files, read_file_content, get_file_metadata, create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true เฉพาะเมื่อไฟล์มีอยู่จริงแล้วในขณะนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "method": {
+        "description": "เครื่องมือและแนวทางที่ใช้ดำเนินการอย่างชัดเจน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "file_title": {
+        "description": "ชื่อเรื่อง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "สิ่งที่ไม่สำเร็จและเหตุผล ให้เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "content_mime_type_used": {
+        "description": "contentMimeType ที่ส่งไปยังเครื่องมือสร้าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "file_id": {
+        "description": "ID ของไฟล์ที่สร้างขึ้น ให้เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "problems",
+       "method",
+       "file_id",
+       "file_title",
+       "created",
+       "content_mime_type_used"
+      ]
+     }
+    },
+    {
+     "id": "rebuild_made",
+     "displayName": "สร้างรายงานฉบับแก้ไขแล้วหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rebuild_report.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rebuild_report.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "review_report_2",
+     "displayName": "ตรวจทานรายงานฉบับแก้ไข",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "กรุณาตรวจทานร่างรายงาน (Please review the draft report): https://docs.google.com/document/d/${rebuild_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ (Values to check): ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nครั้งนี้ถ้ากด Reject งานจะหยุด และบันทึกความเห็นไว้ (This time Reject stops the run; your comment is kept in the final message.)",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "build_deck",
+     "displayName": "จัดทำชุดสไลด์นำเสนอจำนวน 8 สไลด์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ผู้ตรวจทานอนุมัติรายงานแล้ว จัดทำชุดสไลด์สรุปจำนวน 8 สไลด์สำหรับการประชุมประจำเดือน โดยจะแสดงบนหน้าจอ จึงต้องกระชับและชัดเจน\n1. รายงานที่ได้รับอนุมัติ: หากโฟลเดอร์ ${check_submissions.save_folder_id} มี Google Doc ที่ชื่อตรงกันทุกประการว่า '${create_report.file_title} – ฉบับแก้ไข' อยู่โดยตรง ให้ใช้เอกสารนั้น มิฉะนั้นให้ใช้ ID ${create_report.file_id} โดย report_file_id = ID ของเอกสาร อ่านเนื้อหาปัจจุบันด้วย read_file_content (ซึ่งมีการแก้ไขของผู้ตรวจทานแล้ว) ใช้เฉพาะข้อเท็จจริงและตัวเลขจากเอกสารนี้เท่านั้น\n2. เรียกใช้ create_presentation_from_outline หนึ่งครั้ง ด้วยชื่อเรื่อง 'สรุปผลการดำเนินงาน ${check_submissions.month_label} – สไลด์', parentId ${check_submissions.save_folder_id}, templateId ${check_submissions.template_id} (ละเว้น templateId หากเป็นค่าว่าง: สไลด์แบบเรียบง่าย) และ slides = รายการทั้ง 8 รายการตามลำดับนี้พอดี แต่ละรายการประกอบด้วย {title, bullets, notes}:\n  1 title: รายงานผลการดำเนินงานประจำเดือน ตามด้วย ${check_submissions.month_th}; bullets: การประชุมหัวหน้าส่วนราชการประจำเดือน; ชื่อหน่วยงานจากแถบข้อความส่วนหัวของรายงาน\n  2 title: ประเด็นสำคัญประจำเดือน; bullets: การเปลี่ยนแปลงที่สำคัญที่สุด 3-4 ประเด็น\n  3 title: ข้อความการส่งข้อมูล (จำนวนอำเภอที่ส่งจากทั้งหมดกี่อำเภอ); bullets: ระบุอำเภอ\n  4 title: ข้อความงบประมาณพร้อมร้อยละในภาพรวม (เช่น เบิกจ่ายรวมร้อยละ … – <district> ลดลง … จุด); bullets: หนึ่งหัวข้อต่อหนึ่งอำเภอ (จัดสรร เบิกจ่าย ร้อยละ การเปลี่ยนแปลงในหน่วย จุด) และหัวข้อย่อย รวม\n  5 title: ข้อความโครงการ; bullets: หนึ่งหัวข้อต่อหนึ่งอำเภอ (ทั้งหมด แล้วเสร็จ อยู่ระหว่างดำเนินการ ยังไม่เริ่ม)\n  6 title: ข้อความเรื่องร้องเรียน; bullets: หนึ่งหัวข้อต่อหนึ่งอำเภอ (ทั้งหมด การประปา) เน้นรายการที่เพิ่มขึ้นมากที่สุด\n  7 title: ข้อมูลที่ต้องตรวจสอบ; bullets: ทุกค่าที่ถูกทำเครื่องหมายและการแปลงหน่วย หรือ 'ไม่มี'\n  8 title: ข้อเสนอและสิ่งที่ต้องติดตาม; bullets: การดำเนินงานที่เป็นรูปธรรม 2-4 ข้อ โดยแต่ละข้อต้องระบุชื่ออำเภอและการดำเนินงาน (ห้ามระบุ 'ไม่มี')\nเกณฑ์: สำหรับสไลด์ที่ 3-6 title ต้องระบุข้อค้นพบหลัก ไม่ใช่เพียงแค่ชื่อหัวข้อ มีหัวข้อย่อยได้ไม่เกิน 6 ข้อต่อสไลด์ แต่ละหัวข้อย่อยมีความยาวหนึ่งบรรทัดไม่เกิน 15 คำ และไม่มีการขึ้นบรรทัดใหม่ จำนวนเงินในหน่วย ล้านบาท มีทศนิยม 2 ตำแหน่งเท่านั้น ร้อยละมีทศนิยม 1 ตำแหน่ง การเปลี่ยนแปลงของร้อยละระบุในหน่วย 'จุด' notes = บันทึกผู้บรรยาย 2-4 ประโยคเป็นภาษาราชการที่เป็นกลาง ไม่ระบุเพศสำหรับผู้นำเสนอ (ห้ามมี ครับ หรือ ค่ะ): รายละเอียดและบริบทเบื้องหลังสไลด์ ค่าที่ถูกทำเครื่องหมายหมายถึง 'โปรดตรวจสอบ' ห้ามเรียกว่า ข้อผิดพลาด, ผิดพลาด หรือ wrong โดยเด็ดขาด\n3. ห้ามเรียกใช้ซ้ำเป็นครั้งที่สอง deck_link = url ที่เครื่องมือส่งกลับมา slides = slideCount ของเครื่องมือ หากเครื่องมือส่งกลับข้อผิดพลาดหรือไม่ส่ง url ให้กำหนด deck_link = '' และระบุข้อผิดพลาดที่แน่นอนใน problems ห้ามอ้างว่ามีชุดสไลด์อยู่โดยไม่มี url จากเครื่องมือ ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในสิ่งใดก็ตามที่สร้างขึ้น แม้ว่าไฟล์ต้นฉบับจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ระบุไว้ในเครื่องมือ): Drive MCP: search_files, read_file_content, get_file_metadata | Slides MCP: create_presentation_from_outline\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทั้งหมด (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอคำยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "slides": {
+        "description": "จำนวนสไลด์ที่ส่งกลับมา",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_link": {
+        "description": "ลิงก์ที่ส่งกลับมาจาก create_deck",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "ว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_file_id": {
+        "description": "ID ไฟล์ของรายงานที่ได้รับอนุมัติซึ่งนำมาใช้สร้างชุดสไลด์",
+        "type": "STRING"
+       }
+      },
+      "required": [
+       "problems",
+       "slides",
+       "deck_link",
+       "report_file_id"
+      ]
+     }
+    },
+    {
+     "id": "save_work_note",
+     "displayName": "บันทึกบันทึกการปฏิบัติงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "รายงานได้รับการอนุมัติแล้ว อ่านเนื้อหาปัจจุบัน (CURRENT) ของรายงานที่ได้รับอนุมัติ (ID ${build_deck.report_file_id})\nข้อมูล: ตาราง ${read_and_table.rows}, การเปลี่ยนแปลงสำคัญ ${compare_months.key_changes_th}, สไลด์ ${build_deck.deck_link}, ความเห็นแรกของผู้ตรวจทาน หากร่างแรกเป็น rejected: \"${review_report.approval_feedback}\"\nสร้างบันทึกการทำงาน Google Doc จำนวน 1 ไฟล์ด้วย create_file: contentMimeType text/html, textContent = HTML ทั้งหมด, ชื่อเรื่อง 'บันทึกการทำงาน ${check_submissions.month_label}', parentId ${check_submissions.save_folder_id} การทำงานของเดือนถัดไปจะอ่านบันทึกนี้ ดังนั้นให้เริ่มต้นด้วยสองบรรทัด exactly: 'รายงานที่อนุมัติ (Approved report): https://docs.google.com/document/d/<report_file_id>/edit' และ 'สไลด์ (Deck): <deck link, or ไม่มี>'\nจากนั้นระบุเป็นภาษาไทย: (1) อำเภอที่ส่งแล้ว / ยังไม่ส่ง (2) ค่าที่ถูกตั้งค่าแจ้งเตือน (หนึ่งหัวข้อย่อยต่อหนึ่งรายการ การแปลงหน่วยแยกหัวข้อย่อยต่างหาก) (3) การเปลี่ยนแปลงสำคัญ (4) บริบทหรือการแก้ไขที่ผู้ตรวจทานเพิ่มเข้ามาในรายงานฉบับสมบูรณ์เมื่อเทียบกับข้อมูล (อ้างอิงข้อความเหล่านั้น ระบุว่าไม่มีหากไม่พบ) (5) สิ่งที่ต้องตรวจสอบในเดือนถัดไป\nkey_points_th = ประเด็นสำคัญ 3 ข้อสั้น ๆ ในรูปแบบหัวข้อย่อยภาษาไทยจากรายงานที่ได้รับอนุมัติ (APPROVED) เพื่อใช้ในอีเมลถึงหัวหน้าหน่วยงาน\nห้ามสร้างไฟล์อื่น ห้ามแก้ไข แชร์ ย้าย หรือลบสิ่งใดลงถังขยะ ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าถูกอธิบายโดยเครื่องมือเอง): Drive MCP: search_files, read_file_content, get_file_metadata, create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่เขียนอย่างเด็ดขาด\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "note_file_id": {
+        "description": "ID ของบันทึกการทำงานที่สร้างขึ้น เว้นว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "reviewer_changes_found": {
+        "description": "การแก้ไขหรือบริบทที่เพิ่มเข้ามาแต่ละรายการที่พบในรายงานฉบับสมบูรณ์ (อ้างอิงข้อความ) เว้นว่างไว้หากไม่มี",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 1
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "key_points_th": {
+        "description": "หัวข้อย่อยภาษาไทย 3 ข้อจากรายงานที่ได้รับอนุมัติ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "note_file_id",
+       "reviewer_changes_found",
+       "key_points_th",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "email_head",
+     "displayName": "ส่งอีเมลถึงหัวหน้าสำนักงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งอีเมลเพียง 1 ฉบับด้วย send_email ไปยัง ${check_submissions.head_email} (อีเมลของหัวหน้าจากรายชื่ออำเภอของผู้ใช้) ห้ามมีผู้รับอื่น ห้ามมี CC/BCC หากที่อยู่อีเมลดังกล่าวว่างอยู่ หรือลิงก์รายงานด้านล่างว่างอยู่ ห้ามส่งข้อความใด ๆ ให้กำหนดค่า sent = false และระบุเหตุผลใน problems\nชื่อเรื่อง: รายงานผลการดำเนินงานประจำเดือน ${check_submissions.month_label} – สำหรับการประชุมหัวหน้าส่วนราชการ\nเนื้อหาเป็นภาษาราชการที่สุภาพ (เรียน หัวหน้าสำนักงาน…): รายงานผลการดำเนินงานประจำเดือน (${check_submissions.month_th}) ของเดือนนี้จัดทำเรียบร้อยแล้ว ลิงก์ต่าง ๆ ให้แสดงแยกบรรทัดละหนึ่งรายการและระบุข้อความนำหน้าให้ถูกต้องตรงกันทุกประการ: รายงานผลการดำเนินงาน https://docs.google.com/document/d/${build_deck.report_file_id}/edit ; สไลด์สรุปสำหรับการประชุม ${build_deck.deck_link} ; บันทึกการทำงาน https://docs.google.com/document/d/${save_work_note.note_file_id}/edit ให้ตัดบรรทัดที่ไม่มีลิงก์ออก จากนั้นระบุ points สำคัญ 3 ข้อ: ${save_work_note.key_points_th} รายการเหล่านี้เป็นลิงก์ ไม่ใช่ไฟล์แนบ ห้ามเขียนคำว่า แนบ หรือ เอกสารแนบ โดยเด็ดขาด ใช้รูปแบบที่เป็นทางการและไม่ระบุเพศ (ห้ามใช้ ครับ หรือ ค่ะ) ลงท้ายด้วย จึงเรียนมาเพื่อโปรดทราบ ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าถูกอธิบายโดยเครื่องมือเอง): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่เขียนอย่างเด็ดขาด\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน เมื่อผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "to": {
+        "description": "ผู้รับ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "เว้นว่างหากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "sent": {
+        "description": "true เฉพาะกรณีที่ส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "subject": {
+        "description": "ชื่อเรื่องที่ใช้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems",
+       "subject",
+       "to"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "แจ้งว่าดำเนินการเสร็จสิ้น",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใด ๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nรายงาน: https://docs.google.com/document/d/${build_deck.report_file_id}/edit\nสไลด์: ${build_deck.deck_link} (${build_deck.slides} สไลด์)\nบันทึกการทำงาน: https://docs.google.com/document/d/${save_work_note.note_file_id}/edit\nอีเมลถึงหัวหน้า: sent = ${email_head.sent}, ไปยัง ${email_head.to}\nสิ่งที่ถูก used: ${check_submissions.used_text}\nปัญหา: ${build_deck.problems} ${save_work_note.problems} ${email_head.problems}\nระบุลิงก์ สถานะการส่งอีเมลถึงหัวหน้าและที่อยู่อีเมลปลายทาง (ดึงมาจากรายชื่ออำเภอ ${check_submissions.list_link} ซึ่งสามารถแก้ไขได้ที่นั่น) ตลอดจนปัญหาที่พบอย่างชัดเจน\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่เขียนอย่างเด็ดขาด"
+     }
+    },
+    {
+     "id": "review_rejected",
+     "displayName": "หยุดการทำงาน: รายงานไม่ผ่านการอนุมัติ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้น ๆ ชัดเจนสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใด ๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nรายงานไม่ผ่านการอนุมัติ ร่างแรก: https://docs.google.com/document/d/${create_report.file_id}/edit ; comment แรก: \"${review_report.approval_feedback}\"\nแจ้งว่าไม่มีการส่งข้อมูลใด ๆ ถึงหัวหน้า ระบุลิงก์ของฉบับร่างและความเห็น พร้อมทั้งแจ้งว่าหากต้องการเริ่มดำเนินการใหม่ ให้ผู้ใช้เปลี่ยนชื่อหรือลบฉบับร่าง (ร่าง) ออก การทำงานรอบถัดไปตามกำหนดการจะสร้างฉบับร่างใหม่ขึ้นมา\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรือสไลด์ที่เขียนอย่างเด็ดขาด"
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_inputs"
+    },
+    {
+     "sourceNodeId": "find_inputs",
+     "targetNodeId": "already_done"
+    },
+    {
+     "sourceNodeId": "already_done",
+     "targetNodeId": "tell_already_done",
+     "routeString": "Already done"
+    },
+    {
+     "sourceNodeId": "already_done",
+     "targetNodeId": "draft_waiting",
+     "routeString": "Not done yet"
+    },
+    {
+     "sourceNodeId": "draft_waiting",
+     "targetNodeId": "tell_draft_waiting",
+     "routeString": "Draft waiting"
+    },
+    {
+     "sourceNodeId": "draft_waiting",
+     "targetNodeId": "need_fix",
+     "routeString": "No draft"
+    },
+    {
+     "sourceNodeId": "need_fix",
+     "targetNodeId": "tell_what_to_fix",
+     "routeString": "Fix"
+    },
+    {
+     "sourceNodeId": "need_fix",
+     "targetNodeId": "list_missing",
+     "routeString": "One each"
+    },
+    {
+     "sourceNodeId": "list_missing",
+     "targetNodeId": "create_list",
+     "routeString": "No list"
+    },
+    {
+     "sourceNodeId": "list_missing",
+     "targetNodeId": "list_empty",
+     "routeString": "List found"
+    },
+    {
+     "sourceNodeId": "create_list",
+     "targetNodeId": "list_made"
+    },
+    {
+     "sourceNodeId": "list_made",
+     "targetNodeId": "tell_list_created",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "list_made",
+     "targetNodeId": "tell_list_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "list_empty",
+     "targetNodeId": "tell_fill_list",
+     "routeString": "Empty"
+    },
+    {
+     "sourceNodeId": "list_empty",
+     "targetNodeId": "folder_missing",
+     "routeString": "Has districts"
+    },
+    {
+     "sourceNodeId": "folder_missing",
+     "targetNodeId": "create_folder",
+     "routeString": "No folder"
+    },
+    {
+     "sourceNodeId": "folder_missing",
+     "targetNodeId": "check_submissions",
+     "routeString": "Folder found"
+    },
+    {
+     "sourceNodeId": "create_folder",
+     "targetNodeId": "folder_made"
+    },
+    {
+     "sourceNodeId": "folder_made",
+     "targetNodeId": "tell_folder_created",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "folder_made",
+     "targetNodeId": "tell_folder_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "check_submissions",
+     "targetNodeId": "could_check"
+    },
+    {
+     "sourceNodeId": "could_check",
+     "targetNodeId": "tell_cannot_check",
+     "routeString": "Could not check"
+    },
+    {
+     "sourceNodeId": "could_check",
+     "targetNodeId": "anyone_missing",
+     "routeString": "Checked"
+    },
+    {
+     "sourceNodeId": "anyone_missing",
+     "targetNodeId": "plan_reminders",
+     "routeString": "Someone missing"
+    },
+    {
+     "sourceNodeId": "plan_reminders",
+     "targetNodeId": "remind_now"
+    },
+    {
+     "sourceNodeId": "remind_now",
+     "targetNodeId": "send_reminders",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "remind_now",
+     "targetNodeId": "tell_waiting",
+     "routeString": "Not today"
+    },
+    {
+     "sourceNodeId": "send_reminders",
+     "targetNodeId": "tell_reminders"
+    },
+    {
+     "sourceNodeId": "anyone_missing",
+     "targetNodeId": "read_and_table",
+     "routeString": "All sent"
+    },
+    {
+     "sourceNodeId": "read_and_table",
+     "targetNodeId": "compare_months"
+    },
+    {
+     "sourceNodeId": "compare_months",
+     "targetNodeId": "create_report"
+    },
+    {
+     "sourceNodeId": "create_report",
+     "targetNodeId": "report_made"
+    },
+    {
+     "sourceNodeId": "report_made",
+     "targetNodeId": "review_report",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "report_made",
+     "targetNodeId": "tell_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "review_report",
+     "targetNodeId": "build_deck",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "review_report",
+     "targetNodeId": "check_comment",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "check_comment",
+     "targetNodeId": "changes_requested"
+    },
+    {
+     "sourceNodeId": "changes_requested",
+     "targetNodeId": "rebuild_report",
+     "routeString": "Rebuild with comment"
+    },
+    {
+     "sourceNodeId": "changes_requested",
+     "targetNodeId": "review_rejected",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "rebuild_report",
+     "targetNodeId": "rebuild_made"
+    },
+    {
+     "sourceNodeId": "rebuild_made",
+     "targetNodeId": "review_report_2",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "rebuild_made",
+     "targetNodeId": "tell_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "review_report_2",
+     "targetNodeId": "build_deck",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "review_report_2",
+     "targetNodeId": "review_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "build_deck",
+     "targetNodeId": "save_work_note"
+    },
+    {
+     "sourceNodeId": "save_work_note",
+     "targetNodeId": "email_head"
+    },
+    {
+     "sourceNodeId": "email_head",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

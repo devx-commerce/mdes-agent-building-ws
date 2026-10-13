@@ -1,3 +1,5 @@
 backups/
 __pycache__/
 .DS_Store
+tests/results/
+tools/.translate_cache.json

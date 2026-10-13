@@ -1,0 +1,2491 @@
+{
+ "id": "GOV-C",
+ "persona": "government-officer",
+ "lang": "th",
+ "display_name": "Incoming Letters (TH)",
+ "description": "หนังสือเข้า (Incoming letters): ค้นหาหนังสือใหม่ในกล่องจดหมายและโฟลเดอร์ หนังสือเข้า ของท่าน, อ่านเนื้อหา (รวมถึงภาษาไทยฉบับสแกน), เสนอแนะหน่วยงานจากตารางมอบหมายงานของท่าน, ร่างหนังสือตอบพร้อมระบุช่องว่างที่ต้องกรอก, ส่งอีเมลบันทึกข้อความเสนอสั่งการถึงหัวหน้ากลุ่มงานและดำเนินการกับหนังสือตอบ (สร้างการแจ้งเตือนในปฏิทินพร้อมแนบร่างหนังสือสำหรับเจ้าหน้าที่, บันทึกทะเบียน) และส่งสรุปรายการประจำวันจันทร์ ทำงานทุกชั่วโมง (สูงสุด 3 ฉบับ เรียงตามความเร่งด่วนที่สุดก่อน); สร้างโฟลเดอร์ หนังสือเข้า และตารางมอบหมายงานให้อัตโนมัติหากยังไม่มี",
+ "_built_from": "tools/translate.py from en/incoming-letters.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/gov/build_incoming_letters.py (v2, 12 Oct 2026): hourly; creates a missing folder/routing table; up to 3 letters per run in a Loop, most urgent first; letters in progress are not started again.",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "ทุกชั่วโมง (0 * * * *, Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 * * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "get_setup",
+     "displayName": "ค้นหาโฟลเดอร์ ตารางมอบหมายงาน และทะเบียน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ค้นหาสิ่งที่จำเป็นสำหรับการทำงานรอบนี้ใน Google Drive ของผู้ใช้ที่เข้าสู่ระบบ ส่งคืนข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ อ่านข้อมูลเท่านั้นโดยไม่มีการแก้ไขสิ่งใด\nการทำงานรอบนี้เริ่มต้นตามกำหนดการ: ไม่มีข้อความจากผู้ใช้ ให้ใช้ลิงก์ในนี้ก่อน ลิงก์ Google Drive จะมีรหัสไฟล์กำกับอยู่: drive.google.com/drive/folders/<ID>, drive.google.com/file/d/<ID>/..., docs.google.com/document|spreadsheets|presentation/d/<ID>/... ให้นำรหัสจากลิงก์และตรวจสอบด้วย get_file_metadata\n1. โฟลเดอร์หนังสือ: โฟลเดอร์ชื่อ หนังสือเข้า (search_files เฉพาะโฟลเดอร์เท่านั้น รวมถึงโฟลเดอร์ที่แชร์กับผู้ใช้) folder_status: found = มีรายการเดียวพอดี; ambiguous = มีมากกว่าหนึ่งรายการ (ระบุแต่ละรายการเป็นชื่อ + ลิงก์ใน stop_items); missing = ไม่มี folder_parent_id = รหัสโฟลเดอร์หลักของรายการดังกล่าว (get_file_metadata)\n2. ตารางมอบหมายงาน: Google Sheet ที่ชื่อขึ้นต้นด้วย ตารางมอบหมายงาน ให้อ่านทุกแถว (get_values) units = หนึ่งบรรทัดต่อหนึ่งแถว: topics | unit | officer email section_head_email = อีเมลในแถวที่หัวข้อหรือหน่วยงานระบุว่าเป็น หัวหน้ากลุ่มงาน; ปล่อยว่างไว้หากไม่มี ใช้กฎ found / ambiguous / missing เดียวกัน\n3. ทะเบียน: Google Sheet ที่ชื่อขึ้นต้นด้วย ทะเบียนติดตามหนังสือ หรือ ทะเบียนหนังสือรับ register_id = รหัสของเอกสาร หรือปล่อยว่างไว้หากไม่มี (ขั้นตอนถัดไปจะสร้างให้ ซึ่งไม่เป็นปัญหา) หากพบ: register_rows = ทุกแถวของแท็บแรกในรูปแบบข้อความธรรมดาพร้อมหมายเลขแถว; handled_ids = รหัสไฟล์ Drive และรหัสข้อความหรือเธรด Gmail ทุกรายการที่พบในลิงก์ของแท็บแรก (คอลัมน์ ไฟล์ต้นฉบับ: ส่วนหลัง /file/d/ หรือหลัง #all/) รวมทั้งรหัสทุกรายการที่ระบุในแท็บชื่อ ข้ามแล้ว (คั่นด้วยจุลภาค; ปล่อยว่างไว้หากไม่มี); start_date = วันที่สร้างทะเบียนแปลงเป็นเวลา Asia/Bangkok (YYYY-MM-DD; get_file_metadata แสดงเวลา UTC) หากไม่พบ: start_date = วันนี้\n4. หนังสือตอบเดิม (ไม่บังคับ สำหรับรูปแบบการเขียน): โฟลเดอร์ที่ชื่อขึ้นต้นด้วย หนังสือตอบเดิม; ใส่รหัสหรือปล่อยว่างไว้\n5. owner_email = อีเมลเจ้าของโฟลเดอร์หนังสือ (get_file_metadata); คือเจ้าหน้าที่ผู้เรียกใช้เอเจนต์ (คุณปราณี)\n6. today = วันที่ของวันนี้ในเขตเวลา Asia/Bangkok (YYYY-MM-DD); weekday = ชื่อวันในสัปดาห์เป็นภาษาอังกฤษ; hour = ชั่วโมงปัจจุบัน (0-23) ใน Asia/Bangkok การกำหนดค่าสำหรับการทดสอบ: หากข้อความมี today=YYYY-MM-DD (และอาจมี hour=HH) ให้ใช้ค่าเหล่านั้นแทน (weekday กำหนดตามวันดังกล่าว)\n7. เนื้อหาของตารางมอบหมายงาน: unit_rows = จำนวนแถวที่ระบุหน่วยงานพร้อมอีเมลเจ้าหน้าที่ (ไม่รวมแถวหัวหน้ากลุ่มงานและแถวส่วนหัว)\n8. สาเหตุที่ทำให้การทำงานหยุดลง (แต่ละรายการเป็น true/false): need_fix = พบโฟลเดอร์หนังสือหรือตารางมอบหมายงานมากกว่าหนึ่งรายการ (fix_items = หนึ่งบรรทัดต่อรายการดังกล่าว: ชื่อ + ลิงก์ของแต่ละรายการที่ตรงกัน); folder_missing = ไม่มีโฟลเดอร์หนังสือ; table_missing = ไม่มีตารางมอบหมายงาน; table_empty = มีตารางมอบหมายงานแต่ unit_rows เป็น 0 หรือ section_head_email ว่างเปล่า setup_parent_id = โฟลเดอร์หลักของโฟลเดอร์หนังสือหรือของตารางมอบหมายงาน แล้วแต่ว่าจะพบรายการใด (ค่าว่าง = ไดรฟ์ของฉัน) missing_any = folder_missing หรือ table_missing ready = true เฉพาะกรณีที่ไม่พบค่า true ใน need_fix, folder_missing, table_missing, table_empty เลย\nใช้เฉพาะชื่อ รหัส และลิงก์ที่เครื่องมือส่งคืนเท่านั้น ห้ามสร้างขึ้นเองโดยเด็ดขาด\n\nเครื่องมือสำหรับขั้นตอนนี้ (อินพุตมีคำอธิบายในตัวเครื่องมือเอง): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nการค้นหาไฟล์ตามชื่อ (กฎ HOW-WE-BUILD ข้อ 6, #251): การค้นหาใน Drive จะค้นหาเฉพาะชื่อที่มีคำค้นหาปรากฏอยู่เท่านั้น ดังนั้นโปรดตรวจสอบผลลัพธ์ทุกรายการด้วยตนเอง คำว่า 'ขึ้นต้นด้วย X' หมายถึงอักขระเริ่มต้นของชื่อต้องเป็น X พอดี ชื่อที่มีข้อความใดๆ อยู่หน้า X – เช่น 'Copy of ', 'สำเนาของ ', '(old) ', '(renamed …) ', ตัวเลข, วงเล็บ หรือการเว้นวรรค – จะถือว่าไม่ตรงกัน แม้ว่าข้อความส่วนที่เหลือจะเหมือนกันทุกประการ หากไม่มีชื่อใดผ่านการตรวจสอบนี้ ให้ถือว่า missing (ระบุตามนั้น); ห้ามอนุโลมใช้ชื่อที่มีคำค้นหาปรากฏอยู่เฉยๆ โดยเด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "folder_id": {
+        "description": "รหัสโฟลเดอร์หนังสือ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "folder_parent_id": {
+        "description": "รหัสโฟลเดอร์หลักของรายการดังกล่าว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "routing_table_id": {
+        "description": "รหัสตารางมอบหมายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "units": {
+        "description": "แถวในตารางมอบหมายงาน: topics | unit | officer email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "section_head_email": {
+        "description": "อีเมลของหัวหน้ากลุ่มงานจากตารางมอบหมายงาน; ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "register_id": {
+        "description": "รหัสทะเบียน; ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "register_rows": {
+        "description": "แถวในทะเบียนในรูปแบบข้อความพร้อมหมายเลขแถว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "handled_ids": {
+        "description": "รหัสไฟล์/ข้อความ/เธรด ทั้งหมดที่มีอยู่แล้วในทะเบียนหรือแท็บข้ามแล้ว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "start_date": {
+        "description": "เฉพาะหนังสือตั้งแต่วันที่นี้ (YYYY-MM-DD)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "past_replies_folder_id": {
+        "description": "รหัสโฟลเดอร์หนังสือตอบเดิม; ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "owner_email": {
+        "description": "ผู้ใช้ของเอเจนต์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD ในเขตเวลา Asia/Bangkok",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "weekday": {
+        "description": "วันในสัปดาห์เป็นภาษาอังกฤษ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "hour": {
+        "description": "0-23 ในเขตเวลา Asia/Bangkok",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "unit_rows": {
+        "description": "แถวในตารางมอบหมายงานที่มีหน่วยงานและอีเมลเจ้าหน้าที่",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "need_fix": {
+        "description": "true หากพบโฟลเดอร์หรือตารางมากกว่าหนึ่งรายการ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "fix_items": {
+        "description": "รายการที่ตรงกันสำหรับเลือกใช้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "folder_missing": {
+        "description": "true หากไม่มีโฟลเดอร์หนังสือ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "table_missing": {
+        "description": "true หากไม่มีตารางมอบหมายงาน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "table_empty": {
+        "description": "true หากตารางมอบหมายงานไม่มีหน่วยงานหรือไม่มีอีเมลหัวหน้ากลุ่มงาน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "missing_any": {
+        "description": "true หากไม่พบโฟลเดอร์หรือตารางมอบหมายงาน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "setup_parent_id": {
+        "description": "ตำแหน่งสำหรับสร้างโฟลเดอร์หรือตารางใหม่; ค่าว่าง = ไดรฟ์ของฉัน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "ready": {
+        "description": "true หากสามารถดำเนินการทำงานต่อไปได้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       }
+      },
+      "required": [
+       "folder_id",
+       "folder_parent_id",
+       "routing_table_id",
+       "units",
+       "section_head_email",
+       "register_id",
+       "register_rows",
+       "handled_ids",
+       "start_date",
+       "past_replies_folder_id",
+       "owner_email",
+       "today",
+       "weekday",
+       "hour",
+       "unit_rows",
+       "need_fix",
+       "fix_items",
+       "folder_missing",
+       "table_missing",
+       "table_empty",
+       "missing_any",
+       "setup_parent_id",
+       "ready"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "โฟลเดอร์และตารางมอบหมายงานพร้อมใช้งานหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "setup_fix",
+     "displayName": "พบมากกว่าหนึ่งรายการหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Fix",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.need_fix"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No duplicates",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.need_fix"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_fix",
+     "displayName": "แจ้งสิ่งที่ต้องแก้ไข",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ เรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามตั้งคำถามกับผู้ใช้และห้ามรอคำตอบ\nรายการที่พบมากกว่า once: ${get_setup.fix_items}\nแจ้งว่าไม่มีการอ่านหรือส่งข้อมูลใดๆ แสดงรายการที่ตรงกันของแต่ละรายการเป็นชื่อและลิงก์ พร้อมแจ้งว่า: ให้คงไว้หนึ่งรายการและเปลี่ยนชื่อรายการอื่น (ชื่อต้องขึ้นต้นด้วย หนังสือเข้า หรือ ตารางมอบหมายงาน) โดยการทำงานรอบถัดไปในชั่วโมงหน้าจะนำไปใช้งาน\nเขียนเฉพาะข้อมูลที่ระบุไว้ข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "setup_missing",
+     "displayName": "ไม่พบโฟลเดอร์หรือตารางหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.missing_any"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.missing_any"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_setup",
+     "displayName": "สร้างโฟลเดอร์ / ตารางมอบหมายงาน ที่ยังไม่มี",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "สร้างเฉพาะสิ่งที่ยังไม่มีด้วย Drive create_file อย่างละหนึ่งครั้ง parentId ${get_setup.setup_parent_id} (ไม่ต้องใส่ parentId หากว่าง: ไดรฟ์ของฉัน)\n- โฟลเดอร์หนังสือ missing = ${get_setup.folder_missing}: หากเป็น true ให้สร้างโฟลเดอร์ 'หนังสือเข้า' (contentMimeType 'application/vnd.google-apps.folder' ไม่ต้องใส่เนื้อหา)\n- ตารางมอบหมายงาน missing = ${get_setup.table_missing}: หากเป็น true ให้สร้าง 'ตารางมอบหมายงาน' โดยมี contentMimeType 'text/csv' (Drive จะแปลงเป็น Google Sheet) และ textContent = สองบรรทัดนี้พอดี โดยคั่นด้วยการขึ้นบรรทัดใหม่จริง (ห้ามใช้อักขระแบ็กสแลชตามด้วย n):\nหัวข้อ/ประเภทเรื่อง,หน่วยงานผู้รับผิดชอบ,อีเมลเจ้าหน้าที่ผู้รับผิดชอบ\nหัวหน้ากลุ่มงาน,หัวหน้ากลุ่มงาน,\nห้ามเพิ่มหน่วยงานตัวอย่าง: ทุกแถวที่ผู้ใช้ปล่อยทิ้งไว้จะถูกนำไปใช้ในการกำหนดเส้นทาง ห้ามสร้างสิ่งอื่นใด\nfolder_link / table_link = ลิงก์ของสิ่งที่ท่านสร้าง (ปล่อยว่างไว้หากไม่ได้สร้าง); created_all = true เฉพาะกรณีที่สร้างสิ่งที่ยังไม่มีครบทั้งหมดแล้ว ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (อินพุตมีคำอธิบายในตัวเครื่องมือเอง): Drive MCP: create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือการเขียนจะถามยืนยันจากผู้ใช้ หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในข้อความ หากยังไม่สามารถเขียนข้อมูลได้ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "folder_link": {
+        "description": "ลิงก์โฟลเดอร์หนังสือใหม่; ปล่อยว่างไว้หากไม่ได้สร้าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "table_link": {
+        "description": "ลิงก์ตารางมอบหมายงานใหม่; ปล่อยว่างไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "created_all": {
+        "description": "true หากสร้างสิ่งที่ขาดหายไปทั้งหมดเรียบร้อยแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "folder_link",
+       "table_link",
+       "created_all",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_setup_created",
+     "displayName": "แจ้งรายการที่สร้างขึ้น",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nสร้างเรียบร้อยแล้ว: โฟลเดอร์หนังสือ ${create_setup.folder_link}; ตารางกำหนดเส้นทาง ${create_setup.table_link} ทั้งหมด created: ${create_setup.created_all} ปัญหา: ${create_setup.problems}\nระบุสิ่งที่สร้างขึ้น (ลิงก์) เนื่องจากยังไม่มีอยู่เดิม และ: วิธีการกรอกตารางกำหนดเส้นทาง เป็นภาษาไทยโดยมีภาษาอังกฤษในวงเล็บ: หนึ่งแถวต่อหนึ่งหน่วยงาน ประกอบด้วยสามคอลัมน์ ได้แก่ หัวข้อ/ประเภทเรื่อง (topics เช่น งบประมาณ บุคลากร ภัยพิบัติ), หน่วยงานผู้รับผิดชอบ (unit), อีเมลเจ้าหน้าที่ผู้รับผิดชอบ (officer email); และในแถว หัวหน้ากลุ่มงาน (Section Head) ให้ใส่อีเมลของหัวหน้ากลุ่มงานในคอลัมน์ที่สาม สำหรับไฟล์สแกนให้นำไปใส่ในโฟลเดอร์ หนังสือเข้า (incoming letters) การทำงานรอบถัดไปรายชั่วโมงจะเริ่มอ่านหนังสือเมื่อดำเนินการส่วนนี้เสร็จสิ้น\nเขียนเฉพาะข้อมูลที่ระบุไว้ข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "tell_fill_table",
+     "displayName": "แจ้งให้กรอกข้อมูลในตารางกำหนดเส้นทาง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือใดๆ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nพบตารางกำหนดเส้นทางแต่ยังไม่พร้อมใช้งาน: หน่วยงานที่มีเจ้าหน้าที่ email = ${get_setup.unit_rows}; หัวหน้ากลุ่มงาน email = '${get_setup.section_head_email}'\nแจ้งว่ายังไม่มีการอ่านหรือส่งข้อมูลใดๆ เนื่องจากตารางกำหนดเส้นทางจำเป็นต้องระบุหน่วยงานและอีเมลของหัวหน้ากลุ่มงาน และ: วิธีการกรอกตารางกำหนดเส้นทาง เป็นภาษาไทยโดยมีภาษาอังกฤษในวงเล็บ: หนึ่งแถวต่อหนึ่งหน่วยงาน ประกอบด้วยสามคอลัมน์ ได้แก่ หัวข้อ/ประเภทเรื่อง (topics เช่น งบประมาณ บุคลากร ภัยพิบัติ), หน่วยงานผู้รับผิดชอบ (unit), อีเมลเจ้าหน้าที่ผู้รับผิดชอบ (officer email); และในแถว หัวหน้ากลุ่มงาน (Section Head) ให้ใส่อีเมลของหัวหน้ากลุ่มงานในคอลัมน์ที่สาม สำหรับไฟล์สแกนให้นำไปใส่ในโฟลเดอร์ หนังสือเข้า (incoming letters) การทำงานรอบถัดไปรายชั่วโมงจะเริ่มอ่านหนังสือเมื่อดำเนินการส่วนนี้เสร็จสิ้น\nเขียนเฉพาะข้อมูลที่ระบุไว้ข้างต้นเท่านั้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     }
+    },
+    {
+     "id": "ensure_register",
+     "displayName": "ตรวจสอบให้แน่ใจว่ามีทะเบียนอยู่แล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ID ทะเบียน found: \"${get_setup.register_id}\"\nหากไม่ว่าง: ไม่ต้องเรียกใช้เครื่องมือใดๆ; register_id = ID ดังกล่าว; created = false\nหากว่าง: สร้างทะเบียนเพียงหนึ่งครั้งด้วย Drive create_file: ชื่อ 'ทะเบียนติดตามหนังสือ', parentId ${get_setup.folder_parent_id}, contentMimeType 'text/csv', textContent = บรรทัดส่วนหัวนี้เพียงบรรทัดเดียวเท่านั้น: วันที่รับ,ผู้ส่ง,เรื่อง,ระดับความเร่งด่วน,หน่วยงานที่ได้รับมอบหมาย,เจ้าหน้าที่ผู้รับผิดชอบ,กำหนดส่ง,สถานะ,ไฟล์ต้นฉบับ,ร่างหนังสือตอบ,เลขที่หนังสือ (เพื่อให้กลายเป็น Google Sheet) register_id = ID ที่เครื่องมือส่งกลับมา; created = true ไม่ต้องสร้างสิ่งอื่นใดเพิ่มเติม register_link = ลิงก์ของทะเบียน (get_file_metadata หากมีอยู่แล้ว)\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Drive MCP: create_file, get_file_metadata\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems\nการค้นหาไฟล์ตามชื่อ (กฎ HOW-WE-BUILD ข้อ 6, #251): การค้นหาของ Drive จะค้นหาเฉพาะชื่อที่มีข้อความดังกล่าวปรากฏอยู่ (CONTAIN) เท่านั้น ดังนั้นต้องตรวจสอบผลลัพธ์แต่ละรายการด้วยตนเอง 'Starts with X' หมายถึงอักขระตัวแรกสุดของชื่อต้องเป็น X ทุกประการ ชื่อที่มีสิ่งอื่นใดนำหน้า X เช่น 'Copy of ', 'สำเนาของ ', '(old) ', '(renamed …) ', ตัวเลข, วงเล็บ หรือเว้นวรรค จะถือว่าไม่ตรงกัน แม้ว่าส่วนที่เหลือจะเหมือนกันทุกประการก็ตาม หากไม่มีชื่อใดผ่านการตรวจสอบนี้ แสดงว่าไฟล์นั้น missing (ให้ระบุเช่นนั้น); ห้ามอนุโลมใช้ชื่อที่มีเพียงคำว่า X ปรากฏอยู่โดยเด็ดขาด"
+     },
+     "outputSchema": {
+      "properties": {
+       "register_id": {
+        "description": "ID ของทะเบียน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "register_link": {
+        "description": "ลิงก์ของทะเบียน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "created": {
+        "description": "true หากสร้างในการทำงานรอบนี้",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "register_id",
+       "register_link",
+       "created"
+      ]
+     }
+    },
+    {
+     "id": "find_reply",
+     "displayName": "ตรวจสอบการตอบกลับของหัวหน้ากลุ่มงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "ตรวจสอบการตอบกลับของหัวหน้ากลุ่มงานต่อบันทึกเกษียณหนังสือก่อนหน้า ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้จบการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ทำการอ่านเท่านั้น ห้ามเปลี่ยนแปลงสิ่งใด\nทะเบียน rows: ${get_setup.register_rows}\nตารางกำหนดเส้นทาง (หัวข้อ/ประเภทเรื่อง | หน่วยงาน | อีเมลเจ้าหน้าที่): ${get_setup.units}\nวันนี้: ${get_setup.today} (${get_setup.weekday})\n1. หนังสือที่รอดำเนินการ = แถวที่สถานะ (status) เป็น รอเกษียณ เรียงจากเก่าที่สุดก่อน สำหรับแต่ละแถว ให้ค้นหาเธรดของบันทึกเกษียณหนังสือ: search_threads สำหรับ subject:\"[เกษียณหนังสือ]\" ตามด้วยเลขที่หนังสือหรือเรื่อง, in:sent, จากนั้น get_thread\n2. ข้อความตอบกลับ = ข้อความลำดับถัดมาในเธรดนั้นซึ่งข้อความไม่มีคำว่า '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)' (ข้อความระบุนี้จะอยู่ในทุกอีเมลที่เอเจนต์นี้ส่ง ได้แก่ บันทึกเกษียณหนังสือและการแจ้งเตือน) ให้ใช้เฉพาะข้อความใหม่ของการตอบกลับนั้นเท่านั้น (ละเว้นข้อความเดิมที่ถูกอ้างอิง) แล้ววินิจฉัยจากข้อความดังกล่าว: approved (อนุมัติ, ok, เห็นชอบ, หรือ yes ล้วน); reassigned (ระบุชื่อหน่วยงานอื่นจากตารางกำหนดเส้นทาง: ให้ใช้หน่วยงานนั้นและอีเมลเจ้าหน้าที่ของหน่วยงานดังกล่าว); rejected (ไม่อนุมัติ, reject); unclear (กรณีอื่นใด: ให้คงสถานะรอไว้)\n3. เลือกหนังสือที่รอดำเนินการเล่มแรกที่มีผลการตอบกลับเป็น approved, reassigned หรือ rejected: has_decision = true, approved = true สำหรับ approved หรือ reassigned, false สำหรับ rejected; กรอกฟิลด์ของหนังสือจากแถวของหนังสือนั้น; หน่วยงาน และ officer_email = หน่วยงานสุดท้าย (หน่วยงานใหม่หากเป็นกรณี reassigned) has_deadline = true เฉพาะกรณีที่แถวดังกล่าวมีวันที่กำหนดส่งจริงเท่านั้น\n4. หากไม่มีหนังสือเล่มใดมีผลการวินิจฉัย: has_decision = false remind = true เฉพาะกรณีที่บันทึกเกษียณหนังสือของหนังสือที่รอดำเนินการที่เก่าที่สุดถูกส่งก่อนวันทำการล่าสุด (จันทร์-ศุกร์) และในเธรดยังไม่มีการแจ้งเตือน (ข้อความลำดับถัดมาที่มีคำว่า '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)') ส่งในวันนี้ จากนั้นให้กรอกฟิลด์ของหนังสือเล่มนั้นด้วย\nห้ามคาดเดาผลการวินิจฉัย unclear หมายถึงให้รอ\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Gmail MCP: search_threads, get_thread, get_message\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "has_decision": {
+        "description": "true หากหนังสือหนึ่งเล่มมีผลการวินิจฉัย",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "approved": {
+        "description": "true = approved หรือ reassigned",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "remind": {
+        "description": "true หากถึงกำหนดส่งการแจ้งเตือน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "row_number": {
+        "description": "แถวในทะเบียนของหนังสือเล่มนั้น",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "letter_no": {
+        "description": "เลขที่หนังสือ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "subject": {
+        "description": "เรื่อง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "sender": {
+        "description": "ผู้ส่ง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "deadline": {
+        "description": "YYYY-MM-DD หรือค่าว่าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "has_deadline": {
+        "description": "true หากมีกำหนดส่งจริง",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "unit": {
+        "description": "หน่วยงานสุดท้าย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "officer_email": {
+        "description": "อีเมลเจ้าหน้าที่คนสุดท้าย (จากตารางกำหนดเส้นทาง)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "draft_link": {
+        "description": "ลิงก์ร่างหนังสือตอบจากแถว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "source_link": {
+        "description": "ลิงก์ไฟล์หนังสือต้นฉบับจากแถว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "thread_id": {
+        "description": "ID เธรดของบันทึกเกษียณหนังสือ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "decision_text": {
+        "description": "ข้อความตอบกลับตามที่ระบุไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       }
+      },
+      "required": [
+       "has_decision",
+       "approved",
+       "remind",
+       "row_number",
+       "letter_no",
+       "subject",
+       "sender",
+       "deadline",
+       "has_deadline",
+       "unit",
+       "officer_email",
+       "draft_link",
+       "source_link",
+       "thread_id",
+       "decision_text"
+      ]
+     }
+    },
+    {
+     "id": "reply_found",
+     "displayName": "มีผลการวินิจฉัยจากหัวหน้ากลุ่มงานหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Decision",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_decision"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No decision",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_decision"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "is_approved",
+     "displayName": "อนุมัติหรือไม่ (Approved?)",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Approved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.approved"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Rejected",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.approved"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "has_deadline",
+     "displayName": "มีกำหนดส่งหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Deadline",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_deadline"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No deadline",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_deadline"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "invite_officer",
+     "displayName": "การแจ้งเตือนกำหนดส่งสำหรับเจ้าหน้าที่ (แนบร่างหนังสือตอบ)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "หัวหน้ากลุ่มงานอนุมัติหนังสือนี้สำหรับ ${find_reply.unit} แล้ว ให้สร้างกิจกรรมเพียง 1 รายการเท่านั้นด้วย Calendar create_event: ชื่อ 'ครบกำหนดส่ง: ${find_reply.subject}', วันที่ ${find_reply.deadline} 09:00-09:30, โซนเวลา Asia/Bangkok; ผู้เข้าร่วม ${find_reply.officer_email} เท่านั้น; ส่งคำเชิญไปยังผู้เข้าร่วม; แนบร่างหนังสือตอบ (${find_reply.draft_link}) ในกิจกรรม รายละเอียดเป็นภาษาไทย: จาก ${find_reply.sender}, หนังสือ ${find_reply.letter_no}, สิ่งที่ขอความร่วมมือ/สั่งการ, ครบกำหนด ${find_reply.deadline}, หนังสือต้นฉบับ ${find_reply.source_link}, ร่างหนังสือตอบ ${find_reply.draft_link}; กรอกข้อมูลในช่องว่างที่ทำเครื่องหมายไว้ จัดทำร่างหนังสือตอบให้เสร็จสิ้นและส่งผ่านระบบสารบรรณอิเล็กทรอนิกส์ (e-Saraban) created = true เฉพาะกรณีที่เครื่องมือส่งคืน ID กิจกรรมเท่านั้น ห้ามเขียนข้อความ ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในส่วนใดๆ ของสิ่งที่สร้างหรือส่ง แม้ว่าในแหล่งข้อมูลจะระบุไว้ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Calendar MCP: create_event\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอการยืนยันเป็นข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true เฉพาะกรณีที่มี ID กิจกรรมส่งกลับมา",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "event_link": {
+        "description": "ลิงก์กิจกรรม",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "created",
+       "event_link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "email_officer",
+     "displayName": "ส่งอีเมลร่างหนังสือตอบให้เจ้าหน้าที่ (ไม่มีกำหนดส่ง)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "หัวหน้ากลุ่ม/ฝ่ายอนุมัติหนังสือนี้สำหรับ ${find_reply.unit} โดยไม่มีกำหนดส่ง ส่งอีเมลเพียง 1 ฉบับด้วย send_email ไปยัง ${find_reply.officer_email} เท่านั้น (ไม่มี CC/BCC) หัวข้อ: มอบหมายงาน: ${find_reply.subject} เนื้อหาเป็นภาษาไทยแบบสั้น: จาก ${find_reply.sender} หนังสือ ${find_reply.letter_no} ต้นฉบับ ${find_reply.source_link} ร่างหนังสือตอบ ${find_reply.draft_link} กรอกข้อมูลในช่องว่างที่ทำเครื่องหมายไว้แล้วส่งผ่าน e-Saraban sent = true เฉพาะเมื่อเครื่องมือส่งคืน message ID เท่านั้น ปิดท้ายเนื้อหาอีเมลด้วยบรรทัดสุดท้ายที่ตรงตามนี้ทุกประการ: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในส่วนใดๆ ของสิ่งที่คุณสร้างหรือส่งเป็นอันขาด แม้ว่าแหล่งข้อมูลจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: send_email\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอการยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์เอาต์พุตของคุณโดยระบุฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true เฉพาะเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_assigned",
+     "displayName": "ทะเบียน: มอบหมายแล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "อัปเดตแถวในทะเบียน 1 แถวด้วย Sheets update_row: สเปรดชีต ${ensure_register.register_id}, แท็บแรก, แถว ${find_reply.row_number} กำหนด หน่วยงานที่ได้รับมอบหมาย = ${find_reply.unit}, เจ้าหน้าที่ผู้รับผิดชอบ = ${find_reply.officer_email}, สถานะ = รอดำเนินการ ห้ามเปลี่ยนแปลงสิ่งอื่นใด updated = true เฉพาะเมื่อเครื่องมือยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: update_row\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอการยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์เอาต์พุตของคุณโดยระบุฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_rejected",
+     "displayName": "ทะเบียน: ไม่อนุมัติ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "อัปเดตแถวในทะเบียน 1 แถวด้วย Sheets update_row: สเปรดชีต ${ensure_register.register_id}, แท็บแรก, แถว ${find_reply.row_number}: สถานะ = ไม่อนุมัติ ห้ามเปลี่ยนแปลงสิ่งอื่นใด updated = true เฉพาะเมื่อเครื่องมือยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: update_row\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอการยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์เอาต์พุตของคุณโดยระบุฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "needs_reminder",
+     "displayName": "ถึงกำหนดแจ้งเตือนหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.remind"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No reminder",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.remind"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_reminder",
+     "displayName": "แจ้งเตือนหัวหน้ากลุ่ม/ฝ่าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ตอบกลับ 1 ครั้งในเธรดบันทึกเสนอเรื่อง ${find_reply.thread_id} ด้วย send_email (ไปยังผู้รับเดิมของเธรดเท่านั้น หัวข้อเดิมพร้อม Re:) เนื้อหาเป็นภาษาไทยแบบสั้น: แจ้งเตือนว่าหนังสือ ${find_reply.letter_no} (${find_reply.subject}) จาก ${find_reply.sender} กำลังรอการสั่งการเรื่อง กำหนดส่ง ${find_reply.deadline} (ระบุ ไม่มี (none) หากว่างเปล่า) ตอบกลับ อนุมัติ, ชื่อของหน่วยงานอื่น หรือ ไม่อนุมัติ sent = true เฉพาะเมื่อเครื่องมือส่งคืน message ID เท่านั้น ปิดท้ายเนื้อหาอีเมลด้วยบรรทัดสุดท้ายที่ตรงตามนี้ทุกประการ: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในส่วนใดๆ ของสิ่งที่คุณสร้างหรือส่งเป็นอันขาด แม้ว่าแหล่งข้อมูลจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: send_email\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอการยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์เอาต์พุตของคุณโดยระบุฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true เฉพาะเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "find_new",
+     "displayName": "ค้นหาหนังสือเข้าใหม่ (ตามลำดับความเร่งด่วนสูงสุดก่อน)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "คุณมีหน้าที่ค้นหาหนังสือเข้าชุดถัดไป ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้เสร็จสิ้นด้วยการส่งคืนฟิลด์เอาต์พุตเสมอ คุณมีหน้าที่อ่านเท่านั้น ห้ามเปลี่ยนแปลงสิ่งใด\nเฉพาะรายการตั้งแต่วันที่ ${get_setup.start_date} เป็นต้นไป รายการที่ดำเนินการแล้ว = รายการใดๆ ที่มี file ID, message ID หรือ thread ID อยู่ใน ${get_setup.handled_ids}: ให้คัดรายการเหล่านั้นออกทั้งหมด (ห้ามตรวจดูอีกและห้ามระบุเป็น skips)\n1. อีเมล: search_threads 'in:inbox after:<the day before start_date, as YYYY/MM/DD>' และเก็บเฉพาะข้อความที่มีวันที่ตามเวลา Asia/Bangkok ตรงกับหรือหลังจากวันที่เริ่มต้น คัดอีเมลของเอเจนต์นี้เองรวมถึงการตอบกลับออก: เธรดที่หัวข้อมีข้อความ [เกษียณหนังสือ] หรือ [สรุปหนังสือค้าง] หรือขึ้นต้นด้วย มอบหมายงาน: หรือ ตัวช่วยหนังสือเข้า: และข้อความใดๆ ที่มีข้อความ '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)' รวมถึงคำเชิญในปฏิทินและทุกรายการที่ดำเนินการแล้ว (หนังสืออาจมาจากผู้ส่งรายใดก็ได้ รวมถึงที่อยู่อีเมลของผู้ใช้ที่ลงชื่อเข้าใช้เอง)\n2. ไฟล์สแกน: ไฟล์ที่อยู่ในโฟลเดอร์ ${get_setup.folder_id} โดยตรง ซึ่งสร้างขึ้นในหรือหลังจากวันที่เริ่มต้น (Asia/Bangkok) และยังไม่ได้รับการดำเนินการ\n3. หนังสือที่อยู่ระหว่างดำเนินการแล้ว (การทำงานรอบก่อนหน้าได้เริ่มดำเนินการไว้แล้วและการ์ดอาจยังคงรออยู่): search_threads 'in:sent subject:\"[เกษียณหนังสือ]\" after:<the day before start_date>' และแสดงรายการเลขที่หนังสือในหัวข้อเหล่านั้น search_files สำหรับ Google Docs ที่ชื่อขึ้นต้นด้วย 'ร่างหนังสือตอบ – ' ในโฟลเดอร์ ${get_setup.folder_parent_id} และแสดงรายชื่อเอกสารเหล่านั้น\n4. ตรวจสอบรายการตามลำดับเก่าที่สุดก่อน สูงสุดไม่เกิน 10 รายการ (get_message สำหรับอีเมล read_file_content สำหรับไฟล์) แล้วพิจารณา: หนังสือ = หนังสือราชการ (มีเลข ที่, เรื่อง และ เรียน จากหน่วยงานหรือองค์กร) ในเนื้อหาอีเมลหรือในไฟล์แนบ PDF/รูปภาพ ไม่ใช่หนังสือ (จดหมายข่าว, บัตรเชิญ, จดหมายส่วนตัว, โฆษณา) -> skips, เหตุผล not_a_letter รายการที่มีเลขที่หนังสือและผู้ส่งปรากฏอยู่ในแถวของทะเบียนแล้ว (${get_setup.register_rows}) -> skips, เหตุผล duplicate หนังสือที่มีเลขที่ปรากฏในหัวข้อ [เกษียณหนังสือ] ที่ส่งแล้ว หรือมีชื่อเรื่องตรงกับชื่อเอกสาร Doc 'ร่างหนังสือตอบ – ' จากขั้นตอนที่ 3 -> in progress: ให้คัดออก (ระบุไว้ใน in_progress ไม่ใช่ใน skips)\n5. letters = หนังสือเข้าใหม่จริง ตามลำดับความเร่งด่วนสูงสุดก่อน (ด่วนที่สุด, จากนั้น ด่วนมาก, จากนั้น ด่วน, แล้วจึงเป็นรายการที่เหลือ โดยในแต่ละกลุ่มให้เรียงตามเก่าที่สุดก่อน) สูงสุดไม่เกิน 3 รายการ แต่ละรายการเป็น text จำนวน 1 บรรทัด: 'source=<email or scan>; id=<message ID or file ID>; link=<https://mail.google.com/mail/u/0/#all/<thread ID> or https://drive.google.com/file/d/<file ID>/view>; attachments=<the email's attachment IDs, comma-separated, or none>; urgency=<as printed or ปกติ>' has_letters = true หาก letters ไม่ว่างเปล่า letter_count = จำนวนรายการ\nskips = สูงสุดไม่เกิน 20 รายการ has_skips = true หาก skips ไม่ว่างเปล่า ห้ามคาดเดา: หากไม่สามารถระบุได้ ให้ถือว่าเป็นหนังสือ\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Gmail MCP: search_threads, get_thread, get_message | Drive MCP: search_files, read_file_content, get_file_metadata\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "letters": {
+        "description": "หนังสือเข้าใหม่สูงสุด 3 ฉบับ เรียงตามลำดับความเร่งด่วนสูงสุดก่อน บรรทัดละ 1 รายการ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "has_letters": {
+        "description": "true หากมีหนังสือใหม่อย่างน้อย 1 ฉบับ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "letter_count": {
+        "description": "จำนวนหนังสือในการทำงานรอบนี้",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "in_progress": {
+        "description": "หนังสือที่คัดออกเนื่องจากการทำงานรอบก่อนหน้าได้เริ่มดำเนินการไปแล้ว",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "has_skips": {
+        "description": "true หากมีรายการที่ข้าม",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "skips": {
+        "description": "รายการที่ไม่ใช่หนังสือหรือเป็นรายการซ้ำ",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 5
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "Message ID หรือ file ID",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "title": {
+           "description": "ชื่อเรื่องหรือชื่อไฟล์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "reason": {
+           "description": "not_a_letter หรือ duplicate",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "id",
+          "title",
+          "reason"
+         ]
+        }
+       }
+      },
+      "required": [
+       "letters",
+       "has_letters",
+       "letter_count",
+       "in_progress",
+       "has_skips",
+       "skips"
+      ]
+     }
+    },
+    {
+     "id": "skips_found",
+     "displayName": "มีรายการที่ต้องข้ามหรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Skips",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_skips"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No skips",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_skips"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "record_skips",
+     "displayName": "บันทึกรายการที่ข้าม",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "เพิ่มรายการที่ข้ามต่อท้ายในแท็บชื่อ ข้ามแล้ว ของสเปรดชีต ${ensure_register.register_id} ด้วย Sheets append_rows ในการเรียกครั้งเดียว: แถวละ 1 รายการ: วันที่ ${get_setup.today}, id, title, reason หากยังไม่มีแท็บดังกล่าว ให้สร้างขึ้นก่อนด้วย add_sheet (ส่วนหัว: วันที่, ID, ชื่อ, เหตุผล) รายการ: ${find_new.skips} appended = true เฉพาะเมื่อเครื่องมือยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยตัวเครื่องมือเอง): Sheets MCP: get_spreadsheet, add_sheet, append_rows\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nเครื่องมือประเภทเขียน (Write tools) จะขอให้ผู้ใช้ยืนยัน หลังผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลง) และห้ามขอการยืนยันในข้อความ หากการเขียนยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์เอาต์พุตของคุณโดยระบุฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "appended",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "letter_found",
+     "displayName": "มีหนังสือใหม่หรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "New letters",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_letters"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No new letter",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_letters"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "each_letter",
+     "displayName": "สำหรับหนังสือใหม่แต่ละฉบับ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "find_new.letters",
+      "currentItemVariable": "item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "loop_trigger",
+         "displayName": "หนังสือฉบับนี้",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "item": {
+            "type": "STRING"
+           }
+          }
+         }
+        },
+        {
+         "id": "read_letter",
+         "displayName": "อ่านหนังสือ (รวมถึงภาษาไทยที่สแกนด้วย)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ],
+          "instruction": "อ่านหนังสือเข้าฉบับนี้ให้ครบถ้วน หนังสือ (จากรายการของการประมวลผลรอบนี้): \"${loop_trigger.item}\" (source = email หรือ scan; id = message ID หรือ file ID; link; attachments = รหัสเอกสารแนบของอีเมล) สำหรับอีเมล: get_message หากหนังสืออยู่ในเอกสารแนบ ให้บันทึกลงใน Drive เพียง 1 ครั้ง ด้วย save_attachment_to_drive (ลงในโฟลเดอร์ ${get_setup.folder_id}) และอ่านด้วย read_file_content สำหรับเอกสารสแกน: read_file_content (ใช้สำหรับอ่านภาษาไทยที่สแกนมา)\nส่งคืนค่า: sender (หน่วยงานผู้ส่ง), letter_no (ที่), letter_date, subject (เรื่อง), addressed_to (เรียน), request_summary (สิ่งที่ขอความอนุเคราะห์หรือสั่งการ เป็นภาษาไทยแบบสั้น), deadline (YYYY-MM-DD; แปลงวันที่ พ.ศ. และ 'ภายใน N วัน' นับจากวันที่ในหนังสือหรือวันนี้ ${get_setup.today}; หากไม่มีให้เว้นว่าง), deadline_text (ตามที่ระบุไว้ในหนังสือ), urgency (ด่วนที่สุด / ด่วนมาก / ด่วน / ปกติ ตามที่พิมพ์ไว้), urgent = true หาก urgency เป็น ด่วนที่สุด หรือ ด่วนมาก หรือ deadline ภายใน 3 วันนับจากวันนี้; reply_format = หนังสือภายนอก (หน่วยงานอื่น) หรือ บันทึกข้อความ (ภายในส่วนราชการ); file_link = ลิงก์ Drive ของไฟล์หนังสือ (เอกสารแนบที่บันทึกไว้ เอกสารสแกน หรือเว้นว่างหากมีเฉพาะเนื้อหาในอีเมล); readable = false เฉพาะกรณีที่ไม่สามารถอ่านหนังสือได้; problems = สิ่งที่ไม่สามารถอ่านได้; source_id และ source_link = id และ link จากรายการข้างต้น\nห้ามสร้างตัวเลข วันที่ หรือชื่อขึ้นมาเองโดยเด็ดขาด ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในสิ่งใดก็ตามที่สร้างหรือส่ง แม้ว่าข้อมูลต้นทางจะปรากฏคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในเครื่องมือแล้ว): Gmail MCP: get_message, save_attachment_to_drive | Drive MCP: read_file_content, get_file_metadata\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือสำหรับเขียนจะขอให้ผู้ใช้ยืนยันก่อน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลลงใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "sender": {
+            "description": "หน่วยงานผู้ส่ง",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "letter_no": {
+            "description": "ที่",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "letter_date": {
+            "description": "ลงวันที่",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "subject": {
+            "description": "เรื่อง",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "addressed_to": {
+            "description": "เรียน",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           },
+           "request_summary": {
+            "description": "สิ่งที่ขอความอนุเคราะห์หรือสั่งการ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 5
+            }
+           },
+           "deadline": {
+            "description": "YYYY-MM-DD หรือค่าว่าง",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 6
+            }
+           },
+           "deadline_text": {
+            "description": "กำหนดส่งตามที่ระบุไว้",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 7
+            }
+           },
+           "urgency": {
+            "description": "ตามที่พิมพ์ไว้",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 8
+            }
+           },
+           "urgent": {
+            "description": "true หากเป็นเรื่องด่วนมากหรือครบกำหนดภายใน 3 วัน",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 9
+            }
+           },
+           "reply_format": {
+            "description": "หนังสือภายนอก หรือ บันทึกข้อความ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 10
+            }
+           },
+           "file_link": {
+            "description": "ลิงก์ Drive ของไฟล์หนังสือ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 11
+            }
+           },
+           "readable": {
+            "description": "false หากไม่สามารถอ่านได้",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 12
+            }
+           },
+           "source_id": {
+            "description": "Message ID หรือ File ID (จากรายการ)",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 13
+            }
+           },
+           "source_link": {
+            "description": "ลิงก์ไปยังต้นฉบับ (จากรายการ)",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 14
+            }
+           },
+           "problems": {
+            "description": "ปล่อยว่างไว้หากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 15
+            }
+           }
+          },
+          "required": [
+           "sender",
+           "letter_no",
+           "letter_date",
+           "subject",
+           "addressed_to",
+           "request_summary",
+           "deadline",
+           "deadline_text",
+           "urgency",
+           "urgent",
+           "reply_format",
+           "file_link",
+           "readable",
+           "source_id",
+           "source_link",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "letter_ok",
+         "displayName": "อ่านได้หรือไม่",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Readable",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "read_letter.readable"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Unreadable",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "read_letter.readable"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "route",
+         "displayName": "เสนอหน่วยงาน (ตารางมอบหมายงาน)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "instruction": "เลือกหน่วยงานสำหรับหนังสือฉบับนี้ ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และให้สิ้นสุดการทำงานโดยส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือใดๆ\nหนังสือ: จาก ${read_letter.sender}; เรื่อง ${read_letter.subject}; asks: ${read_letter.request_summary}\nตารางมอบหมายงาน (เรื่อง | หน่วยงาน | อีเมลเจ้าหน้าที่): ${get_setup.units}\nเลือกเพียง 1 แถวที่เรื่องตรงกันมากที่สุด (ห้ามเลือกแถวของหัวหน้าฝ่ายโดยเด็ดขาด) matched = true; unit และ officer_email มาจากแถวดังกล่าว; reason = ภาษาไทยแบบสั้น 1 บรรทัด หากไม่มีแถวใดตรง: matched = false, unit = ไม่พบในตารางมอบหมายงาน, officer_email = ${get_setup.owner_email} ห้ามสร้างอีเมลขึ้นมาเองโดยเด็ดขาด\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+         },
+         "outputSchema": {
+          "properties": {
+           "matched": {
+            "description": "true หากพบแถวที่ตรงกัน",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "unit": {
+            "description": "หน่วยงานที่เสนอ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "officer_email": {
+            "description": "อีเมลเจ้าหน้าที่",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "reason": {
+            "description": "เหตุผล ภาษาไทย 1 บรรทัด",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "matched",
+           "unit",
+           "officer_email",
+           "reason"
+          ]
+         }
+        },
+        {
+         "id": "draft_reply",
+         "displayName": "ร่างหนังสือตอบ (ระบุช่องว่างชัดเจน)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "ร่างหนังสือตอบสำหรับหนังสือฉบับนี้เป็น Google Doc เพียง 1 ไฟล์ ในรูปแบบทางการที่ถูกต้อง format: ${read_letter.reply_format}\nหนังสือ: จาก ${read_letter.sender}, ที่ ${read_letter.letter_no}, ลงวันที่ ${read_letter.letter_date}, เรื่อง ${read_letter.subject}, เรียน ${read_letter.addressed_to}; asks: ${read_letter.request_summary}; ครบกำหนด ${read_letter.deadline_text} เสนอ unit: ${route.unit}\nแบบอย่างการเขียน: หากโฟลเดอร์ \"${get_setup.past_replies_folder_id}\" ไม่ว่างเปล่า ให้อ่านหนังสือตอบในอดีต 1-2 ฉบับที่มีเนื้อหาใกล้เคียงกัน และปฏิบัติตามสำนวนภาษาตลอดจนการจัดวางรูปแบบของหนังสือนั้น จุดใดที่ต้องใช้ข้อมูลซึ่งทราบเฉพาะหน่วยงานผู้รับผิดชอบ (เช่น ตัวเลข ชื่อ วันที่) ให้เว้นช่องว่างไว้อย่างชัดเจน เช่น [……] พร้อมระบุข้อมูลที่ต้องกรอก ห้ามสร้างข้อมูลขึ้นมาเองโดยเด็ดขาด และให้เว้นเลขที่หนังสือราชการ (ที่) ของหนังสือตอบไว้เช่นกัน ห้ามใส่รูปภาพหรือลิงก์รูปภาพในร่างหนังสือตอบ: ในตำแหน่งที่ต้องวางตราครุฑ ให้พิมพ์ข้อความ [ตราครุฑ] เพื่อให้เจ้าหน้าที่นำภาพมาแทนที่ในภายหลัง\nวิธีปฏิบัติ: เรียกใช้ create_file เพียง 1 ครั้ง: title 'ร่างหนังสือตอบ – ${read_letter.subject}', parentId ${get_setup.folder_parent_id}, contentMimeType 'text/html', textContent = โค้ด HTML ทั้งหมด ห้ามสร้างสิ่งอื่นใดเพิ่มเติม draft_id = ID ที่เครื่องมือส่งคืน; draft_link = ลิงก์ของเอกสาร; created = true เฉพาะกรณีที่ส่งคืน ID ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในสิ่งใดก็ตามที่สร้างหรือส่ง แม้ว่าข้อมูลต้นทางจะปรากฏคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในเครื่องมือแล้ว): Drive MCP: search_files, read_file_content, create_file\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือสำหรับเขียนจะขอให้ผู้ใช้ยืนยันก่อน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลลงใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "draft_id": {
+            "description": "Doc ID ของร่างหนังสือ; เว้นว่างหากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "draft_link": {
+            "description": "ลิงก์ Doc ของร่างหนังสือ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "created": {
+            "description": "true เฉพาะกรณีที่เครื่องมือส่งคืน ID",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "problems": {
+            "description": "ปล่อยว่างไว้หากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "draft_id",
+           "draft_link",
+           "created",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "draft_made",
+         "displayName": "สร้างร่างหนังสือแล้วหรือไม่",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Created",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "draft_reply.created"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Not created",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "draft_reply.created"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "register_row",
+         "displayName": "ลงทะเบียน: หนังสือใหม่ (รอเกษียณ)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "เพิ่ม 1 แถว ลงในแท็บแรกของทะเบียนรับ ${ensure_register.register_id} ด้วย Sheets append_rows (อ่านหัวตารางก่อนด้วย get_values เพื่อรักษาลำดับคอลัมน์ให้ถูกต้อง) ค่าข้อมูล: วันที่รับ ${get_setup.today}; ผู้ส่ง ${read_letter.sender}; เรื่อง ${read_letter.subject}; ระดับความเร่งด่วน ${read_letter.urgency}; หน่วยงานที่ได้รับมอบหมาย ${route.unit}; เจ้าหน้าที่ผู้รับผิดชอบ ${route.officer_email}; กำหนดส่ง ${read_letter.deadline} (หรือ ไม่มี หากไม่มีกำหนดส่ง); สถานะ รอเกษียณ; ไฟล์ต้นฉบับ ${read_letter.source_link}; ร่างหนังสือตอบ ${draft_reply.draft_link}; เลขที่หนังสือ ${read_letter.letter_no} หากหัวตารางไม่มีคอลัมน์ เลขที่หนังสือ ให้ใส่เลขที่หนังสือไว้ท้ายแถว appended = true เฉพาะกรณีที่เครื่องมือยืนยันเรียบร้อยแล้ว\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในเครื่องมือแล้ว): Sheets MCP: get_values, append_rows\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือสำหรับเขียนจะขอให้ผู้ใช้ยืนยันก่อน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลลงใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "appended": {
+            "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "problems": {
+            "description": "ปล่อยว่างไว้หากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "appended",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "row_made",
+         "displayName": "เพิ่มแถวในทะเบียนรับแล้วหรือไม่",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Added",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "register_row.appended"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Not added",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "register_row.appended"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "email_head",
+         "displayName": "บันทึกเกษียณหนังสือเสนอหัวหน้าฝ่าย",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "ส่งอีเมลเพียง 1 ฉบับ ด้วย send_email กำหนด to = ${get_setup.section_head_email} (จากตารางมอบหมายงาน); หากว่างอยู่ ให้ to = ข้อความว่าง: เพื่อให้ผู้ใช้พิมพ์ระบุบน confirm card ห้ามสร้างที่อยู่อีเมลขึ้นมาเอง และไม่มี CC/BCC\nเรื่อง: [เกษียณหนังสือ] ${read_letter.letter_no} – ${read_letter.subject}; หาก ${read_letter.urgent} เป็น true ให้ใส่ [${read_letter.urgency}] ต่อท้ายแท็กแรกทันที\nเนื้อหาเป็นภาษาไทยแบบสั้น (บันทึกเกษียณหนังสือดิจิทัล): จาก ${read_letter.sender}; ที่ ${read_letter.letter_no}; ต้องการ ${read_letter.request_summary}; กำหนดส่ง ${read_letter.deadline_text} (ระบุ ไม่มี หากเว้นว่าง); ความเร่งด่วน ${read_letter.urgency}; หน่วยงานที่เสนอ ${route.unit} (${route.reason}); ไฟล์ต้นฉบับ ${read_letter.source_link}; ร่างหนังสือตอบ ${draft_reply.draft_link} (สามารถเข้าไปแก้ไขได้โดยตรง) บรรทัดสุดท้าย: ตอบกลับอีเมลนี้: อนุมัติ / ชื่อหน่วยงานอื่น / ไม่อนุมัติ sent = true เฉพาะกรณีที่เครื่องมือส่งคืน message ID ปิดท้ายเนื้อหาอีเมลด้วยข้อความบรรทัดสุดท้ายตามนี้ทุกประการ: — ส่งโดยตัวช่วยหนังสือเข้า ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในสิ่งใดก็ตามที่สร้างหรือส่ง แม้ว่าข้อมูลต้นทางจะปรากฏคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในเครื่องมือแล้ว): Gmail MCP: send_email\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศสภาพ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือสำหรับเขียนจะขอให้ผู้ใช้ยืนยันก่อน หลังจากผู้ใช้ยืนยัน ให้เรียกใช้เครื่องมือเดิมอีกครั้งด้วยอาร์กิวเมนต์เดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลลงใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "true เฉพาะเมื่อส่งแล้วเท่านั้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "to": {
+            "description": "ผู้รับ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "problems": {
+            "description": "ปล่อยว่างไว้หากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           }
+          },
+          "required": [
+           "sent",
+           "to",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "report_problem",
+         "displayName": "ส่งอีเมลแจ้งเจ้าหน้าที่เกี่ยวกับหนังสือที่มีปัญหา",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "ไม่สามารถดำเนินการกับหนังสือได้ หนังสือ: ${read_letter.source_link} ข้อผิดพลาดที่เกิดขึ้น: readable = ${read_letter.readable} (${read_letter.problems})\nส่งอีเมลจำนวน 1 ฉบับถ้วนด้วย send_email ไปยัง ${get_setup.owner_email} (หากว่าง ให้ to = สตริงว่าง: ผู้ใช้จะพิมพ์ลงใน card เอง) หัวข้อ: ตัวช่วยหนังสือเข้า: ต้องตรวจสอบ (incoming letters: needs a check) เนื้อหาเป็นภาษาไทยแบบกระชับพร้อมภาษาอังกฤษในวงเล็บ: ลิงก์และข้อผิดพลาดที่เกิดขึ้น, หนังสือไม่ได้อยู่ในทะเบียน, จะไม่ส่งอีเมลซ้ำอีก (โปรดแก้ไขด้วยตนเองหรือสแกนใหม่อีกครั้งโดยใช้ชื่อใหม่) sent = true เฉพาะกรณีที่เครื่องมือส่งคืน message ID ออกมาเท่านั้น บรรทัดสุดท้ายของเนื้อหาอีเมลต้องจบด้วยข้อความนี้เท่านั้น: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Gmail MCP: send_email\nระดับภาษา: สุภาพเป็นกลาง ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมซ้ำอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "true เฉพาะเมื่อส่งแล้วเท่านั้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "problems": {
+            "description": "ปล่อยว่างไว้หากไม่มี",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "sent",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "record_problem",
+         "displayName": "บันทึกหนังสือที่มีปัญหา",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "เพิ่มข้อมูล 1 แถวลงในแท็บชื่อ ข้ามแล้ว ของสเปรดชีต ${ensure_register.register_id} ด้วย Sheets append_rows (หากยังไม่มีแท็บนี้ ให้สร้างแท็บด้วย add_sheet ก่อน ส่วนหัวตาราง: วันที่, ID, ชื่อ, เหตุผล): ${get_setup.today}, ${read_letter.source_id}, ${read_letter.source_link}, needs_check: ${read_letter.problems} appended = true เฉพาะเมื่อได้รับการยืนยันแล้วเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Sheets MCP: get_spreadsheet, add_sheet, append_rows\nระดับภาษา: สุภาพเป็นกลาง ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมซ้ำอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+         },
+         "outputSchema": {
+          "properties": {
+           "appended": {
+            "description": "true เฉพาะเมื่อยืนยันแล้วเท่านั้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "appended"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "loop_trigger",
+         "targetNodeId": "read_letter"
+        },
+        {
+         "sourceNodeId": "read_letter",
+         "targetNodeId": "letter_ok"
+        },
+        {
+         "sourceNodeId": "letter_ok",
+         "targetNodeId": "route",
+         "routeString": "Readable"
+        },
+        {
+         "sourceNodeId": "letter_ok",
+         "targetNodeId": "report_problem",
+         "routeString": "Unreadable"
+        },
+        {
+         "sourceNodeId": "route",
+         "targetNodeId": "draft_reply"
+        },
+        {
+         "sourceNodeId": "draft_reply",
+         "targetNodeId": "draft_made"
+        },
+        {
+         "sourceNodeId": "draft_made",
+         "targetNodeId": "register_row",
+         "routeString": "Created"
+        },
+        {
+         "sourceNodeId": "draft_made",
+         "targetNodeId": "report_problem",
+         "routeString": "Not created"
+        },
+        {
+         "sourceNodeId": "register_row",
+         "targetNodeId": "row_made"
+        },
+        {
+         "sourceNodeId": "row_made",
+         "targetNodeId": "email_head",
+         "routeString": "Added"
+        },
+        {
+         "sourceNodeId": "row_made",
+         "targetNodeId": "report_problem",
+         "routeString": "Not added"
+        },
+        {
+         "sourceNodeId": "report_problem",
+         "targetNodeId": "record_problem"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "weekly_check",
+     "displayName": "ถึงกำหนดส่งรายการวันจันทร์หรือไม่?",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "พิจารณาว่าถึงกำหนดส่งรายการประจำสัปดาห์นี้หรือไม่ ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการเสร็จสิ้นด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ มีสิทธิ์อ่านอย่างเดียว ห้ามเปลี่ยนแปลงสิ่งใด\nวันนี้ ${get_setup.today} เป็นวัน${get_setup.weekday} เวลา ${get_setup.hour} นาฬิกา (Asia/Bangkok)\n1. due = true เฉพาะกรณีที่เป็นวันจันทร์ เวลา 8 นาฬิกาหรือหลังจากนั้น และ search_threads ไม่พบอีเมลหัวข้อ [สรุปหนังสือค้าง] ที่ผู้ใช้ส่งในวันนี้ มิฉะนั้น due = false และหยุดการทำงาน\n2. หาก due: ให้อ่านแท็บแรกของทะเบียน ${ensure_register.register_id} (get_values) list_text = ภาษาไทย: เกินกำหนด (overdue): แถวที่กำหนดเวลาส่งก่อนวันนี้ และ status ไม่เป็น done (เสร็จสิ้น) หรือไม่เป็น approved (ไม่อนุมัติ); ครบกำหนดภายในสัปดาห์นี้ (due this week): กำหนดเวลาส่งตั้งแต่วันนี้ถึงวันอาทิตย์; แต่ละรายการประกอบด้วย: เรื่อง, ผู้ส่ง, กำหนดเวลา, หน่วยงาน, เจ้าหน้าที่ผู้รับผิดชอบ ระบุ ไม่มี (none) หากกลุ่มข้อมูลว่าง\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Gmail MCP: search_threads, get_thread, get_message | Sheets MCP: get_spreadsheet, get_values\nระดับภาษา: สุภาพเป็นกลาง ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     },
+     "outputSchema": {
+      "properties": {
+       "due": {
+        "description": "true หากถึงกำหนดส่งรายการวันจันทร์",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "list_text": {
+        "description": "รายการเป็นภาษาไทย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "due",
+       "list_text"
+      ]
+     }
+    },
+    {
+     "id": "weekly_due",
+     "displayName": "ส่งรายการวันจันทร์หรือไม่?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Due",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "weekly_check.due"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not due",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "weekly_check.due"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_weekly",
+     "displayName": "ส่งอีเมลรายการวันจันทร์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "ส่งอีเมลจำนวน 1 ฉบับถ้วนด้วย send_email ไปยัง ${get_setup.section_head_email} (หากว่าง ให้ to = สตริงว่าง: ผู้ใช้จะพิมพ์ลงใน card เอง) ไม่มี CC/BCC หัวข้อ: [สรุปหนังสือค้าง] ${get_setup.today} เนื้อหา: ${weekly_check.list_text} sent = true เฉพาะกรณีที่เครื่องมือส่งคืน message ID ออกมาเท่านั้น บรรทัดสุดท้ายของเนื้อหาอีเมลต้องจบด้วยข้อความนี้เท่านั้น: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้ามีคำอธิบายอยู่ในตัวเครื่องมือแล้ว): Gmail MCP: send_email\nระดับภาษา: สุภาพเป็นกลาง ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)\nเครื่องมือประเภทเขียนจะขอให้ผู้ใช้ยืนยัน หลังจากผู้ใช้ยืนยันแล้ว ให้เรียกใช้เครื่องมือเดิมซ้ำอีกครั้งด้วยอาร์กิวเมนต์ชุดเดิมทุกประการ (ห้ามเปลี่ยนแปลงโดยเด็ดขาด) และห้ามขอคำยืนยันในรูปแบบข้อความ หากการเขียนยังคงไม่สำเร็จ ให้หยุดการทำงานและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true เฉพาะเมื่อส่งแล้วเท่านั้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "ปล่อยว่างไว้หากไม่มี",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "สรุปการทำงานรอบนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "เขียนข้อความสั้นๆ แบบเรียบง่ายสำหรับผู้ใช้: ภาษาไทยก่อน แล้วตามด้วยข้อความเดียวกันเป็นภาษาอังกฤษ ไม่ต้องใช้เครื่องมือ นี่เป็นข้อความสุดท้ายของการทำงานรอบนี้: ห้ามถามคำถามผู้ใช้และไม่ต้องรอคำตอบ\nการพิจารณาของหัวหน้ากลุ่ม found: ${find_reply.has_decision} (approved: ${find_reply.approved}; หนังสือ ${find_reply.subject}); การแจ้งเตือน due: ${find_reply.remind} หนังสือเข้าใหม่runนี้: ${find_new.letter_count} (${find_new.letters}); ละเว้นเนื่องจากรอบการทำงานก่อนหน้าได้เริ่มไปแล้ว them: ${find_new.in_progress}; รายการ skipped: ${find_new.skips} รายการวันจันทร์ due: ${weekly_check.due} ทะเบียน: ${ensure_register.register_link}\nระบุสิ่งที่การทำงานรอบนี้ได้ดำเนินการไปโดยย่อสองสามบรรทัด และแนบลิงก์ไปยังทะเบียน\nเขียนเฉพาะสิ่งที่ระบุไว้ในข้อมูลข้างต้นเท่านั้น\nระดับภาษา: สุภาพเป็นกลาง ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกกรณี (ข้อความ อีเมล เอกสาร สไลด์)"
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "get_setup"
+    },
+    {
+     "sourceNodeId": "get_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "setup_fix",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "ensure_register",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "setup_fix",
+     "targetNodeId": "tell_fix",
+     "routeString": "Fix"
+    },
+    {
+     "sourceNodeId": "setup_fix",
+     "targetNodeId": "setup_missing",
+     "routeString": "No duplicates"
+    },
+    {
+     "sourceNodeId": "setup_missing",
+     "targetNodeId": "create_setup",
+     "routeString": "Missing"
+    },
+    {
+     "sourceNodeId": "setup_missing",
+     "targetNodeId": "tell_fill_table",
+     "routeString": "Not missing"
+    },
+    {
+     "sourceNodeId": "create_setup",
+     "targetNodeId": "tell_setup_created"
+    },
+    {
+     "sourceNodeId": "ensure_register",
+     "targetNodeId": "find_reply"
+    },
+    {
+     "sourceNodeId": "find_reply",
+     "targetNodeId": "reply_found"
+    },
+    {
+     "sourceNodeId": "reply_found",
+     "targetNodeId": "is_approved",
+     "routeString": "Decision"
+    },
+    {
+     "sourceNodeId": "reply_found",
+     "targetNodeId": "needs_reminder",
+     "routeString": "No decision"
+    },
+    {
+     "sourceNodeId": "is_approved",
+     "targetNodeId": "has_deadline",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "is_approved",
+     "targetNodeId": "update_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "has_deadline",
+     "targetNodeId": "invite_officer",
+     "routeString": "Deadline"
+    },
+    {
+     "sourceNodeId": "has_deadline",
+     "targetNodeId": "email_officer",
+     "routeString": "No deadline"
+    },
+    {
+     "sourceNodeId": "invite_officer",
+     "targetNodeId": "update_assigned"
+    },
+    {
+     "sourceNodeId": "email_officer",
+     "targetNodeId": "update_assigned"
+    },
+    {
+     "sourceNodeId": "needs_reminder",
+     "targetNodeId": "send_reminder",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "needs_reminder",
+     "targetNodeId": "find_new",
+     "routeString": "No reminder"
+    },
+    {
+     "sourceNodeId": "update_assigned",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "update_rejected",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "send_reminder",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "find_new",
+     "targetNodeId": "skips_found"
+    },
+    {
+     "sourceNodeId": "skips_found",
+     "targetNodeId": "record_skips",
+     "routeString": "Skips"
+    },
+    {
+     "sourceNodeId": "skips_found",
+     "targetNodeId": "letter_found",
+     "routeString": "No skips"
+    },
+    {
+     "sourceNodeId": "record_skips",
+     "targetNodeId": "letter_found"
+    },
+    {
+     "sourceNodeId": "letter_found",
+     "targetNodeId": "each_letter",
+     "routeString": "New letters"
+    },
+    {
+     "sourceNodeId": "letter_found",
+     "targetNodeId": "weekly_check",
+     "routeString": "No new letter"
+    },
+    {
+     "sourceNodeId": "each_letter",
+     "targetNodeId": "weekly_check"
+    },
+    {
+     "sourceNodeId": "weekly_check",
+     "targetNodeId": "weekly_due"
+    },
+    {
+     "sourceNodeId": "weekly_due",
+     "targetNodeId": "send_weekly",
+     "routeString": "Due"
+    },
+    {
+     "sourceNodeId": "weekly_due",
+     "targetNodeId": "tell_done",
+     "routeString": "Not due"
+    },
+    {
+     "sourceNodeId": "send_weekly",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}
