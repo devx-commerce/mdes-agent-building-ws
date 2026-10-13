@@ -1,0 +1,2639 @@
+{
+ "id": "GOV-A",
+ "persona": "government-officer",
+ "lang": "en",
+ "display_name": "Monthly Operations Report",
+ "description": "รายงานผลการดำเนินงานประจำเดือน (Monthly operations report): checks which districts have sent this month's files to your folder, reminds the ones that haven't, and prepares the monthly report and briefing deck. Runs by itself every day: set your own schedule (Actions > Set up triggers). Uses your district list (รายชื่ออำเภอ); if you have none, it creates one for you to fill in.",
+ "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/gov/build_monthly_operations_report.py (v5, 12 Oct 2026): schedule; month from today's date; creates a missing district list or month folder; one report per month (draft waiting / work note); reminders from 1 day before the deadline, at most every 2 days; no built-in folders, months, offices, emails or templates; every write checked.",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "Every day 08:00 (schedule)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 8 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_inputs",
+     "displayName": "Find this month's files",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You find, in the signed-in user's Google Drive, everything this month's report needs. You only read; you change nothing. Return data only: never write a message to the user, never ask anything and never wait for an answer; always finish by returning the output fields (a later step talks to the user).\nThis run was started by the schedule: there is no user message.\n\n1. Today and the month. today = today's date in Asia/Bangkok (YYYY-MM-DD). The report is for the month BEFORE today's month. month_label = that month written the way folder names write it: the short Thai month name, a space, and the 2-digit Buddhist-era year (for example, a run in October makes the September report). prev_month_label = the month before month_label, written the same way.\n\n2. District list. With search_files, find Google Sheets and CSV files whose name STARTS WITH รายชื่ออำเภอ (include files shared with the user). list_status: found = exactly one; ambiguous = more than one; missing = none. If found: list_id = its ID, list_link = its link, list_folder_id = its parent folder (get_file_metadata); read it in full. The district list has one row per district (columns: ลำดับ, อำเภอ, อีเมลผู้ประสานงาน, กำหนดส่ง). Rows whose อำเภอ cell ends with (ตั้งค่า) are SETTINGS, not districts: อีเมลหัวหน้าสำนักงาน (ตั้งค่า) = the Head of the office's email (value in the third column). Never count, check or remind a settings row as a district. district_count = the number of district rows that have a district name (settings rows and empty rows are not counted). district_emails = their coordinator emails, comma-separated. head_email = the Head's email setting (empty if none).\n\n3. Submission folder. Folders whose name STARTS WITH ผลการดำเนินงาน and contains month_label. Look first DIRECTLY in list_folder_id; only if there is none there, in the whole Drive (include folders shared with the user). folder_status found / ambiguous / missing like the list. folder_id = its ID when found.\n\n4. Last month. Find the Google Doc whose name is บันทึกการทำงาน followed by prev_month_label (last month's work note). If found, read it: it lists last month's approved report and deck links; set prev_note_id, prev_report_id and prev_deck_id from them. If there is no note, look DIRECTLY in the reports folder (the parent folder of the submission folder; never inside a submission folder, whose files are the districts' own) for a Google Doc whose name STARTS WITH รายงานผลการดำเนินงาน, contains prev_month_label and does not contain ร่าง (prev_report_id), and a Google Slides file whose name STARTS WITH สรุปผลการดำเนินงาน and contains prev_month_label (prev_deck_id). District files start with อำเภอ and are never last month's report. report_status found / ambiguous / missing. deck_status: found, or none when there is no last month's deck (then plain slides are used; that is not a problem). A Slides link in a test message replaces prev_deck_id.\n\n5. Already done? The reports folder is the folder that holds last month's report or work note; if neither was found, the parent folder of the submission folder; if there is no submission folder, list_folder_id. Look DIRECTLY in that folder (not in its sub-folders, which hold archives) for a Google Doc named บันทึกการทำงาน followed by month_label (this month's work note). already_done = true only if it is there; then read it and put this month's report, deck and note links in done_links.\n\n6. Draft waiting? Only if already_done is false: look DIRECTLY in the same reports folder for Google Docs whose name STARTS WITH 'รายงานผลการดำเนินงาน ' followed by month_label and ' (ร่าง'. draft_waiting = true if there is at least one; draft_links = their names and links.\n\n7. What is missing (each a true/false):\n- need_fix = true if list_status, folder_status or report_status is ambiguous. fix_items = one line per ambiguous item: 'item | option name: link ; option name: link'. Empty otherwise.\n- list_missing = true if list_status is missing.\n- list_empty = true if the list was found and district_count is 0.\n- folder_missing = true if folder_status is missing.\nhome_folder_id = list_folder_id if the list was found; otherwise the parent folder of the submission folder if it was found; otherwise empty (My Drive).\n\nUse only names, IDs and links the tools return; never make one up. If a tool fails, say so in problems.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "today": {
+        "description": "YYYY-MM-DD in Asia/Bangkok",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "month_label": {
+        "description": "Report month as in folder names (short Thai month, 2-digit BE year)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "prev_month_label": {
+        "description": "The month before, same form",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "list_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "list_id": {
+        "description": "District list ID; empty unless found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "list_link": {
+        "description": "District list link; empty unless found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "list_folder_id": {
+        "description": "The district list's parent folder; empty unless found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "district_count": {
+        "description": "District rows with a name (settings rows not counted)",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "district_emails": {
+        "description": "Coordinator emails, comma-separated",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "head_email": {
+        "description": "Head's email from the settings row; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "folder_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "folder_id": {
+        "description": "Submission folder ID; empty unless found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "prev_note_id": {
+        "description": "Last month's work note ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "report_status": {
+        "description": "found | ambiguous | missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "prev_report_id": {
+        "description": "Last month's approved report ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "deck_status": {
+        "description": "found | none (plain slides)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "prev_deck_id": {
+        "description": "Slide design ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "already_done": {
+        "description": "true if this month's work note already exists",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "done_links": {
+        "description": "This month's report, deck and note links when already_done",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "draft_waiting": {
+        "description": "true if a draft report for this month is in the reports folder",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "draft_links": {
+        "description": "The drafts' names and links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "need_fix": {
+        "description": "true if the list, folder or last month's report has more than one match",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "fix_items": {
+        "description": "Data only: item | options (name: link); empty if need_fix is false",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       },
+       "list_missing": {
+        "description": "true if there is no district list",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 23
+        }
+       },
+       "list_empty": {
+        "description": "true if the district list has no districts",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 24
+        }
+       },
+       "folder_missing": {
+        "description": "true if there is no submission folder for the month",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 25
+        }
+       },
+       "home_folder_id": {
+        "description": "Where a new list or folder goes; empty = My Drive",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 26
+        }
+       },
+       "problems": {
+        "description": "What could not be found or read; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 27
+        }
+       }
+      },
+      "required": [
+       "today",
+       "month_label",
+       "prev_month_label",
+       "list_status",
+       "list_id",
+       "list_link",
+       "list_folder_id",
+       "district_count",
+       "district_emails",
+       "head_email",
+       "folder_status",
+       "folder_id",
+       "prev_note_id",
+       "report_status",
+       "prev_report_id",
+       "deck_status",
+       "prev_deck_id",
+       "already_done",
+       "done_links",
+       "draft_waiting",
+       "draft_links",
+       "need_fix",
+       "fix_items",
+       "list_missing",
+       "list_empty",
+       "folder_missing",
+       "home_folder_id",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "already_done",
+     "displayName": "Already done this month?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Already done",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.already_done"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not done yet",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.already_done"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_already_done",
+     "displayName": "Tell it is already done",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThis month's report (${find_inputs.month_label}) was already approved; its work note exists. Links: ${find_inputs.done_links}\nSay in two or three lines that nothing new was made and list the links.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "draft_waiting",
+     "displayName": "Draft waiting for review?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Draft waiting",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.draft_waiting"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No draft",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.draft_waiting"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_draft_waiting",
+     "displayName": "Tell a draft is waiting",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nA draft report for ${find_inputs.month_label} is already in the reports folder: ${find_inputs.draft_links}\nSay that nothing new was made so there is only one report; that if its review card is waiting, it is in the app's Inbox; and that if the draft was rejected or should be made again, rename or remove the draft (ร่าง) and the next run makes a new one.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "need_fix",
+     "displayName": "More than one match?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Fix",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.need_fix"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "One each",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.need_fix"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_what_to_fix",
+     "displayName": "Tell what to fix",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nMonth: ${find_inputs.month_label}\nItems with more than one match (item | options): ${find_inputs.fix_items}\nSay that nothing was checked or sent yet. List each item in Thai with the English in brackets, with its options as names and links. Say that the next run works once only one of each matches: rename or move the ones that should not be used.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "list_missing",
+     "displayName": "No district list?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "No list",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "List found",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_list",
+     "displayName": "Create the district list",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The user has no district list yet. Create it for them as a Google Sheet they will fill in.\ncreate_file arguments: title 'รายชื่ออำเภอ'; contentMimeType 'text/csv' (Drive turns it into a Google Sheet); parentId ${find_inputs.home_folder_id} (leave parentId out if that is empty: My Drive); textContent = exactly these two lines, separated by a real line break (never the two characters backslash and n):\nลำดับ,อำเภอ,อีเมลผู้ประสานงาน,กำหนดส่ง\n,อีเมลหัวหน้าสำนักงาน (ตั้งค่า),,\nAdd no example districts: every row the user leaves would count as a real district.\nCall create_file ONCE. Create no other file; do not share, move, update or trash anything. created = true only if the tool returned an ID; file_id = that ID; link = its link. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true only if the tool returned an ID",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "file_id": {
+        "description": "ID of the new list",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "Link to the new list",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "created",
+       "file_id",
+       "link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "list_made",
+     "displayName": "List created?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_list.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_list.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_list_created",
+     "displayName": "Tell to fill in the list",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nA new district list was created: ${create_list.link}\nSay that it was created because none was found, give the link, and: How to fill it, in Thai with the English in brackets: one row per district: ลำดับ (No.), อำเภอ (district name, as it appears in the district's file names), อีเมลผู้ประสานงาน (coordinator email), กำหนดส่ง (deadline: the day of the month, for example 5). In the row อีเมลหัวหน้าสำนักงาน (ตั้งค่า) (setting: Head of office email) put the Head's email in the third column. The next scheduled run uses it.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "tell_list_not_created",
+     "displayName": "Tell the list was not made",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nDetails: ${create_list.problems}\nSay that the district list could not be created, what the details say, and that the next scheduled run tries again.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "list_empty",
+     "displayName": "List has no districts?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Empty",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_empty"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Has districts",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.list_empty"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_fill_list",
+     "displayName": "Tell the list is empty",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nDistrict list: ${find_inputs.list_link} (no districts in it yet).\nSay that nothing was checked or sent because the district list has no districts yet, give the link, and: How to fill it, in Thai with the English in brackets: one row per district: ลำดับ (No.), อำเภอ (district name, as it appears in the district's file names), อีเมลผู้ประสานงาน (coordinator email), กำหนดส่ง (deadline: the day of the month, for example 5). In the row อีเมลหัวหน้าสำนักงาน (ตั้งค่า) (setting: Head of office email) put the Head's email in the third column. The next scheduled run uses it.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "folder_missing",
+     "displayName": "No month folder?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "No folder",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.folder_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Folder found",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_inputs.folder_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_folder",
+     "displayName": "Create the month's folder",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "There is no submission folder for ${find_inputs.month_label} yet. Create it so the districts can upload their files.\ncreate_file arguments: title 'ผลการดำเนินงาน ${find_inputs.month_label}'; contentMimeType 'application/vnd.google-apps.folder'; no content; parentId ${find_inputs.home_folder_id} (leave parentId out if that is empty: My Drive).\nCall create_file ONCE. Create no other file; do not share, move, update or trash anything. created = true only if the tool returned an ID; file_id = that ID; link = its link. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true only if the tool returned an ID",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "file_id": {
+        "description": "ID of the new folder",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "Link to the new folder",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "created",
+       "file_id",
+       "link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "folder_made",
+     "displayName": "Folder created?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_folder.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_folder.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_folder_not_created",
+     "displayName": "Tell the folder was not made",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nDetails: ${create_folder.problems}\nSay that the month's folder could not be created, what the details say, and that the next scheduled run tries again.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "tell_folder_created",
+     "displayName": "Tell to share the folder",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nNew folder for ${find_inputs.month_label}: ${create_folder.link}\nDistrict coordinator emails from the list: ${find_inputs.district_emails}\nSay that the folder was created; that so the districts can upload, the user opens it, clicks Share (แชร์) and adds these emails as Editor (ผู้แก้ไข) (this agent cannot share files); and that from the next run on it checks who has sent.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "check_submissions",
+     "displayName": "Check which districts have sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You check which districts have sent their monthly files. You only read; you change nothing.\n\nFound earlier: today ${find_inputs.today}; month ${find_inputs.month_label}; folder ID ${find_inputs.folder_id}; district list ID ${find_inputs.list_id}; last month's report ID ${find_inputs.prev_report_id}; slide design ID ${find_inputs.prev_deck_id} (empty = plain slides); last month's work note ID ${find_inputs.prev_note_id}.\n1. Read the district list in full. The district list has one row per district (columns: ลำดับ, อำเภอ, อีเมลผู้ประสานงาน, กำหนดส่ง). Rows whose อำเภอ cell ends with (ตั้งค่า) are SETTINGS, not districts: อีเมลหัวหน้าสำนักงาน (ตั้งค่า) = the Head of the office's email (value in the third column). Never count, check or remind a settings row as a district. head_email = the Head's email setting.\n\n2. Deadline of each district: the day of the month in its กำหนดส่ง cell (for example 5, วันที่ 5, or a full date, which gives its day number), in today's month: the month AFTER the report month. deadline = that date as YYYY-MM-DD. An empty or unreadable cell: deadline empty, and say so in problems (never guess a day).\n\n3. List every file directly in the folder (not sub-folders). A district has sent if a file name contains the district name, with or without the word อำเภอ in front. For files whose name matches no district, open them with read_file_content and match by the district named inside; list files that still match none in unmatched_files.\n\n4. folder_shared = true if any coordinator email from the list, or anyone with the link, can edit the submission folder (get_file_permissions on ${find_inputs.folder_id}).\n\n5. save_folder_id = the folder that holds last month's report; if there is none, the parent folder of the submission folder. Check who can see save_folder_id with get_file_permissions: shared_with_districts = true if any coordinator email from the list, or anyone with the link, can view it.\n\n6. month_th = month_label written in full Thai with the 4-digit BE year. template_id = the slide design ID (empty = plain slides).\n\ncheck_ok = true only if the district list and the folder were both read.\nused_text = a short list for the user, Thai with English in brackets: the folder, the district list, last month's report, the slide design (or plain slides), each with its name and link, and the Head's email with: to change it, edit the district list.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata, get_file_permissions.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "check_ok": {
+        "description": "true only if the district list and the folder were read",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "folder_id": {
+        "description": "Submission folder used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "list_link": {
+        "description": "Link to the district list used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "prev_report_id": {
+        "description": "Last month's report used; empty = no comparison",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "prev_note_id": {
+        "description": "Last month's work note; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "template_id": {
+        "description": "Slide design used; empty = plain slides",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "save_folder_id": {
+        "description": "Where the report, deck and note are saved",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "shared_with_districts": {
+        "description": "true if districts can see save_folder_id",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "folder_shared": {
+        "description": "true if districts can upload to the submission folder",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "head_email": {
+        "description": "Head's email from the list; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "month_label": {
+        "description": "Month as in folder names",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "month_th": {
+        "description": "Month in full Thai with 4-digit BE year",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "total_districts": {
+        "description": "Districts in the list",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "submitted_count": {
+        "description": "Districts that have sent",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "submitted": {
+        "description": "One entry per district that has sent",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 14
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "District name as in the list",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "file_name": {
+           "description": "File name exactly as in Drive",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "file_id": {
+           "description": "Drive ID of the file",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "district",
+          "file_name",
+          "file_id"
+         ]
+        }
+       },
+       "missing": {
+        "description": "One entry per district with no file",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 15
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "District name as in the list",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "Coordinator email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "deadline": {
+           "description": "Deadline YYYY-MM-DD; empty if unreadable",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "deadline"
+         ]
+        }
+       },
+       "unmatched_files": {
+        "description": "File names that match no district",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 16
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "has_missing": {
+        "description": "true if any district has not sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "used_text": {
+        "description": "What was used, for the user (Thai with English in brackets)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "problems": {
+        "description": "What stopped the check or what the user must fix; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       }
+      },
+      "required": [
+       "check_ok",
+       "folder_id",
+       "list_link",
+       "prev_report_id",
+       "prev_note_id",
+       "template_id",
+       "save_folder_id",
+       "shared_with_districts",
+       "folder_shared",
+       "head_email",
+       "month_label",
+       "month_th",
+       "total_districts",
+       "submitted_count",
+       "submitted",
+       "missing",
+       "unmatched_files",
+       "has_missing",
+       "used_text",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "could_check",
+     "displayName": "Could it check?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Checked",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.check_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Could not check",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.check_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_cannot_check",
+     "displayName": "Tell what is needed",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nProblems: ${check_submissions.problems}\nSay plainly what could not be read and what to fix; the next scheduled run checks again.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "anyone_missing",
+     "displayName": "Any district not sent?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Someone missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.has_missing"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "All sent",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_submissions.has_missing"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "plan_reminders",
+     "displayName": "Decide who to remind today",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You decide which districts get a reminder today. You only read; you change nothing.\nToday: ${find_inputs.today}\nDistricts that have not sent (district, email, deadline): ${check_submissions.missing}\nThe submission folder's name and link are in: ${check_submissions.used_text}\nFor each district:\n1. remind_from = its deadline minus 1 day. An empty deadline: never remind; list it in not_yet with 'no deadline in the list'.\n2. If today is before remind_from: not due; list it in not_yet with its remind_from date.\n3. Otherwise search the user's sent mail (search_threads) for reminders to that district's email whose subject starts with หนังสือติดตาม and contains the folder's name. last_reminder = the date of the latest one (empty if none). If last_reminder is today or yesterday: not due; list it in recent with that date. Otherwise it is due: add it to to_remind with earlier = last_reminder.\nremind_now = true if to_remind has at least one district.\nUse only dates from the list and from the mail you found; never make one up.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: search_threads.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "to_remind": {
+        "description": "Districts to remind today",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "District name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "Coordinator email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "deadline": {
+           "description": "Deadline YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "earlier": {
+           "description": "Date of the last reminder; empty if none",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "deadline",
+          "earlier"
+         ]
+        }
+       },
+       "not_yet": {
+        "description": "Districts not due yet, each with the date reminders start (or why never)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "recent": {
+        "description": "Districts reminded today or yesterday, with the date",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "remind_now": {
+        "description": "true if anyone is due today",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "to_remind",
+       "not_yet",
+       "recent",
+       "remind_now",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "remind_now",
+     "displayName": "Anyone to remind today?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "plan_reminders.remind_now"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not today",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "plan_reminders.remind_now"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_waiting",
+     "displayName": "Tell who has sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\n${check_submissions.submitted_count} of ${check_submissions.total_districts} districts have sent for ${find_inputs.month_label}.\nNot sent: ${check_submissions.missing}\nNot due for a reminder yet: ${plan_reminders.not_yet}\nReminded recently: ${plan_reminders.recent}\nDistricts can upload to the folder: ${check_submissions.folder_shared}\nFiles that match no district: ${check_submissions.unmatched_files}\nProblems: ${check_submissions.problems} ${plan_reminders.problems}\nSay how many have sent and who has not; when reminders start (or when they were last reminded); if districts cannot upload yet, that the user should share the folder with the coordinator emails as Editor; and that the next scheduled run checks again. Short.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "send_reminders",
+     "displayName": "Send reminder letters",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "You send one polite reminder email (หนังสือติดตาม) to each district below. The emails go from the signed-in user's Gmail.\nDistricts to remind today (district, email, deadline, date of the last reminder): ${plan_reminders.to_remind}\nThe shared folder (name and link) is in this list of what was used: ${check_submissions.used_text}\n\nFor EACH district call send_email exactly once:\n1. To: only that district's email. No other address, no CC, no BCC. If a district has no email, send nothing and record it as failed.\n2. Subject: หนังสือติดตาม – the folder's name – the district name.\n3. Body in polite, formal Thai, in the gender-neutral style of an official government letter (no ครับ or ค่ะ): address the district's coordinator (เรียน ผู้ประสานงาน followed by the district name); if there was a last reminder, refer to it with its date (ตามที่ได้แจ้งไปเมื่อ and the date); say that the district's monthly operations report has not yet been received in the shared folder, give the folder's link, ask them to upload it by the deadline; close with จึงเรียนมาเพื่อโปรดดำเนินการ.\n\nThe user sees a confirm card for each email and may edit or cancel it. Send nothing else; no drafts, labels or filters. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "reminders": {
+        "description": "One entry per district reminded",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "district": {
+           "description": "District name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "Recipient used",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "status": {
+           "description": "sent or failed",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "earlier": {
+           "description": "Date of the last reminder; empty if none",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "district",
+          "email",
+          "status",
+          "earlier"
+         ]
+        }
+       },
+       "sent_count": {
+        "description": "Emails actually sent",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "reminders",
+       "sent_count",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_reminders",
+     "displayName": "Tell which reminders were sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\n${check_submissions.submitted_count} of ${check_submissions.total_districts} districts have sent for ${find_inputs.month_label}.\nReminders: ${send_reminders.reminders}\nNot due yet: ${plan_reminders.not_yet}\nDistricts can upload to the folder: ${check_submissions.folder_shared}\nFiles that match no district: ${check_submissions.unmatched_files}\nWhat was used: ${check_submissions.used_text}\nProblems: ${send_reminders.problems}\nSay how many have sent, each reminder (sent / failed, and the earlier reminder date if any), any files that match no district (their name should contain the district name), that the addresses come from the district list (${check_submissions.list_link}) where they can be changed, and that the next scheduled run checks again and makes the report when all files are in.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "read_and_table",
+     "displayName": "Read the files into one table",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You build one consistent table of this month's district submissions (${check_submissions.month_th}). You only read; you change nothing.\nFiles to read, one district each: ${check_submissions.submitted}\n1. Read EVERY file IN FULL with read_file_content using its file_id; never rely on search snippets. If a scan or photo returns no usable text, read it again with read_file_text and ocrLanguage th.\n2. For each district, extract: budget received, budget disbursed, project counts (total, completed แล้วเสร็จ, in progress อยู่ระหว่างดำเนินการ, not started ยังไม่เริ่ม), Damrongtham complaints total and water-supply (การประปา) complaints.\n3. Convert all money to ล้านบาท (1 ล้านบาท = 1,000,000 บาท) and record the source unit. disbursement_pct = disbursed / allocated * 100, one decimal.\n4. NEVER guess. A missing, blank or unreadable value is -1 with a flag saying exactly what and where. A project with a blank status counts in projects_total but in no status, and is flagged.\nWrite every flag in Thai. Return one row per district, in the order above. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "problems": {
+        "description": "Anything that stopped you reading a file. Empty if none.",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "rows": {
+        "description": "One row per district",
+        "type": "ARRAY",
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "complaints_total": {
+           "description": "Damrongtham complaints total; -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "projects_in_progress": {
+           "description": "Projects in progress (อยู่ระหว่างดำเนินการ); -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_unit": {
+           "description": "Money unit used in the source file: บาท or ล้านบาท, empty if no file",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "budget_disbursed_mb": {
+           "description": "Budget disbursed in ล้านบาท (converted if source was บาท); -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          },
+          "projects_not_started": {
+           "description": "Projects not started (ยังไม่เริ่ม); -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "projects_done": {
+           "description": "Projects completed (แล้วเสร็จ); -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 11
+           }
+          },
+          "district": {
+           "description": "District name exactly as in รายชื่ออำเภอ – demo (TEST).csv",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "file_name": {
+           "description": "Submission file used, empty if none",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "projects_total": {
+           "description": "Total provincial development projects; -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "disbursement_pct": {
+           "description": "disbursed / allocated * 100, one decimal; -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 12
+           }
+          },
+          "flags": {
+           "description": "Anything unclear, missing, converted or not comparable, in Thai or English. Empty list if none.",
+           "type": "ARRAY",
+           "items": {
+            "type": "STRING"
+           },
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "budget_allocated_mb": {
+           "description": "Budget received in ล้านบาท (converted if source was บาท); -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "complaints_water": {
+           "description": "Of which water-supply (การประปา) complaints; -1 if unknown",
+           "type": "NUMBER",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          }
+         },
+         "required": [
+          "flags",
+          "projects_total",
+          "projects_not_started",
+          "file_name",
+          "projects_in_progress",
+          "complaints_water",
+          "source_unit",
+          "budget_allocated_mb",
+          "district",
+          "complaints_total",
+          "budget_disbursed_mb",
+          "projects_done",
+          "disbursement_pct"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "rows",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "compare_months",
+     "displayName": "Compare with last month",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You compare this month's figures with last month. You only read; you change nothing.\nThis month's table: ${read_and_table.rows}\n1. Read last month's report (ID ${check_submissions.prev_report_id}) and last month's work note (ID ${check_submissions.prev_note_id}; its 'things to check next month' matter). An empty ID means there is none: then write 'not comparable' for every change and say so in problems.\n2. For every district and indicator (disbursement %, projects completed, complaints total, water complaints) list last month vs this month, and the same for the province totals (รวม).\n3. Use only numbers from these sources. If this month's value is -1 (unknown), write 'not comparable'.\nA flag means 'please check this value'; never say figures are wrong (no คลาดเคลื่อน, ผิดพลาด). A change in a percentage is in points: write จุด (for example ลดลง 21.0 จุด (จาก 62.0% เป็น 41.0%)), never %. Keep a space after a district name.\n4. key_changes_th: 3 to 5 short Thai bullets for ประเด็นสำคัญประจำเดือน (biggest moves, doubled complaints, missing data, and anything last month's note asked to check). Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "changes": {
+        "description": "One entry per district and indicator",
+        "type": "ARRAY",
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "indicator": {
+           "description": "Indicator name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "district": {
+           "description": "District",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "note": {
+           "description": "Why it matters, or not comparable",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "change": {
+           "description": "Difference, e.g. -21.0 points or x2.0",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "last_month": {
+           "description": "August value as written in the report",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "this_month": {
+           "description": "September value",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "change",
+          "indicator",
+          "district",
+          "this_month",
+          "note",
+          "last_month"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "key_changes_th": {
+        "description": "Thai bullets for ประเด็นสำคัญประจำเดือน",
+        "type": "ARRAY",
+        "items": {
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "changes",
+       "key_changes_th",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "create_report",
+     "displayName": "Draft the report",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Create this month's Monthly Operations Report (${check_submissions.month_th}) as ONE Google Doc ready for the Head of the office.\nData, this month (one row per district): ${read_and_table.rows}\nComparison with last month: ${compare_months.changes}\nKey changes: ${compare_months.key_changes_th}\nFirst read last month's report (ID ${check_submissions.prev_report_id}) with read_file_content and follow its layout, banner and formal tone; if the ID is empty, use the layout below as it is.\nWrite in formal Thai government style. Sections, in this order:\n1. Banner line: copy the office and division line exactly as it is in last month's report; if there is no last month's report, leave the banner out.\n2. <h1> รายงานผลการดำเนินงานประจำเดือน followed by ${check_submissions.month_th}, then one line: สำหรับการประชุมหัวหน้าส่วนราชการประจำเดือน\n3. <h2> บทสรุปผู้บริหาร: 3-4 sentences: how many districts submitted, total budget allocated and disbursed with the overall %, the biggest rise and the biggest drop, and what needs the Head's attention.\n4. <h2> ประเด็นสำคัญประจำเดือน: 3-5 bullets from the key changes.\n5. <h2> 1. ผลการเบิกจ่ายงบประมาณ: table อำเภอ | งบที่ได้รับจัดสรร (ล้านบาท) | เบิกจ่ายแล้ว (ล้านบาท) | ร้อยละ | เทียบเดือนก่อน (จุด); one row per district, then a bold row รวม (sum of allocated, sum of disbursed, overall % = total disbursed / total allocated x 100, and the change of the overall % in จุด).\n6. <h2> 2. โครงการตามแผนพัฒนาจังหวัด: table อำเภอ | ทั้งหมด | แล้วเสร็จ | อยู่ระหว่างดำเนินการ | ยังไม่เริ่ม | ไม่ระบุสถานะ; then a bold row รวม.\n7. <h2> 3. เรื่องร้องเรียนศูนย์ดำรงธรรม: table อำเภอ | ทั้งหมด | การประปา | เทียบเดือนก่อน (ทั้งหมด); then a bold row รวม.\n8. <h2> ข้อมูลที่ต้องตรวจสอบ: one bullet per flagged value, and one bullet for every unit conversion (for example บาท → ล้านบาท). Write 'ไม่มี' if there is nothing.\n9. <h2> ข้อเสนอและสิ่งที่ต้องติดตาม: 2-4 concrete actions, each naming the district and what should be done.\nNumber rules: money in ล้านบาท with exactly 2 decimals (10.19, never 10.1935); percentages with 1 decimal; a change in a percentage is written in 'จุด' (ลดลง 14.6 จุด), never in %; an unknown value is written 'ไม่มีข้อมูล', never -1. Keep a space after a district name before a verb. Use only the numbers above; never invent a number.\nFormat: HTML with <h1>, <h2>, <p>, <ul>, and real <table border=\"1\"> elements with a bold header row (<th>) and numbers right-aligned (style=\"text-align:right\").\nTitle: look directly in folder ${check_submissions.save_folder_id} for Google Docs whose name starts with 'รายงานผลการดำเนินงาน ${check_submissions.month_label} (ร่าง'. If there are none the title is 'รายงานผลการดำเนินงาน ${check_submissions.month_label} (ร่าง)'; otherwise add the next number, for example (ร่าง 2).\nHOW: call create_file ONCE with that title, parentId ${check_submissions.save_folder_id}, contentMimeType 'text/html', and textContent = the whole HTML (no other content field). Do not set disableConversionToGoogleType. Create no other file; do not share, move, update or trash anything. file_id = the ID the tool returns; created = true only if the tool returned an ID; file_title = the title used. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true only if the file now exists",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "method": {
+        "description": "Exactly which tool and approach you used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "file_title": {
+        "description": "Title",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "What did not work and why. Empty if none.",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "content_mime_type_used": {
+        "description": "contentMimeType passed to the create tool",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "file_id": {
+        "description": "Created file ID, empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "problems",
+       "method",
+       "file_id",
+       "file_title",
+       "created",
+       "content_mime_type_used"
+      ]
+     }
+    },
+    {
+     "id": "report_made",
+     "displayName": "Report created?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_report.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "create_report.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_created",
+     "displayName": "Tell the report was not made",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe report Doc was not created. Details: ${create_report.problems}\nSay that nothing was saved or sent, and that the next scheduled run tries again.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "review_report",
+     "displayName": "Review the report",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "กรุณาตรวจทานร่างรายงาน (Please review the draft report): https://docs.google.com/document/d/${create_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ (Values to check): ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nถ้าต้องการให้แก้ ให้กด Reject และเขียนสิ่งที่ต้องแก้ (To have it redone, click Reject and write what to change.)\nแชร์กับอำเภอ (Shared with districts): ${check_submissions.shared_with_districts}: if true, the districts can see the folder where this draft is saved.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "check_comment",
+     "displayName": "Read the reviewer's comment",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "The reviewer rejected the report with this comment: \"${review_report.approval_feedback}\". has_comment = true if the comment contains any real request for changes (not empty, not only spaces). Use no tools.",
+      "connectorToolSelections": []
+     },
+     "outputSchema": {
+      "properties": {
+       "has_comment": {
+        "description": "true if the reviewer wrote what to change",
+        "type": "BOOLEAN"
+       }
+      },
+      "required": [
+       "has_comment"
+      ]
+     }
+    },
+    {
+     "id": "changes_requested",
+     "displayName": "Changes requested?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Rebuild with comment",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_comment.has_comment"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_comment.has_comment"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "rebuild_report",
+     "displayName": "Redo the report with the comment",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The reviewer REJECTED the draft '${create_report.file_title}' (ID ${create_report.file_id}) and asked: \"${review_report.approval_feedback}\". Read that draft first (it may contain the reviewer's own edits: keep them). Apply every requested change and keep everything else correct.\nData, this month (one row per district): ${read_and_table.rows}\nComparison with last month: ${compare_months.changes}\nKey changes: ${compare_months.key_changes_th}\nFirst read last month's report (ID ${check_submissions.prev_report_id}) with read_file_content and follow its layout, banner and formal tone; if the ID is empty, use the layout below as it is.\nWrite in formal Thai government style. Sections, in this order:\n1. Banner line: copy the office and division line exactly as it is in last month's report; if there is no last month's report, leave the banner out.\n2. <h1> รายงานผลการดำเนินงานประจำเดือน followed by ${check_submissions.month_th}, then one line: สำหรับการประชุมหัวหน้าส่วนราชการประจำเดือน\n3. <h2> บทสรุปผู้บริหาร: 3-4 sentences: how many districts submitted, total budget allocated and disbursed with the overall %, the biggest rise and the biggest drop, and what needs the Head's attention.\n4. <h2> ประเด็นสำคัญประจำเดือน: 3-5 bullets from the key changes.\n5. <h2> 1. ผลการเบิกจ่ายงบประมาณ: table อำเภอ | งบที่ได้รับจัดสรร (ล้านบาท) | เบิกจ่ายแล้ว (ล้านบาท) | ร้อยละ | เทียบเดือนก่อน (จุด); one row per district, then a bold row รวม (sum of allocated, sum of disbursed, overall % = total disbursed / total allocated x 100, and the change of the overall % in จุด).\n6. <h2> 2. โครงการตามแผนพัฒนาจังหวัด: table อำเภอ | ทั้งหมด | แล้วเสร็จ | อยู่ระหว่างดำเนินการ | ยังไม่เริ่ม | ไม่ระบุสถานะ; then a bold row รวม.\n7. <h2> 3. เรื่องร้องเรียนศูนย์ดำรงธรรม: table อำเภอ | ทั้งหมด | การประปา | เทียบเดือนก่อน (ทั้งหมด); then a bold row รวม.\n8. <h2> ข้อมูลที่ต้องตรวจสอบ: one bullet per flagged value, and one bullet for every unit conversion (for example บาท → ล้านบาท). Write 'ไม่มี' if there is nothing.\n9. <h2> ข้อเสนอและสิ่งที่ต้องติดตาม: 2-4 concrete actions, each naming the district and what should be done.\nNumber rules: money in ล้านบาท with exactly 2 decimals (10.19, never 10.1935); percentages with 1 decimal; a change in a percentage is written in 'จุด' (ลดลง 14.6 จุด), never in %; an unknown value is written 'ไม่มีข้อมูล', never -1. Keep a space after a district name before a verb. Use only the numbers above; never invent a number.\nFormat: HTML with <h1>, <h2>, <p>, <ul>, and real <table border=\"1\"> elements with a bold header row (<th>) and numbers right-aligned (style=\"text-align:right\").\nTitle: '${create_report.file_title} – ฉบับแก้ไข'.\nHOW: call create_file ONCE with that title, parentId ${check_submissions.save_folder_id}, contentMimeType 'text/html', and textContent = the whole HTML (no other content field). Do not set disableConversionToGoogleType. Create no other file; do not share, move, update or trash anything. file_id = the ID the tool returns; created = true only if the tool returned an ID; file_title = the title used. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true only if the file now exists",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "method": {
+        "description": "Exactly which tool and approach you used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "file_title": {
+        "description": "Title",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "What did not work and why. Empty if none.",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "content_mime_type_used": {
+        "description": "contentMimeType passed to the create tool",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "file_id": {
+        "description": "Created file ID, empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "problems",
+       "method",
+       "file_id",
+       "file_title",
+       "created",
+       "content_mime_type_used"
+      ]
+     }
+    },
+    {
+     "id": "rebuild_made",
+     "displayName": "Corrected report created?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rebuild_report.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rebuild_report.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "review_report_2",
+     "displayName": "Review the corrected report",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "กรุณาตรวจทานร่างรายงาน (Please review the draft report): https://docs.google.com/document/d/${rebuild_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ (Values to check): ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nครั้งนี้ถ้ากด Reject งานจะหยุด และบันทึกความเห็นไว้ (This time Reject stops the run; your comment is kept in the final message.)",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "build_deck",
+     "displayName": "Make the 8-slide deck",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The reviewer approved the report. Build the 8-slide briefing deck for the monthly meeting; it is shown on screen, so short and clear.\n1. The approved report: if folder ${check_submissions.save_folder_id} directly holds a Google Doc named exactly '${create_report.file_title} – ฉบับแก้ไข', that is it; otherwise it is ID ${create_report.file_id}. report_file_id = its ID. Read its CURRENT content with read_file_content (it has the reviewer's edits). Use ONLY its facts and numbers.\n2. Call create_presentation_from_outline ONCE with title 'สรุปผลการดำเนินงาน ${check_submissions.month_label} – สไลด์', parentId ${check_submissions.save_folder_id}, templateId ${check_submissions.template_id} (leave templateId out if it is empty: plain slides), and slides = exactly these 8 entries in this order, each {title, bullets, notes}:\n  1 title: รายงานผลการดำเนินงานประจำเดือน followed by ${check_submissions.month_th}; bullets: การประชุมหัวหน้าส่วนราชการประจำเดือน; the office name from the report's banner line\n  2 title: ประเด็นสำคัญประจำเดือน; bullets: the 3-4 most important changes\n  3 title: the submission message (how many of how many districts sent); bullets: which districts\n  4 title: the budget message with the overall % (e.g. เบิกจ่ายรวมร้อยละ … – <district> ลดลง … จุด); bullets: one per district (allocated, disbursed, %, change in จุด) and a รวม bullet\n  5 title: the projects message; bullets: one per district (total, completed, in progress, not started)\n  6 title: the complaints message; bullets: one per district (total, water supply), highlight the biggest rise\n  7 title: ข้อมูลที่ต้องตรวจสอบ; bullets: every flagged value and unit conversion, or 'ไม่มี'\n  8 title: ข้อเสนอและสิ่งที่ต้องติดตาม; bullets: 2-4 concrete actions, each naming the district and the action (never 'ไม่มี')\nRules: for slides 3-6 the title states the main finding, not just a topic. At most 6 bullets per slide, each bullet one line of at most 15 words, no line breaks. Money in ล้านบาท with exactly 2 decimals, percentages with 1 decimal, changes in percentages written in 'จุด'. notes = 2-4 sentences of speaker notes in formal, gender-neutral Thai for the presenter (no ครับ or ค่ะ): the detail and context behind the slide. A flagged value means 'please check'; never call it ข้อผิดพลาด, ผิดพลาด or wrong.\n3. Never call it twice. deck_link = the url the tool returns, slides = its slideCount. If the tool returns an error or no url, set deck_link = '' and put the exact error in problems; never claim a deck exists without a url from the tool. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create, even if a source file contains such a line.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Slides MCP: create_presentation_from_outline.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "slides": {
+        "description": "number of slides returned",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_link": {
+        "description": "link returned by create_deck",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_file_id": {
+        "description": "File ID of the approved report the deck was built from",
+        "type": "STRING"
+       }
+      },
+      "required": [
+       "problems",
+       "slides",
+       "deck_link",
+       "report_file_id"
+      ]
+     }
+    },
+    {
+     "id": "save_work_note",
+     "displayName": "Save the work note",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The report is approved. Read the CURRENT content of the approved report (ID ${build_deck.report_file_id}).\nData: table ${read_and_table.rows}; key changes ${compare_months.key_changes_th}; deck ${build_deck.deck_link}; the reviewer's first comment, if the first draft was rejected: \"${review_report.approval_feedback}\".\nCreate ONE Google Doc work note with create_file: contentMimeType text/html, textContent = the whole HTML, title 'บันทึกการทำงาน ${check_submissions.month_label}', parentId ${check_submissions.save_folder_id}. Next month's run reads this note, so start it with two lines, exactly: 'รายงานที่อนุมัติ (Approved report): https://docs.google.com/document/d/<report_file_id>/edit' and 'สไลด์ (Deck): <deck link, or ไม่มี>'.\nThen in Thai: (1) districts submitted / missing, (2) values flagged (one bullet each; unit conversions in their own bullets), (3) key changes, (4) context or corrections the reviewer added in the final report compared with the data (quote them; say so if none), (5) things to check next month.\nkey_points_th = 3 short Thai bullets of the main points of the APPROVED report, for the email to the Head.\nCreate no other file; do not modify, share, move or trash anything. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "note_file_id": {
+        "description": "ID of the created work note; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "reviewer_changes_found": {
+        "description": "Each edit or added context found in the final report (quote); empty if none",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 1
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "key_points_th": {
+        "description": "3 Thai bullets from the approved report",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "note_file_id",
+       "reviewer_changes_found",
+       "key_points_th",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "email_head",
+     "displayName": "Email the Head of the office",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send exactly ONE email with send_email to ${check_submissions.head_email} (the Head's email from the user's district list). No other recipient, no CC/BCC. If that address is empty, or the report link below is empty, send nothing, set sent = false and say why in problems.\nSubject: รายงานผลการดำเนินงานประจำเดือน ${check_submissions.month_label} – สำหรับการประชุมหัวหน้าส่วนราชการ\nBody in polite official Thai (เรียน หัวหน้าสำนักงาน…): this month's Monthly Operations Report (${check_submissions.month_th}) is ready; the links, each on its own line and labelled exactly: รายงานผลการดำเนินงาน https://docs.google.com/document/d/${build_deck.report_file_id}/edit ; สไลด์สรุปสำหรับการประชุม ${build_deck.deck_link} ; บันทึกการทำงาน https://docs.google.com/document/d/${save_work_note.note_file_id}/edit . Leave out a line whose link is empty. Then the 3 key points: ${save_work_note.key_points_th}. These are links, not attachments: never write แนบ or เอกสารแนบ. Formal, gender-neutral style (no ครับ or ค่ะ); close with จึงเรียนมาเพื่อโปรดทราบ. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "to": {
+        "description": "Recipient",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "subject": {
+        "description": "Subject used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems",
+       "subject",
+       "to"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "Tell it is done",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nReport: https://docs.google.com/document/d/${build_deck.report_file_id}/edit\nDeck: ${build_deck.deck_link} (${build_deck.slides} slides)\nWork note: https://docs.google.com/document/d/${save_work_note.note_file_id}/edit\nEmail to the Head: sent = ${email_head.sent}, to ${email_head.to}\nWhat was used: ${check_submissions.used_text}\nProblems: ${build_deck.problems} ${save_work_note.problems} ${email_head.problems}\nList the links, whether the Head was emailed and at which address (it comes from the district list, ${check_submissions.list_link}, where it can be changed), and any problem plainly.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "review_rejected",
+     "displayName": "Stopped: report rejected",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe report was rejected. First draft: https://docs.google.com/document/d/${create_report.file_id}/edit ; first comment: \"${review_report.approval_feedback}\".\nSay that nothing was sent to the Head, give the draft link and the comment, and that to start over the user renames or removes the draft (ร่าง): the next scheduled run then makes a new one.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_inputs"
+    },
+    {
+     "sourceNodeId": "find_inputs",
+     "targetNodeId": "already_done"
+    },
+    {
+     "sourceNodeId": "already_done",
+     "targetNodeId": "tell_already_done",
+     "routeString": "Already done"
+    },
+    {
+     "sourceNodeId": "already_done",
+     "targetNodeId": "draft_waiting",
+     "routeString": "Not done yet"
+    },
+    {
+     "sourceNodeId": "draft_waiting",
+     "targetNodeId": "tell_draft_waiting",
+     "routeString": "Draft waiting"
+    },
+    {
+     "sourceNodeId": "draft_waiting",
+     "targetNodeId": "need_fix",
+     "routeString": "No draft"
+    },
+    {
+     "sourceNodeId": "need_fix",
+     "targetNodeId": "tell_what_to_fix",
+     "routeString": "Fix"
+    },
+    {
+     "sourceNodeId": "need_fix",
+     "targetNodeId": "list_missing",
+     "routeString": "One each"
+    },
+    {
+     "sourceNodeId": "list_missing",
+     "targetNodeId": "create_list",
+     "routeString": "No list"
+    },
+    {
+     "sourceNodeId": "list_missing",
+     "targetNodeId": "list_empty",
+     "routeString": "List found"
+    },
+    {
+     "sourceNodeId": "create_list",
+     "targetNodeId": "list_made"
+    },
+    {
+     "sourceNodeId": "list_made",
+     "targetNodeId": "tell_list_created",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "list_made",
+     "targetNodeId": "tell_list_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "list_empty",
+     "targetNodeId": "tell_fill_list",
+     "routeString": "Empty"
+    },
+    {
+     "sourceNodeId": "list_empty",
+     "targetNodeId": "folder_missing",
+     "routeString": "Has districts"
+    },
+    {
+     "sourceNodeId": "folder_missing",
+     "targetNodeId": "create_folder",
+     "routeString": "No folder"
+    },
+    {
+     "sourceNodeId": "folder_missing",
+     "targetNodeId": "check_submissions",
+     "routeString": "Folder found"
+    },
+    {
+     "sourceNodeId": "create_folder",
+     "targetNodeId": "folder_made"
+    },
+    {
+     "sourceNodeId": "folder_made",
+     "targetNodeId": "tell_folder_created",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "folder_made",
+     "targetNodeId": "tell_folder_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "check_submissions",
+     "targetNodeId": "could_check"
+    },
+    {
+     "sourceNodeId": "could_check",
+     "targetNodeId": "tell_cannot_check",
+     "routeString": "Could not check"
+    },
+    {
+     "sourceNodeId": "could_check",
+     "targetNodeId": "anyone_missing",
+     "routeString": "Checked"
+    },
+    {
+     "sourceNodeId": "anyone_missing",
+     "targetNodeId": "plan_reminders",
+     "routeString": "Someone missing"
+    },
+    {
+     "sourceNodeId": "plan_reminders",
+     "targetNodeId": "remind_now"
+    },
+    {
+     "sourceNodeId": "remind_now",
+     "targetNodeId": "send_reminders",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "remind_now",
+     "targetNodeId": "tell_waiting",
+     "routeString": "Not today"
+    },
+    {
+     "sourceNodeId": "send_reminders",
+     "targetNodeId": "tell_reminders"
+    },
+    {
+     "sourceNodeId": "anyone_missing",
+     "targetNodeId": "read_and_table",
+     "routeString": "All sent"
+    },
+    {
+     "sourceNodeId": "read_and_table",
+     "targetNodeId": "compare_months"
+    },
+    {
+     "sourceNodeId": "compare_months",
+     "targetNodeId": "create_report"
+    },
+    {
+     "sourceNodeId": "create_report",
+     "targetNodeId": "report_made"
+    },
+    {
+     "sourceNodeId": "report_made",
+     "targetNodeId": "review_report",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "report_made",
+     "targetNodeId": "tell_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "review_report",
+     "targetNodeId": "build_deck",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "review_report",
+     "targetNodeId": "check_comment",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "check_comment",
+     "targetNodeId": "changes_requested"
+    },
+    {
+     "sourceNodeId": "changes_requested",
+     "targetNodeId": "rebuild_report",
+     "routeString": "Rebuild with comment"
+    },
+    {
+     "sourceNodeId": "changes_requested",
+     "targetNodeId": "review_rejected",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "rebuild_report",
+     "targetNodeId": "rebuild_made"
+    },
+    {
+     "sourceNodeId": "rebuild_made",
+     "targetNodeId": "review_report_2",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "rebuild_made",
+     "targetNodeId": "tell_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "review_report_2",
+     "targetNodeId": "build_deck",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "review_report_2",
+     "targetNodeId": "review_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "build_deck",
+     "targetNodeId": "save_work_note"
+    },
+    {
+     "sourceNodeId": "save_work_note",
+     "targetNodeId": "email_head"
+    },
+    {
+     "sourceNodeId": "email_head",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

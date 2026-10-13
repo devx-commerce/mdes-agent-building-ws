@@ -1,0 +1,2334 @@
+{
+ "id": "RES-C",
+ "persona": "researcher",
+ "lang": "en",
+ "display_name": "Funding Calls",
+ "description": "ติดตามประกาศทุน (Funding calls): every Monday 07:00 finds new calls from your funder list and the web, rates them against your profile, prepares a starter pack and calendar deadlines for strong matches, emails a weekly digest, and after your go / skip (Inbox) sets up proposal folders and reminds you of missing items before deadlines. Every morning it adds the grant results you wrote in the calls log (ได้รับทุน / ไม่ได้รับทุน in สถานะ) to your profile.",
+ "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "Every day 07:00 (Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 7 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_setup",
+     "displayName": "Find the profile, funder list and calls log",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You find what this weekly check needs in the signed-in user's Google Drive. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nNames are matched from their START (HOW-WE-BUILD rule 6), files only (not folders), and anything inside a folder whose name starts with ข้อเสนอโครงการ – (the agent's own proposal folders) or that starts with 'Copy of' / สำเนา is never used.\n1. Researcher profile: the file whose name starts with ประวัตินักวิจัย (read it): profile = topics, keywords, CV summary, publications, and the university's internal rule (how many days before the funder's deadline the research office needs the proposal; internal_days, default 7 only if the profile does not say).\n2. Funder list: the file whose name starts with รายชื่อแหล่งทุน (read it): funders = each funder with its website.\n3. Past proposals: files whose name starts with ข้อเสนอโครงการเดิม: past = name | ID | funded or not | reviewers' main comments (read each).\n4. Calls log: the Google Sheet named 'บันทึกประกาศทุน' in the profile's folder; its ID or empty; if found, log_rows = every row as text with its row number; last_check = the newest date in it (else 7 days before today).\n5. output_folder_id = the profile's parent folder; owner_email = the profile owner's email; today = today in Asia/Bangkok; weekday = its English name. search_day = true only if today is a Monday.\n5b. Results to record (client doc step 12). This run's slot (Asia/Bangkok): slot_end = today 07:00; slot_start = yesterday 07:00 (a run may start up to 5 minutes late, never early). log_changed = true only if the calls log's modified time (get_file_metadata) is on or after slot_start and before slot_end. profile_is_doc = true only if the profile is a Google Doc. If log_changed: results = every log row whose สถานะ (status) is ได้รับทุน (funded) or ไม่ได้รับทุน (not funded) (also accept funded / not funded) and whose call title does NOT already appear in the profile under a heading starting 'ผลการพิจารณาทุน'; each = call title | outcome | the reviewer comments from the column ความเห็นผู้ทรงคุณวุฒิ (or any column whose header contains ความเห็น; empty if none). has_results = true only if log_changed and results is not empty. (Comparing with the profile, not only the date, means a result whose card is still waiting is not added twice: the log was not edited again.)\n6. ready = profile and funder list each found exactly once. stop_items = what is missing (empty if ready).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "profile_id": {
+        "description": "Profile ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "profile": {
+        "description": "Topics, keywords, CV, publications",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "internal_days": {
+        "description": "Days before the funder deadline",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "funders": {
+        "description": "Funders and websites",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "past": {
+        "description": "Past proposals with outcome and reviewers' comments",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "log_id": {
+        "description": "Calls log ID or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "log_rows": {
+        "description": "Calls log rows",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "last_check": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "output_folder_id": {
+        "description": "Folder",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "owner_email": {
+        "description": "The researcher's email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "weekday": {
+        "description": "Monday ... Sunday",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "search_day": {
+        "description": "true if the weekly search runs today",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "log_changed": {
+        "description": "true if the calls log changed since the last run",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "profile_is_doc": {
+        "description": "true if the profile is a Google Doc",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "results": {
+        "description": "Results to add to the profile",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 15
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "call": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "outcome": {
+           "description": "ได้รับทุน or ไม่ได้รับทุน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "comments": {
+           "description": "Reviewer comments",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "call",
+          "outcome",
+          "comments"
+         ]
+        }
+       },
+       "has_results": {
+        "description": "true if results must be added now",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "ready": {
+        "description": "true if found",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "stop_items": {
+        "description": "What is missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       }
+      },
+      "required": [
+       "profile_id",
+       "profile",
+       "internal_days",
+       "funders",
+       "past",
+       "log_id",
+       "log_rows",
+       "last_check",
+       "output_folder_id",
+       "owner_email",
+       "today",
+       "weekday",
+       "search_day",
+       "log_changed",
+       "profile_is_doc",
+       "results",
+       "has_results",
+       "ready",
+       "stop_items"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "Profile and funder list found?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "report_setup",
+     "displayName": "Email what is missing",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The weekly funding check could not start: ${find_setup.stop_items}. Send exactly ONE email with send_email to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ติดตามประกาศทุน: ยังเริ่มไม่ได้ (funding calls: cannot start). Body in short Thai with English in brackets: list ONLY the items in the line above (they are the missing ones; never list a file that was found), each with the name to give it so it is found next time: the researcher profile = a file whose name starts with ประวัตินักวิจัย, the funder list = a file whose name starts with รายชื่อแหล่งทุน. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "ensure_log",
+     "displayName": "Make sure the calls log exists",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Calls log ID found: \"${find_setup.log_id}\". If not empty: call no tool; log_id = that ID. If empty: create it ONCE with Drive create_file: title 'บันทึกประกาศทุน', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly this header line: วันที่พบ,ชื่อประกาศ,แหล่งทุน,ลิงก์,กำหนดส่งแหล่งทุน,กำหนดส่งภายใน,ระดับความเหมาะสม,สถานะ,ชุดเริ่มต้น,โฟลเดอร์ข้อเสนอ,ความเห็นผู้ทรงคุณวุฒิ ; log_id = the ID returned. Then read the log with Sheets get_spreadsheet: log_tab = the exact title of its FIRST tab (as the tool returns it; never guess or translate it).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file | Sheets MCP: get_spreadsheet.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems.\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "log_id": {
+        "description": "Calls log ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "log_tab": {
+        "description": "Exact title of the log's first tab",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "log_id",
+       "log_tab"
+      ]
+     }
+    },
+    {
+     "id": "results_found",
+     "displayName": "Grant results to record?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Record",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_results"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No results",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_results"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "record_results",
+     "displayName": "Add the results to her profile",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Add these grant results to the researcher profile ${find_setup.profile_id}: ${find_setup.results}.\nIf ${find_setup.profile_is_doc} is true: call Docs append_to_doc ONCE with short markdown: '### ผลการพิจารณาทุน ${find_setup.today}' then, per result, lines: ประกาศ (call): <call>; ผล (outcome): <outcome>; ความเห็นผู้ทรงคุณวุฒิ (reviewer comments): <comments>. Keep every earlier line; change nothing else. If it is not a Google Doc: call no tool, added = false, problems = 'the profile is not a Google Doc; convert it to a Google Doc so results can be added'. added = true only if confirmed. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Docs MCP: append_to_doc.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "added": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "added",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "is_search_day",
+     "displayName": "Weekly search today?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Search",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.search_day"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not today",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.search_day"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_day",
+     "displayName": "Summary of today",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nToday ${find_setup.today} (${find_setup.weekday}): no weekly search (it runs on Mondays). Results added to the profile: ${record_results.added} (${find_setup.results}; ${record_results.problems}). A value that reads like <no value provided ...> means no result was recorded today.\nSay in one or two lines what this run did. Say how to record a result: in the calls log บันทึกประกาศทุน write ได้รับทุน (funded) or ไม่ได้รับทุน (not funded) in the call's สถานะ (status) column and the reviewer comments in ความเห็นผู้ทรงคุณวุฒิ; the next morning's run adds it to the profile.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "search_calls",
+     "displayName": "Search for new calls",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "1. Call deep_research_plan ONCE with sources = web and question: 'Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.'\n2. Call deep_research_run ONCE with that session_id, folder_id ${find_setup.output_folder_id}, title 'ประกาศทุนใหม่ – ${find_setup.today}'. Do not call deep_research_check (later steps wait for it).\njob_id = the jobId returned; started = true only if a jobId came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_plan, deep_research_run.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "job_id": {
+        "description": "Job ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "started": {
+        "description": "true only if started",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "job_id",
+       "started",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "search_started",
+     "displayName": "Search started?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "search_calls.started"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "search_calls.started"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_started",
+     "displayName": "Tell the search did not start",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe weekly search could not start. Details: ${search_calls.problems}\nSay no calls were checked this week.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "wait_research",
+     "displayName": "Wait for the research",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call the Research MCP tool deep_research_check with jobId = ${search_calls.job_id} and waitSeconds = 240. While the status is running, ALWAYS call it again: never stop while it is running. If a call returns an error, call it again; stop only after 3 errors in a row. At most 15 calls. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. status = the last status returned; calls = how many check calls you made.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "Last status returned",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "calls": {
+        "description": "Check calls made",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "status",
+       "calls"
+      ]
+     }
+    },
+    {
+     "id": "research_result",
+     "displayName": "Read the research result",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call the Research MCP tool deep_research_check exactly ONCE with jobId = ${search_calls.job_id} and waitSeconds = 0. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Return exactly what it returned: status, doc_id, link (the docUrl), references (count); research_ok = true only if status is done and doc_id is not empty; problems = the error or 'still running after the wait' if status is running.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "done / running / failed / not_found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "doc_id": {
+        "description": "Report Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "Report link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "references": {
+        "description": "References",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "research_ok": {
+        "description": "true only if done with a report",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       }
+      },
+      "required": [
+       "status",
+       "doc_id",
+       "link",
+       "references",
+       "research_ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "search_done",
+     "displayName": "Search finished?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Finished",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Failed",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_search_failed",
+     "displayName": "Tell the search failed",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe weekly search did not finish. Details: ${research_result.problems}\nSay no calls were checked this week.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "rate_calls",
+     "displayName": "Read and rate each call",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You rate this week's calls against the researcher's profile. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nRead the report (Doc ID ${research_result.doc_id}) with read_file_content; read an announcement page only through the report's text. Profile: ${find_setup.profile}. Calls already seen (skip them): ${find_setup.log_rows}. Today ${find_setup.today}; internal rule: ${find_setup.internal_days} days before the funder deadline.\nOpen check (do it yourself; never trust a report label such as 'still open' / ยังเปิดรับ, the report can be wrong about today's date): convert Thai Buddhist years to CE (2569 = 2026); a call is open only if its funder deadline is AFTER today ${find_setup.today}. A call whose deadline is before today is closed: leave it out of calls. A call with no exact deadline can be possible at most, never strong, with the warning 'ยังไม่ทราบวันปิดรับ (deadline unknown)'.\ncalls = each NEW call still open: title, funder, link (URL exactly as in the report), deadline, internal_deadline = deadline minus the internal days, budget, duration, eligibility, fit, rating (strong = topic fits AND she is eligible AND enough time before the internal deadline; possible = partly; not = not relevant), warnings (honest, e.g. 'requires private-sector co-funding; no partner on this topic in your profile'). has_strong = true if any strong. strong_list = the strong calls as 'title (deadline)' lines. has_relevant = true if any call is strong or possible. relevant_list = the strong and possible calls as 'title (rating, deadline)' lines, strong first.\nreminders = calls in the log with status go whose internal deadline is within 14 days: title, deadline, proposal folder link; has_reminders = true if any. Never invent a call, link, date or amount.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "calls": {
+        "description": "New calls rated",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "funder": {
+           "description": "Funder",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "link": {
+           "description": "Announcement URL",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "deadline": {
+           "description": "Funder deadline YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "internal_deadline": {
+           "description": "Research office deadline YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "budget": {
+           "description": "Budget ceiling",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "duration": {
+           "description": "Duration",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "eligibility": {
+           "description": "Eligibility and conditions",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "fit": {
+           "description": "Why it fits or not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "rating": {
+           "description": "strong / possible / not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "warnings": {
+           "description": "Honest warnings",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          }
+         },
+         "required": [
+          "title",
+          "funder",
+          "link",
+          "deadline",
+          "internal_deadline",
+          "budget",
+          "duration",
+          "eligibility",
+          "fit",
+          "rating",
+          "warnings"
+         ]
+        }
+       },
+       "has_strong": {
+        "description": "true if any strong match",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "strong_list": {
+        "description": "Strong calls, one per line",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "has_relevant": {
+        "description": "true if any strong or possible",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "relevant_list": {
+        "description": "Strong and possible calls, one per line",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "possible_count": {
+        "description": "Possible matches",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "not_count": {
+        "description": "Not relevant",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "reminders": {
+        "description": "Go calls due within 14 days",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "has_reminders": {
+        "description": "true if any",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       }
+      },
+      "required": [
+       "calls",
+       "has_strong",
+       "strong_list",
+       "has_relevant",
+       "relevant_list",
+       "possible_count",
+       "not_count",
+       "reminders",
+       "has_reminders"
+      ]
+     }
+    },
+    {
+     "id": "relevant_found",
+     "displayName": "Any relevant call?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Relevant",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_relevant"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "None relevant",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_relevant"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "starter_packs",
+     "displayName": "Starter pack for each strong match",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Only strong calls get a starter pack. If no call in ${rate_calls.calls} is rated strong: call no tool, packs = empty, created = true. Otherwise for EACH strong call (at most 3), create ONE Google Doc with Drive create_file: title 'ชุดเริ่มต้น – <call title>', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html'. Content in Thai: (1) one-page summary: what the funder wants, eligibility, budget, duration, key dates (funder deadline and the research office deadline); (2) checklist of every required document; (3) first proposal outline that reuses the strongest parts of her past proposals and addresses the weaknesses reviewers pointed out: ${find_setup.past}; (4) honest warnings. Link the announcement. Create nothing else. packs = title | Doc ID per pack; created = true only if every create returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "packs": {
+        "description": "Starter packs",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "doc_id": {
+           "description": "Doc ID",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "title",
+          "doc_id"
+         ]
+        }
+       },
+       "created": {
+        "description": "true only if all created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "packs",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "deadlines",
+     "displayName": "Add the deadlines to her calendar",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Only strong calls get calendar deadlines. If no call in ${rate_calls.calls} is rated strong: call no tool, events = empty, created = true. Otherwise for EACH strong call create TWO all-day events with Calendar create_event on her primary calendar (no other attendees); all-day means startTime = the date only (YYYY-MM-DD, no time, no offset) and endTime = the next day's date only; never create an event on a date before today ${find_setup.today}: 'ส่งสำนักงานบริหารการวิจัย: <title>' on the internal deadline and 'ปิดรับข้อเสนอ: <title>' on the funder deadline; each with the announcement link in the description and a reminder 14 days before (override reminders: popup and email). events = the event links; created = true only if every event ID came back.\n\nTools for this step (their inputs are described by the tools themselves): Calendar MCP: create_event.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "events": {
+        "description": "Event links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true only if all created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "events",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "digest",
+     "displayName": "Email the weekly digest",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send exactly ONE email with send_email to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ประกาศทุนประจำสัปดาห์ ${find_setup.today} (weekly funding digest). Body in short Thai: strong matches first (title, funder, deadlines, budget, why it fits, warnings, starter pack link from ${starter_packs.packs}), then possible matches (title, funder, deadline, why it is only possible, announcement link), then 'not relevant: N'. Calls: ${rate_calls.calls}. Last line: ตัดสินใจ go / skip ในกล่อง Inbox ของ Gemini Enterprise (decide go / skip in your Inbox). sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "log_calls",
+     "displayName": "Record the calls",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Append ONE row per call in ${rate_calls.calls} to the calls log ${ensure_log.log_id} with Sheets append_rows in ONE call, range = the tab name ${ensure_log.log_tab} in single quotes: ${find_setup.today}, title, funder, link, deadline, internal deadline, rating, status (strong or possible: รอตัดสินใจ (waiting for decision); not: บันทึกไว้ (noted)), starter pack link = for a call that has a pack in ${starter_packs.packs} (match by title) https://docs.google.com/document/d/<its doc_id>/edit, else -, then -. appended = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "go_skip",
+     "displayName": "Go or skip?",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ประกาศทุนที่เกี่ยวข้อง (Relevant calls, strong first):\n${rate_calls.relevant_list}\nชุดเริ่มต้น (starter packs, strong only): ${starter_packs.packs}\n\nพิมพ์ในช่องความคิดเห็น 'go: <ชื่อประกาศ>' หรือ 'skip: <ชื่อประกาศ>' ทีละบรรทัด และถ้าต้องการเชิญผู้ร่วมวิจัย 'invite: <ชื่อ> <อีเมล> <ชื่อประกาศ>' แล้วกด Approve (Type go / skip per call, and optional invite lines, then Approve). Reject = skip ทั้งหมด (skip all).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "read_go",
+     "displayName": "Read her decisions",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "Her comment: \"${go_skip.approval_feedback}\". Calls (decide only for strong and possible ones): ${rate_calls.calls}. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Use no tools.\ngo = the strong or possible calls she marked go (match titles loosely); skip = the strong or possible calls marked skip or not mentioned (never a call rated not: those stay บันทึกไว้ (noted)). has_go = true if any go. invites = each invite line: name, email, call title; has_invites = true if any. Never add a decision she did not write.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "go": {
+        "description": "Calls to pursue",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "funder": {
+           "description": "Funder",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "link": {
+           "description": "Announcement URL",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "deadline": {
+           "description": "Funder deadline YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "internal_deadline": {
+           "description": "Research office deadline YYYY-MM-DD",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "budget": {
+           "description": "Budget ceiling",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "duration": {
+           "description": "Duration",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "eligibility": {
+           "description": "Eligibility and conditions",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "fit": {
+           "description": "Why it fits or not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "rating": {
+           "description": "strong / possible / not",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "warnings": {
+           "description": "Honest warnings",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          }
+         },
+         "required": [
+          "title",
+          "funder",
+          "link",
+          "deadline",
+          "internal_deadline",
+          "budget",
+          "duration",
+          "eligibility",
+          "fit",
+          "rating",
+          "warnings"
+         ]
+        }
+       },
+       "skip_titles": {
+        "description": "Skipped calls",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "has_go": {
+        "description": "true if any go",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "invites": {
+        "description": "Invitations",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 3
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "name": {
+           "description": "Name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "Email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "call": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "name",
+          "email",
+          "call"
+         ]
+        }
+       },
+       "has_invites": {
+        "description": "true if any",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "go",
+       "skip_titles",
+       "has_go",
+       "invites",
+       "has_invites"
+      ]
+     }
+    },
+    {
+     "id": "go_found",
+     "displayName": "Any go?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Go",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_go"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No go",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_go"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "proposal_folders",
+     "displayName": "Set up each proposal folder",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "For EACH call in ${read_go.go}: (1) create a folder with Drive create_file (mimeType folder) 'ข้อเสนอโครงการ – <title>' in ${find_setup.output_folder_id}; (2) in it, create ONE Google Doc 'แผนงานและเช็กลิสต์ – <title>' (contentMimeType text/html): the outline and document checklist from its starter pack (${starter_packs.packs}) or, for a call without one, built from the call's details and her past proposals (${find_setup.past}), and a timeline working back from the internal deadline (e.g. Week 1: confirm partners; Week 2: objectives and methods; Week 3: budget; Week 4: internal review), with real dates; (3) copy her profile ${find_setup.profile_id} into it with copy_file, titled 'สำเนาประวัติ – <title>' (never the default 'Copy of …'). Create nothing else. folders = title | folder link per call; created = true only if every call returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file, copy_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "folders": {
+        "description": "Proposal folders",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "Call title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "link": {
+           "description": "Folder link",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "title",
+          "link"
+         ]
+        }
+       },
+       "created": {
+        "description": "true only if all created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "folders",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_go",
+     "displayName": "Record go / skip",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "In the calls log ${ensure_log.log_id} (tab ${ensure_log.log_tab}) update each go call's row (find it by title with update_rows_by_key on column ชื่อประกาศ): สถานะ = go, โฟลเดอร์ข้อเสนอ = its folder link from ${proposal_folders.folders}; each skipped call (${read_go.skip_titles}): สถานะ = skip. updated = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: update_rows_by_key.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "updated"
+      ]
+     }
+    },
+    {
+     "id": "invites_found",
+     "displayName": "Invite co-researchers?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Invite",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_invites"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No invites",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_go.has_invites"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "draft_invites",
+     "displayName": "Draft the invitations",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "Draft one short, polite Thai invitation per person in ${read_go.invites}: the call (title, funder, deadline), why their expertise fits, what is needed from them and by when, and that Dr. Piya will follow up. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Use no tools. drafts = per person: name, email, subject, body.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "drafts": {
+        "description": "Invitation drafts",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "name": {
+           "description": "Name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "email": {
+           "description": "Email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "subject": {
+           "description": "Subject",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "body": {
+           "description": "Body",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          }
+         },
+         "required": [
+          "name",
+          "email",
+          "subject",
+          "body"
+         ]
+        }
+       }
+      },
+      "required": [
+       "drafts"
+      ]
+     }
+    },
+    {
+     "id": "approve_invites",
+     "displayName": "Send the invitations?",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ร่างคำเชิญผู้ร่วมวิจัย (Invitation drafts): ${draft_invites.drafts}\nApprove = ส่งตามนี้ (send as drafted). Reject = ไม่ส่ง (do not send).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "send_invites",
+     "displayName": "Send the approved invitations",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send each approved draft in ${draft_invites.drafts} with send_email, ONE email per person, to that person only (no CC/BCC), with its subject and body. Send nothing else. sent = how many were sent. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "Emails sent",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_skip_all",
+     "displayName": "Record: skipped",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "In the calls log ${ensure_log.log_id} (tab ${ensure_log.log_tab}) set สถานะ = skip for every strong or possible call of this week (${rate_calls.relevant_list}) with Sheets update_rows_by_key on column ชื่อประกาศ. updated = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: update_rows_by_key.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "updated"
+      ]
+     }
+    },
+    {
+     "id": "one_line_note",
+     "displayName": "One-line note (nothing relevant)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send exactly ONE short email with send_email to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ประกาศทุนประจำสัปดาห์ ${find_setup.today}: ไม่มีประกาศที่เกี่ยวข้อง (no relevant calls this week). Body: ONE line in Thai with English in brackets: how many new calls were checked (${rate_calls.not_count} not relevant) and that none fits her profile. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "log_quiet",
+     "displayName": "Record the calls (nothing relevant)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "If ${rate_calls.calls} is empty, call no tool and set appended = true. Otherwise append ONE row per call to the calls log ${ensure_log.log_id} with Sheets append_rows in ONE call, range = the tab name ${ensure_log.log_tab} in single quotes: ${find_setup.today}, title, funder, link, deadline, internal deadline, rating, บันทึกไว้ (noted), -, -. appended = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "reminders_due",
+     "displayName": "Deadline reminders due?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_reminders"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No reminders",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "rate_calls.has_reminders"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_reminders",
+     "displayName": "Remind her of missing items",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "For the calls due soon: ${rate_calls.reminders}. For each, list the files in its proposal folder (search_files) and compare with its checklist Doc to find which required documents are still missing. Then send exactly ONE email with send_email to ${find_setup.owner_email} (if empty, to = an empty string): subject 'ใกล้กำหนดส่งข้อเสนอโครงการ (proposal deadlines soon)', one block per call: title, internal deadline, missing items, folder link. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content | Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "Summary of this week",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nRelevant (strong first): ${rate_calls.relevant_list}. Possible: ${rate_calls.possible_count}. Not relevant: ${rate_calls.not_count}. Reminders due: ${rate_calls.has_reminders}. Grant results added to the profile today: ${record_results.added} (${find_setup.results}) – a value that reads like <no value provided ...> means none. Search report: ${research_result.link}\nSay in a few lines what this week's check found and where it is recorded (the calls log บันทึกประกาศทุน).\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_setup"
+    },
+    {
+     "sourceNodeId": "find_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "report_setup",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "ensure_log",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "ensure_log",
+     "targetNodeId": "results_found"
+    },
+    {
+     "sourceNodeId": "results_found",
+     "targetNodeId": "record_results",
+     "routeString": "Record"
+    },
+    {
+     "sourceNodeId": "results_found",
+     "targetNodeId": "is_search_day",
+     "routeString": "No results"
+    },
+    {
+     "sourceNodeId": "record_results",
+     "targetNodeId": "is_search_day"
+    },
+    {
+     "sourceNodeId": "is_search_day",
+     "targetNodeId": "search_calls",
+     "routeString": "Search"
+    },
+    {
+     "sourceNodeId": "is_search_day",
+     "targetNodeId": "tell_day",
+     "routeString": "Not today"
+    },
+    {
+     "sourceNodeId": "search_calls",
+     "targetNodeId": "search_started"
+    },
+    {
+     "sourceNodeId": "search_started",
+     "targetNodeId": "wait_research",
+     "routeString": "Started"
+    },
+    {
+     "sourceNodeId": "search_started",
+     "targetNodeId": "tell_not_started",
+     "routeString": "Not started"
+    },
+    {
+     "sourceNodeId": "wait_research",
+     "targetNodeId": "research_result"
+    },
+    {
+     "sourceNodeId": "research_result",
+     "targetNodeId": "search_done"
+    },
+    {
+     "sourceNodeId": "search_done",
+     "targetNodeId": "tell_search_failed",
+     "routeString": "Failed"
+    },
+    {
+     "sourceNodeId": "search_done",
+     "targetNodeId": "rate_calls",
+     "routeString": "Finished"
+    },
+    {
+     "sourceNodeId": "rate_calls",
+     "targetNodeId": "relevant_found"
+    },
+    {
+     "sourceNodeId": "relevant_found",
+     "targetNodeId": "starter_packs",
+     "routeString": "Relevant"
+    },
+    {
+     "sourceNodeId": "relevant_found",
+     "targetNodeId": "one_line_note",
+     "routeString": "None relevant"
+    },
+    {
+     "sourceNodeId": "starter_packs",
+     "targetNodeId": "deadlines"
+    },
+    {
+     "sourceNodeId": "deadlines",
+     "targetNodeId": "digest"
+    },
+    {
+     "sourceNodeId": "digest",
+     "targetNodeId": "log_calls"
+    },
+    {
+     "sourceNodeId": "log_calls",
+     "targetNodeId": "go_skip"
+    },
+    {
+     "sourceNodeId": "go_skip",
+     "targetNodeId": "read_go",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "go_skip",
+     "targetNodeId": "update_skip_all",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "read_go",
+     "targetNodeId": "go_found"
+    },
+    {
+     "sourceNodeId": "go_found",
+     "targetNodeId": "proposal_folders",
+     "routeString": "Go"
+    },
+    {
+     "sourceNodeId": "go_found",
+     "targetNodeId": "update_skip_all",
+     "routeString": "No go"
+    },
+    {
+     "sourceNodeId": "proposal_folders",
+     "targetNodeId": "update_go"
+    },
+    {
+     "sourceNodeId": "update_go",
+     "targetNodeId": "invites_found"
+    },
+    {
+     "sourceNodeId": "invites_found",
+     "targetNodeId": "draft_invites",
+     "routeString": "Invite"
+    },
+    {
+     "sourceNodeId": "invites_found",
+     "targetNodeId": "reminders_due",
+     "routeString": "No invites"
+    },
+    {
+     "sourceNodeId": "draft_invites",
+     "targetNodeId": "approve_invites"
+    },
+    {
+     "sourceNodeId": "approve_invites",
+     "targetNodeId": "send_invites",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "approve_invites",
+     "targetNodeId": "reminders_due",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "send_invites",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "update_skip_all",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "one_line_note",
+     "targetNodeId": "log_quiet"
+    },
+    {
+     "sourceNodeId": "log_quiet",
+     "targetNodeId": "reminders_due"
+    },
+    {
+     "sourceNodeId": "reminders_due",
+     "targetNodeId": "send_reminders",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "reminders_due",
+     "targetNodeId": "tell_done",
+     "routeString": "No reminders"
+    },
+    {
+     "sourceNodeId": "send_reminders",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

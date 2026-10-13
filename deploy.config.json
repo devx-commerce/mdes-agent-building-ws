@@ -1,0 +1,35 @@
+{
+ "_note": "Target for deploy.py. Change 'app' to the app to deploy on. Connector IDs = Kenil's MCP connectors in thai-gov-poc (never change them). Per agent: enabled, langs, app, cron, display_name {en,th}, vars / vars_en / vars_th.",
+ "user": "navya.agarwal@devxlabs.ai",
+ "project": "thai-gov-poc",
+ "project_number": "119312937500",
+ "location": "us",
+ "app": "mdes-agents",
+ "app_display_name": "MDES Agents",
+ "create_app": false,
+ "langs": ["en", "th"],
+ "timezone": "Asia/Bangkok",
+ "publish": false,
+ "share": "PRIVATE",
+ "connectors": {
+  "DRIVE_MCP": "mdes-drive-mcp_1791192716757",
+  "GMAIL_MCP": "mdes-gmail-mcp_1791195600108",
+  "CALENDAR_MCP": "mdes-calendar-mcp_1791195882698",
+  "DOCS_MCP": "mdes-docs-mcp_1791197960807",
+  "SHEETS_MCP": "mdes-sheets-mcp_1791196060630",
+  "SLIDES_MCP": "mdes-slides-mcp_1791198114458",
+  "RESEARCH_MCP": "mdes-research-mcp_1791211370636",
+  "ANALYSIS_MCP": "mdes-analysis-mcp_1791627206681"
+ },
+ "agents": {
+  "GOV-A": {"enabled": true},
+  "GOV-B": {"enabled": true},
+  "GOV-C": {"enabled": true},
+  "RES-A": {"enabled": true},
+  "RES-B": {"enabled": true},
+  "RES-C": {"enabled": true},
+  "EXE-A": {"enabled": true, "vars_en": {"EXE_A_FOLDER_ID": "1ukwfXVW_YTMd2dEqU6TwuEdG3MrpNsM3"}, "vars_th": {"EXE_A_FOLDER_ID": "1lTs-lBJ0PeGYMCyHzZ-cRrv4sttdzJg2"}},
+  "EXE-B": {"enabled": true, "vars_en": {"EXE_B_FOLDER_ID": "1MLOROaoMm3GdV6tpupJFBlCqcqqQJxSB"}, "vars_th": {"EXE_B_FOLDER_ID": "1EDpprFiz3Gc6UD_kgTKSh7SYchY-Ei09"}},
+  "EXE-C": {"enabled": true, "vars_en": {"EXE_C_FOLDER_ID": "1o_dhsjLJCyez0ob9OCbxnRLHvZUI0Dz1"}, "vars_th": {"EXE_C_FOLDER_ID": "1y0YqDUHgYBBuqZua5PG_OdPZWIeJpLxe"}}
+ }
+}

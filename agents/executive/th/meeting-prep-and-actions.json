@@ -1,0 +1,2358 @@
+{
+ "id": "EXE-C",
+ "persona": "executive",
+ "lang": "th",
+ "display_name": "Meeting Prep & Actions (TH)",
+ "description": "ดูแลรับผิดชอบโดยผู้ช่วยบริหารของผู้บริหารสูงสุด ดำเนินการวันละหนึ่งครั้ง (ค่าเริ่มต้นเวลา 06:00 น.): รวบรวมรายการการดำเนินงานจากรายงานการประชุมใหม่ทั้งหมด จัดทำเอกสารสรุปก่อนการประชุมความยาวหนึ่งหน้าสำหรับการประชุมของผู้บริหารสูงสุดในอีก 24 ชั่วโมงข้างหน้า โดยได้รับอนุมัติจากผู้ช่วยบริหาร (หรือโดยผู้บริหารสูงสุดผ่านทางอีเมลสำหรับการประชุมสำคัญ) ส่งอีเมลแจ้งเตือนผู้รับผิดชอบแต่ละราย และอัปเดตชีตติดตาม",
+ "_built_from": "mdes-work-log/wf/lens.py build specs/exe_c.py (Thai, field names in Thai where allowed; 13 Oct 2026)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "กำหนดการ",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 6 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "อ่านการตั้งค่าและรายการที่รอดำเนินการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "รหัสโฟลเดอร์การประชุม {{EXE_C_FOLDER_ID}} วันที่และเวลาปัจจุบัน (Asia/Bangkok) คือเวลานี้\n1. เปิดเอกสาร \"Setup\" ในโฟลเดอร์: ชื่อผู้บริหารสูงสุด อีเมล และ Calendar ID (โดยปกติคืออีเมลของผู้บริหาร) รวมถึงรายชื่อการประชุมสำคัญ (ซึ่งผู้บริหารสูงสุดจะเป็นผู้อนุมัติรายการการดำเนินงานด้วยตนเอง)\n2. แสดงรายการโฟลเดอร์การประชุม (โฟลเดอร์ย่อยโดยตรง หนึ่งโฟลเดอร์ต่อการประชุมประจำหนึ่งรายการ) ในแต่ละโฟลเดอร์ ให้เปิดชีต \"Action tracker\" (คอลัมน์ action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes) หากมีอยู่ และแสดงรายการไฟล์ทั้งหมด\n3. new_minutes: ทุกไฟล์ในโฟลเดอร์การประชุมที่มีชื่อไฟล์ประกอบด้วย \"minutes\", \"notes\" หรือ \"รายงานการประชุม\" และมีรหัสไฟล์ที่ไม่อยู่ในคอลัมน์ minutes_id ของชีตติดตามในโฟลเดอร์นั้น ไม่ว่าจะได้รับเข้ามาเมื่อใด ข้อมูลต่อไฟล์ ได้แก่: file ID, title, folder ID, tracker ID (เว้นว่างหากไม่มี), ชั้น_ความลับ (การประชุมนั้นอยู่ในรายชื่อการประชุมสำคัญ)\n4. waiting_owner: แถวในชีตติดตามที่มีสถานะ stage เป็น \"awaiting approval\" (ยังไม่ได้จัดส่ง รวมถึงของวันก่อนหน้า) ในรูปแบบ actions (action_id, meeting, what = action, owner_email, deadline, needs_clarification = ระบุไว้ใน notes, tracker_id)\n5. ceo_threads: ค่าที่ไม่ซ้ำกันของ thread_subject ในแถวที่มีสถานะ stage เป็น \"awaiting CEO\" พร้อมด้วย tracker ID ของแต่ละรายการ\n6. window_start = ปัจจุบัน; window_end = ปัจจุบัน + 24 ชั่วโมง (Asia/Bangkok, YYYY-MM-DD HH:MM) เอกสารสรุปก่อนการประชุม (Pre-reads) จะครอบคลุมการประชุมของผู้บริหารสูงสุดในช่วงเวลาดังกล่าว ไม่ว่าจะเริ่มประมวลผลในเวลาใดก็ตาม\nอ่านข้อมูลเท่านั้น ห้ามคาดเดา ส่งคืนข้อมูลเท่านั้น: ห้ามล้มเหลว ห้ามถามผู้ใช้ และห้ามหยุดรอ หากเครื่องมือขาดหายหรือทำงานไม่สำเร็จ หรือไม่พบไฟล์หรือเอกสารที่จำเป็น ให้ดำเนินการให้เสร็จสิ้นโดยส่งคืน ready=false และระบุใน stop_reason อย่างชัดเจนว่ามีสิ่งใดขาดหายไปและวิธีแก้ไข (เช่น \"ไม่ได้เชื่อมต่อ Google Drive: โปรดเชื่อมต่อเครื่องมือ Drive ใน Gemini Enterprise แล้วดำเนินการอีกครั้ง\") มิฉะนั้นให้ส่งคืน ready=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "พร้อมดำเนินการ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "เหตุผลที่หยุดการทำงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "today": {
+        "description": "วันนี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "วัน_พรุ่งนี้": {
+        "description": "พรุ่งนี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "ชื่อ_ผู้บริหาร": {
+        "description": "ชื่อ CEO",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "ceo_email": {
+        "description": "อีเมล CEO",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "ceo_calendar_id": {
+        "description": "รหัสปฏิทินผู้บริหารสูงสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "window_start": {
+        "description": "เวลาเริ่มต้นช่วงข้อมูล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "window_end": {
+        "description": "เวลาสิ้นสุดช่วงข้อมูล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "new_minutes": {
+        "description": "รายงานการประชุมใหม่",
+        "type": "ARRAY",
+        "items": {
+         "description": "รายงานการประชุมใหม่",
+         "type": "OBJECT",
+         "properties": {
+          "รหัส_ไฟล์": {
+           "description": "รหัสไฟล์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "title": {
+           "description": "ชื่อเรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ชั้น_ความลับ": {
+           "description": "ข้อมูลสำคัญ",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "รหัส_ไฟล์",
+          "title",
+          "folder_id",
+          "tracker_id",
+          "ชั้น_ความลับ"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "waiting_owner": {
+        "description": "รอผู้รับผิดชอบ",
+        "type": "ARRAY",
+        "items": {
+         "description": "รอผู้รับผิดชอบ",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "ceo_threads": {
+        "description": "เธรดของผู้บริหารสูงสุด",
+        "type": "ARRAY",
+        "items": {
+         "description": "เธรดของผู้บริหารสูงสุด",
+         "type": "OBJECT",
+         "properties": {
+          "subject": {
+           "description": "เรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "subject",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 11
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "today",
+       "วัน_พรุ่งนี้",
+       "ชื่อ_ผู้บริหาร",
+       "ceo_email",
+       "ceo_calendar_id",
+       "window_start",
+       "window_end",
+       "new_minutes",
+       "waiting_owner",
+       "ceo_threads"
+      ]
+     }
+    },
+    {
+     "id": "meetings",
+     "displayName": "การประชุมของวันพรุ่งนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "แสดงรายการกิจกรรมในปฏิทินของผู้บริหารสูงสุด (Calendar ID ${read_state.ceo_calendar_id} ที่แชร์กับข้าพเจ้า) ซึ่งเริ่มต้นระหว่าง ${read_state.window_start} ถึง ${read_state.window_end} (Asia/Bangkok) โดยละเว้นกิจกรรมที่ปฏิเสธแล้ว กิจกรรมตลอดทั้งวัน และช่วงเวลาส่วนตัวที่ไม่มีผู้เข้าร่วม\nข้อมูลสำหรับแต่ละรายการ ได้แก่: title, start time, attendees, description และลิงก์ Drive ที่อยู่ในรายการ จับคู่การประชุมกับโฟลเดอร์การประชุมภายใต้ {{EXE_C_FOLDER_ID}} เฉพาะกรณีที่ชื่อการประชุมมีชื่อโฟลเดอร์นั้นปรากฏอยู่เท่านั้น (ตัวอย่างเช่น การประชุม \"ExCom (ประชุมคณะกรรมการบริหาร)\" และโฟลเดอร์ \"ExCom\") จากนั้นส่งคืน folder ID และรหัสของชีต \"Action tracker\" สำหรับการประชุมอื่นทั้งหมดให้เว้นว่าง folder ID และ tracker ID: ห้ามคาดเดาโฟลเดอร์ ส่งคืนรายการว่างหากไม่มีข้อมูล อ่านข้อมูลเท่านั้น",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "meetings": {
+        "description": "การประชุม",
+        "type": "ARRAY",
+        "items": {
+         "description": "การประชุม",
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "ชื่อเรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "time": {
+           "description": "เวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "attendees": {
+           "description": "ผู้เข้าร่วมการประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "description": {
+           "description": "รายละเอียด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          }
+         },
+         "required": [
+          "title",
+          "time",
+          "attendees",
+          "description",
+          "folder_id",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "meetings"
+      ]
+     }
+    },
+    {
+     "id": "each_meeting",
+     "displayName": "สำหรับการประชุมแต่ละรายการ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "meetings.meetings",
+      "currentItemVariable": "m",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "each_meeting_start",
+         "displayName": "สำหรับการประชุมแต่ละรายการ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "m": {
+            "description": "m",
+            "type": "OBJECT",
+            "properties": {
+             "title": {
+              "description": "ชื่อเรื่อง",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "time": {
+              "description": "เวลา",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "attendees": {
+              "description": "ผู้เข้าร่วมการประชุม",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "description": {
+              "description": "รายละเอียด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "tracker_id": {
+              "description": "รหัสชีตติดตาม",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             }
+            },
+            "required": [
+             "title",
+             "time",
+             "attendees",
+             "description",
+             "folder_id",
+             "tracker_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "m"
+          ]
+         }
+        },
+        {
+         "id": "preread",
+         "displayName": "จัดทำเอกสารสรุปก่อนการประชุมหนึ่งรายการ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "การประชุม: ${each_meeting_start.m.title} เวลา ${each_meeting_start.m.time} ผู้เข้าร่วมประชุม ${each_meeting_start.m.attendees} บันทึกในคำเชิญ ${each_meeting_start.m.description} โฟลเดอร์การประชุม ${each_meeting_start.m.folder_id} ชีตติดตามงาน ${each_meeting_start.m.tracker_id}\nรวบรวมข้อมูล: ระเบียบวาระการประชุมและเอกสารแนบ (Gmail: ข้อความที่มีชื่อการประชุมนี้ในช่วง 7 วันที่ผ่านมา เอกสารแนบ และไฟล์ Drive ที่เชื่อมโยงในข้อความ รวมถึงไฟล์ Drive ที่เชื่อมโยงในคำเชิญ) รายงานการประชุมครั้งก่อนในโฟลเดอร์การประชุม แถวที่ยังดำเนินการไม่แล้วเสร็จในชีตติดตามงาน และรายการมอบหมายงานที่เพิ่งสกัดจากรายงานการประชุมฉบับใหม่ของโฟลเดอร์การประชุมนี้ (${extract.actions} ให้แสดงสถานะเป็น \"pending approval\")\nจัดทำเอกสารสรุปก่อนการประชุม (Pre-read) ความยาวหนึ่งหน้า (Markdown): วัตถุประสงค์และผู้เข้าร่วมประชุม, เรื่องเพื่อพิจารณาแยกจากเรื่องเพื่อทราบ, ตัวเลขสำคัญจากเอกสาร, ความเปลี่ยนแปลงนับจากการประชุมครั้งก่อนในหัวข้อนี้, รายการมอบหมายงานค้างจากการประชุมครั้งก่อนและสถานะการดำเนินงาน (จาก status ในชีตติดตามงาน) และประเด็นคำถามที่แนะนำ 3 ข้อ\nหากยังไม่ได้รับเอกสารประกอบ ให้ระบุอย่างชัดเจนที่ด้านบนสุด เช่น \"ยังไม่ได้รับเอกสารสำหรับการประชุมลูกค้าเวลา 14.00 น. มีเฉพาะระเบียบวาระการประชุม\" อ่านอย่างเดียว ห้ามสร้างตัวเลขขึ้นเอง",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "title": {
+            "description": "ชื่อเรื่อง",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "time": {
+            "description": "เวลา",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "folder_id": {
+            "description": "รหัสโฟลเดอร์",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "อ่าน_ล่วงหน้า": {
+            "description": "เอกสารสรุปก่อนการประชุม",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "title",
+           "time",
+           "folder_id",
+           "อ่าน_ล่วงหน้า"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "each_meeting_start",
+         "targetNodeId": "preread"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "save_prereads",
+     "displayName": "บันทึกเอกสารสรุปก่อนการประชุมแต่ละรายการในโฟลเดอร์การประชุมที่เกี่ยวข้อง",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "เอกสารสรุปก่อนการประชุม (Pre-reads): ${each_meeting.output[*].preread}\nสำหรับแต่ละเอกสารสรุปก่อนการประชุมที่มี folder_id ไม่ว่าง ให้สร้าง Google Doc ชื่อ \"Pre-read <meeting date> <time> <title>\" (Markdown) ในโฟลเดอร์การประชุมนั้นโดยใช้ create_file_if_absent การประชุมที่ไม่มีโฟลเดอร์จะส่งทางอีเมลเท่านั้น หากไม่มีข้อมูลที่ต้องบันทึก ไม่ต้องเขียนข้อมูลใดๆ\nส่งคืนจำนวนเอกสารที่บันทึก ค้นหาโฟลเดอร์ตามชื่อที่ตรงกันทุกประการก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันการสร้างไฟล์ซ้ำในการทำงานรอบถัดไป ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "บันทึก_แล้ว": {
+        "description": "บันทึกแล้ว",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บันทึก_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "mail_prereads",
+     "displayName": "ส่งอีเมลถึงผู้บริหารสูงสุด: เอกสารสรุปก่อนการประชุม",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลผ่าน Gmail เพียง 1 ฉบับ (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.ceo_email} ชื่อเรื่อง: เอกสารสรุปก่อนการประชุม: การประชุมของท่านใน 24 ชั่วโมงข้างหน้า (${read_state.today}) เนื้อหา: หากไม่มีการประชุม ให้ระบุข้อความบรรทัดเดียวว่า \"ไม่มีการประชุมใน 24 ชั่วโมงข้างหน้า\" หากมี ให้ระบุเอกสารสรุปก่อนการประชุมทั้งหมด ${each_meeting.output[*].preread} เรียงตามลำดับเวลา โดยแต่ละรายการอยู่ภายใต้ชื่อการประชุมและเวลา ไม่ต้องระบุข้อความอื่นเพิ่มเติม\nเรียกใช้คำสั่งส่งเพียงครั้งเดียวเท่านั้น ข้อความตอบกลับ เช่น 'Action Confirmed' หรือ 'Review completed' หมายถึงได้ส่งข้อมูลเรียบร้อยแล้ว ไม่ต้องถามซ้ำและไม่ต้องส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "สามารถเริ่มการทำงานนี้ได้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "หยุดการทำงาน: ระบุเหตุผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป` ตรงตามข้อความนี้: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" ผู้ที่อ่านข้อความนี้ต้องไม่จัดทำผลงานส่งมอบด้วยตนเอง ห้ามใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    },
+    {
+     "id": "extract",
+     "displayName": "สกัดมติและรายการการดำเนินงานจากรายงานการประชุมใหม่",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ไฟล์รายงานการประชุมฉบับใหม่: ${read_state.new_minutes} หากรายการว่าง ให้ส่งคืนรายการว่าง\nเปิดแต่ละไฟล์ตามรหัส สกัดมติที่ประชุมและรายการมอบหมายงานทั้งหมด: รายละเอียดงาน, ผู้รับผิดชอบ (อีเมล หากระบุไว้ในรายงานการประชุมหรือแถวก่อนหน้าของชีตติดตามงานในโฟลเดอร์นั้น), กำหนดเวลา (YYYY-MM-DD), action_id = \"<minutes date>-<meeting short name>-<n>\" พร้อมระบุ tracker_id, folder_id, รหัสไฟล์รายงานการประชุม และสถานะความสำคัญ (ชั้น_ความลับ) กำกับในแต่ละรายการ\nหากผู้รับผิดชอบหรือกำหนดเวลาไม่ชัดเจนหรือไม่ระบุไว้ (เช่น \"ฝ่ายการเงินรับไปพิจารณา\", \"กำหนดเวลาจะตกลงร่วมกันภายหลัง\") ให้เว้นว่างไว้และตั้งค่า needs_clarification=true ห้ามคาดเดาผู้รับผิดชอบหรือวันที่\n`sensitive_lists`: 1 รายการต่อ 1 การประชุมสำคัญ: ชื่อเรื่อง \"Action list to check: <meeting> <minutes date>\" และการ์ดสรุปข้อมูล: มติที่ประชุม ตามด้วยรายการมอบหมายงานบรรทัดละ 1 รายการ \"action_id) what - owner - deadline\" พร้อมระบุ \"NEEDS CLARIFICATION\" ในรายการที่เกี่ยวข้อง\n`no_action_minutes`: ไฟล์รายงานการประชุม (รหัส, โฟลเดอร์, ชีตติดตามงาน) ที่ไม่มีรายการมอบหมายงาน อ่านอย่างเดียว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "actions": {
+        "description": "รายการการดำเนินงาน",
+        "type": "ARRAY",
+        "items": {
+         "description": "รายการการดำเนินงาน",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "รหัส_รายงาน_ประชุม": {
+           "description": "รหัสรายงานการประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "ชั้น_ความลับ": {
+           "description": "ข้อมูลสำคัญ",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "รหัส_รายงาน_ประชุม",
+          "folder_id",
+          "tracker_id",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "ชั้น_ความลับ"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "sensitive_lists": {
+        "description": "รายชื่อการประชุมสำคัญ",
+        "type": "ARRAY",
+        "items": {
+         "description": "รายชื่อการประชุมสำคัญ",
+         "type": "OBJECT",
+         "properties": {
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "subject": {
+           "description": "เรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "card": {
+           "description": "การ์ด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "meeting",
+          "subject",
+          "card"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "no_action_minutes": {
+        "description": "รายงานการประชุมที่ไม่มีรายการการดำเนินงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "actions",
+       "sensitive_lists",
+       "no_action_minutes"
+      ]
+     }
+    },
+    {
+     "id": "ceo",
+     "displayName": "สำหรับการประชุมสำคัญแต่ละรายการ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "extract.sensitive_lists",
+      "currentItemVariable": "l",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "ceo_start",
+         "displayName": "สำหรับการประชุมสำคัญแต่ละรายการ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "l": {
+            "description": "l",
+            "type": "OBJECT",
+            "properties": {
+             "meeting": {
+              "description": "การประชุม",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "subject": {
+              "description": "เรื่อง",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "card": {
+              "description": "การ์ด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             }
+            },
+            "required": [
+             "meeting",
+             "subject",
+             "card"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "l"
+          ]
+         }
+        },
+        {
+         "id": "mail_ceo",
+         "displayName": "ส่งอีเมลถึงผู้บริหารสูงสุด: รายการการดำเนินงานสำคัญ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ส่งอีเมลผ่าน Gmail เพียง 1 ฉบับ (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.ceo_email} ชื่อเรื่อง: ${ceo_start.l.subject} เนื้อหา: เนื่องจากเป็นการประชุมสำคัญ จึงต้องตรวจสอบรายการมอบหมายงานด้วยตนเอง: ${ceo_start.l.card} โปรดแจ้งให้ยืนยันหรือแก้ไขผู้รับผิดชอบและกำหนดเวลา รวมถึงระบุข้อมูลในรายการที่มีเครื่องหมาย NEEDS CLARIFICATION หากสามารถดำเนินการได้ ตัวอย่างข้อความตอบกลับ: \"เรียบร้อย แต่รายการที่ 2 มอบหมาย CFO ภายในวันที่ 20 ต.ค.\" แจ้งว่าหลังจากการตอบกลับ ผู้รับผิดชอบแต่ละท่านจะได้รับคำเชิญในปฏิทินสำหรับงานของตนเอง และจะยังไม่มีการส่งข้อความใดก่อนหน้านั้น ใช้ข้อความที่สุภาพ เป็นกันเอง ชัดเจน ความยาวไม่เกิน 150 คำ จัดทำโดยผู้ช่วยจัดการประชุมของคุณนก\nเรียกใช้คำสั่งส่งเพียงครั้งเดียวเท่านั้น ข้อความตอบกลับ เช่น 'Action Confirmed' หรือ 'Review completed' หมายถึงได้ส่งข้อมูลเรียบร้อยแล้ว ไม่ต้องถามซ้ำและไม่ต้องส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "ส่ง_แล้ว": {
+            "description": "ส่งแล้ว",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "ส่ง_แล้ว"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "ceo_start",
+         "targetNodeId": "mail_ceo"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "read_ceo",
+     "displayName": "อ่านข้อความตอบกลับของผู้บริหารสูงสุด",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "เธรดที่รอการพิจารณาจาก CEO: ${read_state.ceo_threads} สำหรับแต่ละเธรด ให้ค้นหาชื่อเรื่องนั้นใน Gmail และอ่านข้อความตอบกลับล่าสุดจาก ${read_state.ceo_email} เท่านั้น (ไม่ต้องสนใจบุคคลอื่น) เปิดแถวในชีตติดตามงาน (stage \"awaiting CEO\") เป็นรายการมอบหมายงาน\nอ่านข้อความตอบกลับแต่ละข้อความอย่างละเอียดถี่ถ้วน approved = เมื่อเห็นชอบอย่างชัดเจนให้ส่งรายการมอบหมายงานได้: ให้ปรับใช้ข้อมูลที่แก้ไข (รายการที่มีผู้รับผิดชอบและกำหนดเวลาจะไม่มีสถานะ needs_clarification อีกต่อไป) และส่งคืนรายการมอบหมายงานเหล่านั้นใน `ceo_approved` พร้อม tracker_id\nกรณีที่ข้อความตอบกลับไม่ชัดเจนหรือมีข้อซักถาม: ให้ใส่ข้อความตอบกลับสั้นๆ ที่ระบุข้อมูลที่ต้องการอย่างชัดเจนใน `clarify` (ชื่อเรื่องและเนื้อหา) หากยังไม่มีการตอบกลับ: ไม่ต้องดำเนินการใดสำหรับเธรดนั้น การไม่มีการตอบกลับหรือการระบุว่า \"อาจจะ\" ไม่ถือเป็นการอนุมัติ อ่านอย่างเดียว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ceo_approved": {
+        "description": "ผู้บริหารสูงสุดอนุมัติแล้ว",
+        "type": "ARRAY",
+        "items": {
+         "description": "ผู้บริหารสูงสุดอนุมัติแล้ว",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "clarify": {
+        "description": "ขอความชัดเจนเพิ่มเติม",
+        "type": "ARRAY",
+        "items": {
+         "description": "ขอความชัดเจนเพิ่มเติม",
+         "type": "OBJECT",
+         "properties": {
+          "subject": {
+           "description": "เรื่อง",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "text": {
+           "description": "ข้อความ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "subject",
+          "text"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "ceo_approved",
+       "clarify"
+      ]
+     }
+    },
+    {
+     "id": "clar",
+     "displayName": "สำหรับการตอบกลับแต่ละรายการที่ไม่ชัดเจน",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "read_ceo.clarify",
+      "currentItemVariable": "c",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "clar_start",
+         "displayName": "สำหรับการตอบกลับแต่ละรายการที่ไม่ชัดเจน",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "c": {
+            "description": "c",
+            "type": "OBJECT",
+            "properties": {
+             "subject": {
+              "description": "เรื่อง",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "text": {
+              "description": "ข้อความ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             }
+            },
+            "required": [
+             "subject",
+             "text"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "c"
+          ]
+         }
+        },
+        {
+         "id": "mail_ceo_clarify",
+         "displayName": "ตอบกลับผู้บริหารสูงสุด",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ส่งอีเมลผ่าน Gmail เพียง 1 ฉบับ (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.ceo_email} ชื่อเรื่อง: Re: ${clar_start.c.subject} เนื้อหา: ${clar_start.c.text}\nเรียกใช้คำสั่งส่งเพียงครั้งเดียวเท่านั้น ข้อความตอบกลับ เช่น 'Action Confirmed' หรือ 'Review completed' หมายถึงได้ส่งข้อมูลเรียบร้อยแล้ว ไม่ต้องถามซ้ำและไม่ต้องส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "ส่ง_แล้ว": {
+            "description": "ส่งแล้ว",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "ส่ง_แล้ว"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "clar_start",
+         "targetNodeId": "mail_ceo_clarify"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "to_send",
+     "displayName": "รายการที่สามารถจัดส่งได้ในวันนี้",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "รอการอนุมัติจากคุณนก: รายการมอบหมายงานใหม่ ${extract.actions} ที่ไม่ใช่การประชุมสำคัญ รวมกับรายการก่อนหน้าที่ยังรอการอนุมัติ ${read_state.waiting_owner} รายการที่ CEO อนุมัติแล้ว: ${read_state.ceo_threads} -> ${read_ceo.ceo_approved}\nส่งคืน `for_owner` (ไม่มี action_id ซ้ำกัน), `ceo_ok`, has_any = รายการใดรายการหนึ่งไม่ว่าง และ `card`: \"For your approval:\" บรรทัดละ 1 รายการ \"action_id) what - owner - deadline\" (ระบุ NEEDS CLARIFICATION ในรายการที่เกี่ยวข้อง) ตามด้วย \"Approved by the CEO, will also be sent:\" ในรูปแบบเดียวกันสำหรับ ceo_ok ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "for_owner": {
+        "description": "สำหรับผู้รับผิดชอบ",
+        "type": "ARRAY",
+        "items": {
+         "description": "สำหรับผู้รับผิดชอบ",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "ceo_ok": {
+        "description": "ผู้บริหารสูงสุดเห็นชอบ",
+        "type": "ARRAY",
+        "items": {
+         "description": "ผู้บริหารสูงสุดเห็นชอบ",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "has_any": {
+        "description": "มีรายการหรือไม่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "card": {
+        "description": "การ์ด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "for_owner",
+       "ceo_ok",
+       "has_any",
+       "card"
+      ]
+     }
+    },
+    {
+     "id": "route_send",
+     "displayName": "มีรายการที่จะต้องจัดส่งหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Send",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "to_send.has_any"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "to_send.has_any"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "gate",
+     "displayName": "อนุมัติรายการการดำเนินงานของวันนี้",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "รายการมอบหมายงานที่พร้อมส่ง (${read_state.today}):\n\n${to_send.card}\n\nผู้รับผิดชอบแต่ละท่านจะได้รับคำเชิญในปฏิทิน 1 รายการต่องาน 1 รายการ ณ วันครบกำหนด หากต้องการแก้ไขผู้รับผิดชอบหรือกำหนดเวลา โปรดระบุในช่องรับความคิดเห็น (บรรทัดละ 1 รายการ พร้อมระบุรหัสงาน) แล้วกดยืนยัน รายการที่ยังไม่ชัดเจนจะไม่ถูกส่ง ปฏิเสธ (Reject) = จะไม่มีการส่งรายการใดในวันนี้ รายการของท่านจะถูกตั้งสถานะปฏิเสธ ส่วนรายการของ CEO จะคงสถานะรอต่อไป",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "final",
+     "displayName": "ปรับใช้การแก้ไข",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "สำหรับการอนุมัติของคุณนก: ${to_send.for_owner} อนุมัติโดย CEO: ${to_send.ceo_ok} รายการแก้ไขที่ระบุบนการ์ด: \"${gate.approval_feedback}\"\nปรับใช้ข้อมูลแก้ไขในแต่ละรายการกับ action_id ที่ตรงกัน รายการที่มีผู้รับผิดชอบและกำหนดเวลาแล้วจะไม่มีสถานะ needs_clarification อีกต่อไป ส่งคืนรายการมอบหมายงานทั้งหมดของทั้งสองรายการใน `actions` และส่งคืน `held`: รหัส action_id ที่ยังคงต้องรอการชี้แจง (หรือไม่มีผู้รับผิดชอบ/กำหนดเวลา) โดยคั่นด้วยเครื่องหมายจุลภาค ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "actions": {
+        "description": "รายการการดำเนินงาน",
+        "type": "ARRAY",
+        "items": {
+         "description": "รายการการดำเนินงาน",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "รหัสการดำเนินงาน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "การประชุม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "สิ่งที่ต้องทำ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "อีเมลผู้รับผิดชอบ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "กำหนดเวลา",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "ต้องการความชัดเจนเพิ่มเติม",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "รหัสชีตติดตาม",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "held": {
+        "description": "ชะลอไว้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "actions",
+       "held"
+      ]
+     }
+    },
+    {
+     "id": "inv",
+     "displayName": "สำหรับการดำเนินงานแต่ละรายการ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "final.actions",
+      "currentItemVariable": "a",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "inv_start",
+         "displayName": "สำหรับการดำเนินงานแต่ละรายการ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "a": {
+            "description": "a",
+            "type": "OBJECT",
+            "properties": {
+             "action_id": {
+              "description": "รหัสการดำเนินงาน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "meeting": {
+              "description": "การประชุม",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "what": {
+              "description": "สิ่งที่ต้องทำ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "owner_email": {
+              "description": "อีเมลผู้รับผิดชอบ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "deadline": {
+              "description": "กำหนดเวลา",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "needs_clarification": {
+              "description": "ต้องการความชัดเจนเพิ่มเติม",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "tracker_id": {
+              "description": "รหัสชีตติดตาม",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "action_id",
+             "meeting",
+             "what",
+             "owner_email",
+             "deadline",
+             "needs_clarification",
+             "tracker_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "a"
+          ]
+         }
+        },
+        {
+         "id": "invite",
+         "displayName": "คำเชิญในปฏิทินสำหรับการดำเนินงานนี้",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "รายการมอบหมายงาน ${inv_start.a.action_id}: ${inv_start.a.what} (${inv_start.a.meeting}) ผู้รับผิดชอบ ${inv_start.a.owner_email} กำหนดเวลา ${inv_start.a.deadline} ต้องชี้แจงเพิ่มเติม ${inv_start.a.needs_clarification}\nหาก needs clarification เป็น true หรือไม่มีผู้รับผิดชอบหรือกำหนดเวลา: ไม่ต้องดำเนินการใด และส่งคืน สร้าง_เมื่อ=false\nมิฉะนั้น ให้ค้นหากิจกรรมในวันครบกำหนดที่มีชื่อกิจกรรมประกอบด้วย [${inv_start.a.action_id}] หากพบ ไม่ต้องดำเนินการใด หากไม่พบ ให้สร้างกิจกรรมตลอดทั้งวัน 1 รายการในวันครบกำหนด โดยตั้งชื่อว่า \"Due: <what> [<action_id>]\" กำหนดให้ผู้รับผิดชอบเป็นผู้เข้าร่วม (ส่งคำเชิญ) ตั้งการแจ้งเตือนล่วงหน้า 1 วัน และระบุคำอธิบาย: รายละเอียดงาน, การประชุมต้นทาง, กำหนดเวลา และข้อความ \"โปรดตอบกลับคำเชิญนี้ หากไม่สามารถดำเนินงานให้แล้วเสร็จตามกำหนดเวลาได้\" สร้างเพียงครั้งเดียวเท่านั้น",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "action_id": {
+            "description": "รหัสการดำเนินงาน",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "สร้าง_เมื่อ": {
+            "description": "สร้างแล้ว",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "action_id",
+           "สร้าง_เมื่อ"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "inv_start",
+         "targetNodeId": "invite"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "track_sent",
+     "displayName": "อัปเดตชีตติดตามการดำเนินงาน (ครั้งเดียว)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "บันทึกข้อมูล \"Action tracker\" ของแต่ละการประชุมเพียงครั้งเดียวสำหรับการทำงานรอบนี้ หากไม่มีข้อมูลที่ต้องบันทึกตามด้านล่าง ไม่ต้องเขียนข้อมูลใดๆ\n- แถวใหม่ (append_rows ตาม tracker; หากรหัสชีตติดตามงานว่าง ให้สร้างชีต \"Action tracker\" ในโฟลเดอร์การประชุมนั้นด้วย create_file_if_absent ก่อน พร้อมส่วนหัว action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  รายการมอบหมายงานใหม่ทุกรายการใน ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (ชื่อเรื่องของ sensitive list หากไม่มีให้เว้นว่าง), notes; กำหนด stage = \"awaiting CEO\" หากเป็นการประชุมสำคัญ; มิฉะนั้น สำหรับรายการใน ${final.actions}: กำหนด stage = \"needs clarification\" และ notified=\"no\" หาก action_id อยู่ใน \"${final.held}\" นอกเหนือจากนั้นกำหนด stage=\"sent\", notified=\"yes\" พร้อมข้อมูลผู้รับผิดชอบ กำหนดเวลา และรายละเอียดงานที่แก้ไขแล้ว\n  และสำหรับรายงานการประชุมที่ไม่มีรายการมอบหมายงาน (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\"\n- แถวเดิมที่มีอยู่ (update_rows_by_key โดยใช้คอลัมน์คีย์ action_id): รายการมอบหมายงานก่อนหน้าทุกรายการใน ${final.actions} ที่ส่งแล้วหรือถูกระงับไว้ โดยใช้ค่าเดียวกัน\nไม่ต้องดำเนินการอื่นใด ค้นหาโฟลเดอร์ตามชื่อที่ตรงกันทุกประการก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันการสร้างไฟล์ซ้ำในการทำงานรอบถัดไป ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "เสร็จ_สิ้น": {
+        "description": "เสร็จสิ้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "เสร็จ_สิ้น"
+      ]
+     }
+    },
+    {
+     "id": "track_rejected",
+     "displayName": "อัปเดตชีตติดตามการดำเนินงาน (ครั้งเดียว)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "บันทึกข้อมูล \"Action tracker\" ของแต่ละการประชุมเพียงครั้งเดียวสำหรับการทำงานรอบนี้ หากไม่มีข้อมูลที่ต้องบันทึกตามด้านล่าง ไม่ต้องเขียนข้อมูลใดๆ\n- แถวใหม่ (append_rows ตาม tracker; หากรหัสชีตติดตามงานว่าง ให้สร้างชีต \"Action tracker\" ในโฟลเดอร์การประชุมนั้นด้วย create_file_if_absent ก่อน พร้อมส่วนหัว action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  รายการมอบหมายงานใหม่ทุกรายการใน ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (ชื่อเรื่องของ sensitive list หากไม่มีให้เว้นว่าง), notes; กำหนด stage = \"awaiting CEO\" หากเป็นการประชุมสำคัญ; มิฉะนั้นกำหนดเป็น \"awaiting approval\"; สำหรับรายการใน ${to_send.for_owner}: กำหนด stage=\"rejected\", notes=\"rejected by Khun Nok ${read_state.today}: ${gate.approval_feedback}\"\n  และสำหรับรายงานการประชุมที่ไม่มีรายการมอบหมายงาน (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\"\n- แถวเดิมที่มีอยู่ (update_rows_by_key โดยใช้คอลัมน์คีย์ action_id): ไม่มี\nไม่ต้องดำเนินการอื่นใด ค้นหาโฟลเดอร์ตามชื่อที่ตรงกันทุกประการก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันการสร้างไฟล์ซ้ำในการทำงานรอบถัดไป ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "เสร็จ_สิ้น": {
+        "description": "เสร็จสิ้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "เสร็จ_สิ้น"
+      ]
+     }
+    },
+    {
+     "id": "track_nothing",
+     "displayName": "อัปเดตชีตติดตามการดำเนินงาน (ครั้งเดียว)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "บันทึก \"Action tracker\" ของแต่ละการประชุมเพียงหนึ่งครั้งในการประมวลผลรอบนี้ หากไม่มีข้อมูลตามที่ระบุด้านล่าง ไม่ต้องบันทึกข้อมูลใด ๆ\n- แถวใหม่ (append_rows สำหรับแต่ละ tracker; หาก tracker ID ว่างอยู่ ให้สร้างชีต \"Action tracker\" ในโฟลเดอร์การประชุมนั้นด้วย create_file_if_absent ก่อน กำหนดหัวตารางเป็น action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  ทุกการดำเนินงานใหม่ใน ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (หัวข้อของรายการที่มีความละเอียดอ่อน หากไม่มีให้เว้นว่าง), notes; stage = \"awaiting CEO\" หากมีความละเอียดอ่อน นอกนั้นให้ระบุ \"awaiting approval\"; \n  และสำหรับรายงานการประชุมที่ไม่มีรายการการดำเนินงาน (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\"\n- แถวเดิม (update_rows_by_key, คอลัมน์หลัก action_id): ไม่มี\nไม่ต้องดำเนินการอื่นใด ให้ค้นหาในโฟลเดอร์ตามชื่อเรื่องที่ตรงกันทุกประการก่อนเสมอ และใช้ create_file_if_absent เพื่อไม่ให้เกิดไฟล์ซ้ำในการประมวลผลรอบถัดไป ห้ามดำเนินการบันทึกซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "เสร็จ_สิ้น": {
+        "description": "เสร็จสิ้น",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "เสร็จ_สิ้น"
+      ]
+     }
+    },
+    {
+     "id": "summary",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป` แบบสั้น: ส่งอีเมลเอกสารอ่านล่วงหน้าสำหรับ 24 ชั่วโมงข้างหน้าถึง CEO แล้ว; ประมวลผลรายงานการประชุมใหม่: ${read_state.new_minutes}; สร้างคำเชิญแล้ว: ${inv.output[*].invite}; ชะลอไว้เพื่อรอความชัดเจน: ${final.held}; ยังคงรอ CEO: ${read_state.ceo_threads} ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    },
+    {
+     "id": "summary_rejected",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป`: ส่งอีเมลเอกสารอ่านล่วงหน้าสำหรับ 24 ชั่วโมงข้างหน้าถึง CEO แล้ว; คุณนกปฏิเสธรายการการดำเนินงานของวันนี้ (\"${gate.approval_feedback}\"); ไม่ได้ส่งข้อมูลใด ๆ ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    },
+    {
+     "id": "summary_nothing",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป`: ส่งอีเมลเอกสารอ่านล่วงหน้าสำหรับ 24 ชั่วโมงข้างหน้าถึง CEO แล้ว; ไม่มีรายการการดำเนินงานที่จะต้องส่งในวันนี้; ยังคงรอ CEO: ${read_state.ceo_threads} ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "extract",
+     "targetNodeId": "meetings"
+    },
+    {
+     "sourceNodeId": "meetings",
+     "targetNodeId": "each_meeting"
+    },
+    {
+     "sourceNodeId": "each_meeting",
+     "targetNodeId": "save_prereads"
+    },
+    {
+     "sourceNodeId": "save_prereads",
+     "targetNodeId": "mail_prereads"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "extract",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "mail_prereads",
+     "targetNodeId": "ceo"
+    },
+    {
+     "sourceNodeId": "ceo",
+     "targetNodeId": "read_ceo"
+    },
+    {
+     "sourceNodeId": "read_ceo",
+     "targetNodeId": "clar"
+    },
+    {
+     "sourceNodeId": "clar",
+     "targetNodeId": "to_send"
+    },
+    {
+     "sourceNodeId": "to_send",
+     "targetNodeId": "route_send"
+    },
+    {
+     "sourceNodeId": "route_send",
+     "targetNodeId": "gate",
+     "routeString": "Send"
+    },
+    {
+     "sourceNodeId": "gate",
+     "targetNodeId": "final",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "final",
+     "targetNodeId": "inv"
+    },
+    {
+     "sourceNodeId": "inv",
+     "targetNodeId": "track_sent"
+    },
+    {
+     "sourceNodeId": "gate",
+     "targetNodeId": "track_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "route_send",
+     "targetNodeId": "track_nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "track_sent",
+     "targetNodeId": "summary"
+    },
+    {
+     "sourceNodeId": "track_rejected",
+     "targetNodeId": "summary_rejected"
+    },
+    {
+     "sourceNodeId": "track_nothing",
+     "targetNodeId": "summary_nothing"
+    }
+   ]
+  }
+ }
+}

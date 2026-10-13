@@ -1,0 +1,2358 @@
+{
+ "id": "EXE-C",
+ "persona": "executive",
+ "lang": "en",
+ "display_name": "Meeting Prep & Actions",
+ "description": "Owned by the CEO's executive assistant. Once a day (default 06:00): actions from all new minutes, one-page pre-reads for the CEO's meetings in the next 24 hours, approved by the assistant (or by the CEO by email for sensitive meetings), each owner emailed and reminded, tracker updated.",
+ "_built_from": "mdes-work-log/wf/specs/exe_c.py (13 Oct 2026, Navya)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "Schedule",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 6 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "Read setup and what is waiting",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Meetings folder ID {{EXE_C_FOLDER_ID}}. Today's date and time (Asia/Bangkok) are now.\n1. Open the \"Setup\" doc in the folder: the CEO's name, email and calendar ID (usually her email), and the list of sensitive meetings (whose action lists the CEO approves herself).\n2. List the meeting folders (direct subfolders, one per recurring meeting). In each, open the sheet \"Action tracker\" (columns action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes) if it exists, and list the files.\n3. new_minutes: every file in a meeting folder whose title contains \"minutes\", \"notes\" or \"รายงานการประชุม\" and whose file ID is not in the minutes_id column of that folder's tracker, whenever it arrived. Per file: file ID, title, folder ID, tracker ID (blank if none), sensitive (its meeting is in the sensitive list).\n4. waiting_owner: tracker rows with stage \"awaiting approval\" (not yet sent; from earlier days too), as actions (action_id, meeting, what = action, owner_email, deadline, needs_clarification = notes say so, tracker_id).\n5. ceo_threads: distinct thread_subject values of rows with stage \"awaiting CEO\", each with its tracker ID.\n6. window_start = now; window_end = now + 24 hours (Asia/Bangkok, YYYY-MM-DD HH:MM). Pre-reads cover the CEO's meetings in that window, whatever time this run starts.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "ready",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "stop reason",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "today": {
+        "description": "today",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "tomorrow": {
+        "description": "tomorrow",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "ceo_name": {
+        "description": "ceo name",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "ceo_email": {
+        "description": "ceo email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "ceo_calendar_id": {
+        "description": "ceo calendar id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "window_start": {
+        "description": "window start",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "window_end": {
+        "description": "window end",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "new_minutes": {
+        "description": "new minutes",
+        "type": "ARRAY",
+        "items": {
+         "description": "new minutes",
+         "type": "OBJECT",
+         "properties": {
+          "file_id": {
+           "description": "file id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "title": {
+           "description": "title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "sensitive": {
+           "description": "sensitive",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "file_id",
+          "title",
+          "folder_id",
+          "tracker_id",
+          "sensitive"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "waiting_owner": {
+        "description": "waiting owner",
+        "type": "ARRAY",
+        "items": {
+         "description": "waiting owner",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "ceo_threads": {
+        "description": "ceo threads",
+        "type": "ARRAY",
+        "items": {
+         "description": "ceo threads",
+         "type": "OBJECT",
+         "properties": {
+          "subject": {
+           "description": "subject",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "subject",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 11
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "today",
+       "tomorrow",
+       "ceo_name",
+       "ceo_email",
+       "ceo_calendar_id",
+       "window_start",
+       "window_end",
+       "new_minutes",
+       "waiting_owner",
+       "ceo_threads"
+      ]
+     }
+    },
+    {
+     "id": "meetings",
+     "displayName": "Tomorrow's meetings",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "List the CEO's calendar events (calendar ID ${read_state.ceo_calendar_id}, shared with me) starting between ${read_state.window_start} and ${read_state.window_end} (Asia/Bangkok), skipping declined events, all-day events and private blocks with no attendees.\nFor each: title, start time, attendees, description, and Drive links in it. Match a meeting to a meeting folder under {{EXE_C_FOLDER_ID}} ONLY if the meeting's title contains that folder's name (for example a meeting \"ExCom (ประชุมคณะกรรมการบริหาร)\" and the folder \"ExCom\"); then return the folder ID and the ID of its \"Action tracker\" sheet. Every other meeting gets a blank folder ID and tracker ID: never guess a folder. Return an empty list if there are none. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "meetings": {
+        "description": "meetings",
+        "type": "ARRAY",
+        "items": {
+         "description": "meetings",
+         "type": "OBJECT",
+         "properties": {
+          "title": {
+           "description": "title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "time": {
+           "description": "time",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "attendees": {
+           "description": "attendees",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "description": {
+           "description": "description",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          }
+         },
+         "required": [
+          "title",
+          "time",
+          "attendees",
+          "description",
+          "folder_id",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "meetings"
+      ]
+     }
+    },
+    {
+     "id": "each_meeting",
+     "displayName": "For each meeting",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "meetings.meetings",
+      "currentItemVariable": "m",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "each_meeting_start",
+         "displayName": "For each meeting",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "m": {
+            "description": "m",
+            "type": "OBJECT",
+            "properties": {
+             "title": {
+              "description": "title",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "time": {
+              "description": "time",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "attendees": {
+              "description": "attendees",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "description": {
+              "description": "description",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "tracker_id": {
+              "description": "tracker id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             }
+            },
+            "required": [
+             "title",
+             "time",
+             "attendees",
+             "description",
+             "folder_id",
+             "tracker_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "m"
+          ]
+         }
+        },
+        {
+         "id": "preread",
+         "displayName": "Write one pre-read",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Meeting: ${each_meeting_start.m.title} at ${each_meeting_start.m.time}; attendees ${each_meeting_start.m.attendees}; invite notes ${each_meeting_start.m.description}; meeting folder ${each_meeting_start.m.folder_id}; tracker ${each_meeting_start.m.tracker_id}.\nGather: the agenda and attachments (Gmail: messages mentioning this meeting's title in the last 7 days, their attachments, and Drive files linked in them; Drive files linked in the invite), the previous minutes in the meeting folder, open rows of the action tracker, and actions just extracted from new minutes of this meeting's folder (${extract.actions}; show them as \"pending approval\").\nWrite a one-page pre-read (Markdown): purpose and who attends; items for decision (เรื่องเพื่อพิจารณา) separated from items for information (เรื่องเพื่อทราบ); key numbers from the documents; what changed since the last meeting on this topic; open actions from last time and whether each is done (from the tracker's status); three suggested questions.\nIf materials have not arrived, say so plainly at the top, for example \"No documents received for the 14:00 customer meeting. Agenda only.\" Read only. Never invent numbers.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "title": {
+            "description": "title",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "time": {
+            "description": "time",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "folder_id": {
+            "description": "folder id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "preread": {
+            "description": "preread",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "title",
+           "time",
+           "folder_id",
+           "preread"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "each_meeting_start",
+         "targetNodeId": "preread"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "save_prereads",
+     "displayName": "Save each pre-read in its meeting folder",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Pre-reads: ${each_meeting.output[*].preread}.\nFor each pre-read whose folder_id is not blank, create the Google Doc \"Pre-read <meeting date> <time> <title>\" (Markdown) in that meeting folder with create_file_if_absent. Meetings with no folder are only in the email. If there is nothing to save, write nothing.\nReturn how many were saved. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "saved": {
+        "description": "saved",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "saved"
+      ]
+     }
+    },
+    {
+     "id": "mail_prereads",
+     "displayName": "Email the CEO: pre-reads",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.ceo_email}. Subject: Pre-reads: your meetings in the next 24 hours (${read_state.today}). Body: If there are no meetings, the single line \"No meetings in the next 24 hours.\" Otherwise all pre-reads ${each_meeting.output[*].preread} in time order, each under its meeting title and time. Nothing else..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "Can this run start?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "Stopped: say why",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "extract",
+     "displayName": "Extract decisions and actions from new minutes",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "New minutes files: ${read_state.new_minutes}. If the list is empty, return empty lists.\nOpen each file by ID. Extract its decisions (มติที่ประชุม) and every action item: what, owner (email if the minutes or that folder's earlier tracker rows give it), deadline (YYYY-MM-DD). action_id = \"<minutes date>-<meeting short name>-<n>\". Carry the file's tracker_id, folder_id, minutes file ID and sensitive flag on each action.\nIf the owner or deadline is vague or missing (\"Finance to look into this\", \"date to be agreed\"), leave it blank and set needs_clarification=true. Never guess an owner or a date.\n`sensitive_lists`: one entry per sensitive meeting: its subject \"Action list to check: <meeting> <minutes date>\", and a card: the decisions, then one line per action \"action_id) what - owner - deadline\" with \"NEEDS CLARIFICATION\" where it applies.\n`no_action_minutes`: minutes files (ID, folder, tracker) with no actions. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "actions": {
+        "description": "actions",
+        "type": "ARRAY",
+        "items": {
+         "description": "actions",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "minutes_id": {
+           "description": "minutes id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "sensitive": {
+           "description": "sensitive",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "minutes_id",
+          "folder_id",
+          "tracker_id",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "sensitive"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "sensitive_lists": {
+        "description": "sensitive lists",
+        "type": "ARRAY",
+        "items": {
+         "description": "sensitive lists",
+         "type": "OBJECT",
+         "properties": {
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "subject": {
+           "description": "subject",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "card": {
+           "description": "card",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "meeting",
+          "subject",
+          "card"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "no_action_minutes": {
+        "description": "no action minutes",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "actions",
+       "sensitive_lists",
+       "no_action_minutes"
+      ]
+     }
+    },
+    {
+     "id": "ceo",
+     "displayName": "For each sensitive meeting",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "extract.sensitive_lists",
+      "currentItemVariable": "l",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "ceo_start",
+         "displayName": "For each sensitive meeting",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "l": {
+            "description": "l",
+            "type": "OBJECT",
+            "properties": {
+             "meeting": {
+              "description": "meeting",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "subject": {
+              "description": "subject",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "card": {
+              "description": "card",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             }
+            },
+            "required": [
+             "meeting",
+             "subject",
+             "card"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "l"
+          ]
+         }
+        },
+        {
+         "id": "mail_ceo",
+         "displayName": "Email the CEO: sensitive action list",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.ceo_email}. Subject: ${ceo_start.l.subject}. Body: This is a sensitive meeting, so she checks the action list herself: ${ceo_start.l.card}. Ask her to confirm or correct owners and deadlines, and fill in items marked NEEDS CLARIFICATION if she can. Example reply: \"Fine, but item 2 is the CFO by 20 Oct\". Say that after her reply each person gets a calendar invite for their own actions, and nothing is sent before then. Warm, plain sentences, under 150 words; written by Khun Nok's meeting assistant..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sent"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "ceo_start",
+         "targetNodeId": "mail_ceo"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "read_ceo",
+     "displayName": "Read the CEO's replies",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Threads waiting for the CEO: ${read_state.ceo_threads}. For each, search Gmail for that subject and read the latest reply from ${read_state.ceo_email} only (ignore anyone else); open its tracker rows (stage \"awaiting CEO\") as the action list.\nRead each reply as a person would. approved = she is clearly happy for the actions to go out: apply her corrections (an item with owner and deadline is no longer needs_clarification) and return those actions in `ceo_approved`, with tracker_id.\nA reply that is unclear or asks a question: put a short reply asking exactly what you need in `clarify` (subject and text). No reply yet: nothing for that thread. Silence or \"maybe\" is never approval. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ceo_approved": {
+        "description": "ceo approved",
+        "type": "ARRAY",
+        "items": {
+         "description": "ceo approved",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "clarify": {
+        "description": "clarify",
+        "type": "ARRAY",
+        "items": {
+         "description": "clarify",
+         "type": "OBJECT",
+         "properties": {
+          "subject": {
+           "description": "subject",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "text": {
+           "description": "text",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          }
+         },
+         "required": [
+          "subject",
+          "text"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "ceo_approved",
+       "clarify"
+      ]
+     }
+    },
+    {
+     "id": "clar",
+     "displayName": "For each unclear reply",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "read_ceo.clarify",
+      "currentItemVariable": "c",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "clar_start",
+         "displayName": "For each unclear reply",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "c": {
+            "description": "c",
+            "type": "OBJECT",
+            "properties": {
+             "subject": {
+              "description": "subject",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "text": {
+              "description": "text",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             }
+            },
+            "required": [
+             "subject",
+             "text"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "c"
+          ]
+         }
+        },
+        {
+         "id": "mail_ceo_clarify",
+         "displayName": "Reply to the CEO",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.ceo_email}. Subject: Re: ${clar_start.c.subject}. Body: ${clar_start.c.text}.\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sent"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "clar_start",
+         "targetNodeId": "mail_ceo_clarify"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "to_send",
+     "displayName": "What can be sent today",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Waiting for Khun Nok's approval: the new actions ${extract.actions} that are not sensitive, plus earlier ones still waiting ${read_state.waiting_owner}. Approved by the CEO: ${read_state.ceo_threads} -> ${read_ceo.ceo_approved}.\nReturn `for_owner` (no duplicate action_ids), `ceo_ok`, has_any = either list is not empty, and `card`: \"For your approval:\" one line per action \"action_id) what - owner - deadline\" (NEEDS CLARIFICATION where it applies), then \"Approved by the CEO, will also be sent:\" the same for ceo_ok. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "for_owner": {
+        "description": "for owner",
+        "type": "ARRAY",
+        "items": {
+         "description": "for owner",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "ceo_ok": {
+        "description": "ceo ok",
+        "type": "ARRAY",
+        "items": {
+         "description": "ceo ok",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "has_any": {
+        "description": "has any",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "card": {
+        "description": "card",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "for_owner",
+       "ceo_ok",
+       "has_any",
+       "card"
+      ]
+     }
+    },
+    {
+     "id": "route_send",
+     "displayName": "Anything to send?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Send",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "to_send.has_any"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "to_send.has_any"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "gate",
+     "displayName": "Approve today's action items",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "Action items ready to send (${read_state.today}):\n\n${to_send.card}\n\nEach person gets one calendar invite per action, on its deadline. To correct an owner or deadline, type it in the feedback box (one per line, with its action ID) and approve. Items still unclear are not sent. Reject = nothing is sent today; your items are marked rejected, the CEO's stay waiting.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "final",
+     "displayName": "Apply corrections",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "For Khun Nok's approval: ${to_send.for_owner}. Approved by the CEO: ${to_send.ceo_ok}. Corrections typed on the card: \"${gate.approval_feedback}\".\nApply each correction to the matching action_id; an item that now has owner and deadline is no longer needs_clarification. Return all actions of both lists in `actions`, and `held`: the action_ids still needing clarification (or with a blank owner or deadline), comma separated. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "actions": {
+        "description": "actions",
+        "type": "ARRAY",
+        "items": {
+         "description": "actions",
+         "type": "OBJECT",
+         "properties": {
+          "action_id": {
+           "description": "action id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "meeting": {
+           "description": "meeting",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "what": {
+           "description": "what",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "owner_email": {
+           "description": "owner email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "deadline": {
+           "description": "deadline",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "needs_clarification": {
+           "description": "needs clarification",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "tracker_id": {
+           "description": "tracker id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "action_id",
+          "meeting",
+          "what",
+          "owner_email",
+          "deadline",
+          "needs_clarification",
+          "tracker_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "held": {
+        "description": "held",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "actions",
+       "held"
+      ]
+     }
+    },
+    {
+     "id": "inv",
+     "displayName": "For each action",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "final.actions",
+      "currentItemVariable": "a",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "inv_start",
+         "displayName": "For each action",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "a": {
+            "description": "a",
+            "type": "OBJECT",
+            "properties": {
+             "action_id": {
+              "description": "action id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "meeting": {
+              "description": "meeting",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "what": {
+              "description": "what",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "owner_email": {
+              "description": "owner email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "deadline": {
+              "description": "deadline",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "needs_clarification": {
+              "description": "needs clarification",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "tracker_id": {
+              "description": "tracker id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "action_id",
+             "meeting",
+             "what",
+             "owner_email",
+             "deadline",
+             "needs_clarification",
+             "tracker_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "a"
+          ]
+         }
+        },
+        {
+         "id": "invite",
+         "displayName": "Calendar invite for this action",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Action ${inv_start.a.action_id}: ${inv_start.a.what} (${inv_start.a.meeting}); owner ${inv_start.a.owner_email}; deadline ${inv_start.a.deadline}; needs clarification ${inv_start.a.needs_clarification}.\nIf needs clarification is true, or owner or deadline is blank: do nothing, created=false.\nOtherwise look for an event on the deadline whose title contains [${inv_start.a.action_id}]; if found, do nothing. Else create one all-day event on the deadline titled \"Due: <what> [<action_id>]\", with the owner as attendee (send the invitation), a reminder one day before, and a description: the action, the meeting it came from, the deadline, and \"Reply to this invitation if the deadline is not workable\". Create it once only.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "action_id": {
+            "description": "action id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "created": {
+            "description": "created",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "action_id",
+           "created"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "inv_start",
+         "targetNodeId": "invite"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "track_sent",
+     "displayName": "Update the action trackers (once)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file_if_absent first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else, for actions in ${final.actions}: stage = \"needs clarification\" and notified=\"no\" if its action_id is in \"${final.held}\", otherwise stage=\"sent\", notified=\"yes\", with the corrected owner, deadline and action; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): every earlier action in ${final.actions} that was sent or held, with the same values.\nDo nothing else. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "done": {
+        "description": "done",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "done"
+      ]
+     }
+    },
+    {
+     "id": "track_rejected",
+     "displayName": "Update the action trackers (once)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file_if_absent first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; for actions in ${to_send.for_owner}: stage=\"rejected\", notes=\"rejected by Khun Nok ${read_state.today}: ${gate.approval_feedback}\".\n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "done": {
+        "description": "done",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "done"
+      ]
+     }
+    },
+    {
+     "id": "track_nothing",
+     "displayName": "Update the action trackers (once)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file_if_absent first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "done": {
+        "description": "done",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "done"
+      ]
+     }
+    },
+    {
+     "id": "summary",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`, short: pre-reads for the next 24 hours emailed to the CEO; new minutes processed: ${read_state.new_minutes}; invites created: ${inv.output[*].invite}; held for clarification: ${final.held}; still waiting for the CEO: ${read_state.ceo_threads}. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "summary_rejected",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: pre-reads for the next 24 hours emailed to the CEO; Khun Nok rejected today's action items (\"${gate.approval_feedback}\"); nothing was sent. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "summary_nothing",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: pre-reads for the next 24 hours emailed to the CEO; no action items to send today; still waiting for the CEO: ${read_state.ceo_threads}. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "extract",
+     "targetNodeId": "meetings"
+    },
+    {
+     "sourceNodeId": "meetings",
+     "targetNodeId": "each_meeting"
+    },
+    {
+     "sourceNodeId": "each_meeting",
+     "targetNodeId": "save_prereads"
+    },
+    {
+     "sourceNodeId": "save_prereads",
+     "targetNodeId": "mail_prereads"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "extract",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "mail_prereads",
+     "targetNodeId": "ceo"
+    },
+    {
+     "sourceNodeId": "ceo",
+     "targetNodeId": "read_ceo"
+    },
+    {
+     "sourceNodeId": "read_ceo",
+     "targetNodeId": "clar"
+    },
+    {
+     "sourceNodeId": "clar",
+     "targetNodeId": "to_send"
+    },
+    {
+     "sourceNodeId": "to_send",
+     "targetNodeId": "route_send"
+    },
+    {
+     "sourceNodeId": "route_send",
+     "targetNodeId": "gate",
+     "routeString": "Send"
+    },
+    {
+     "sourceNodeId": "gate",
+     "targetNodeId": "final",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "final",
+     "targetNodeId": "inv"
+    },
+    {
+     "sourceNodeId": "inv",
+     "targetNodeId": "track_sent"
+    },
+    {
+     "sourceNodeId": "gate",
+     "targetNodeId": "track_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "route_send",
+     "targetNodeId": "track_nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "track_sent",
+     "targetNodeId": "summary"
+    },
+    {
+     "sourceNodeId": "track_rejected",
+     "targetNodeId": "summary_rejected"
+    },
+    {
+     "sourceNodeId": "track_nothing",
+     "targetNodeId": "summary_nothing"
+    }
+   ]
+  }
+ }
+}

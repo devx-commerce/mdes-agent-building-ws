@@ -1,0 +1,3204 @@
+{
+ "id": "EXE-B",
+ "persona": "executive",
+ "lang": "en",
+ "display_name": "Decision Brief Tracker",
+ "description": "Owned by the strategy manager. First run: research plan, decision brief, signposts and deck for the CEO. Then monthly: checks the signposts and sends a short note or a reviewed update.",
+ "_built_from": "mdes-work-log/wf/specs/exe_b.py (13 Oct 2026, Navya)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "Schedule",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 9 1 * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "Read the request and decide",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Agent folder ID {{EXE_B_FOLDER_ID}}. Today's date is today.\n0. The message that started this run: if it is exactly \"[scheduled run]\" (or empty), this is a scheduled run. Otherwise Khun Ton typed it: it is a request.\n1. Open the \"Agent setup\" doc in the agent folder: the project folders to watch (links or IDs, one per line), the CEO's name and email, the strategy manager's email, language.\n2. For EACH listed project folder read its sheet \"Decision history\" if it exists: goal (on the \"first-brief\" row), has_brief = a \"first-brief\" row exists, checked_this_month = a \"monthly check\" row exists this calendar month.\n3. A request: do_first = true. goal = the decision question in Khun Ton's words. Find its project folder: a folder link in the request, else a subfolder of the agent folder whose name matches the request's topic, else none (new_folder = true, and project_name = a short name for the decision, e.g. \"EV Charging Decision\"). If that project already has a brief, do_first = false and say so in projects_status.\n   A scheduled run: `projects` = every listed project that has_brief and is not checked_this_month (a re-run the same month skips the ones done). do_check = projects is not empty.\n   Otherwise both are false.\n4. For each project in `projects` return: folder ID, name, goal, CEO name and email (from Agent setup), the \"Signposts\" sheet ID, the latest brief URL, the \"Board deck\" ID, the \"Decision history\" file ID. month_id = \"check-<YYYY-MM>\".\n   For a request, return for its project: folder ID (blank if new_folder) and name, listed = it is already listed in Agent setup, the internal documents in it (not files this agent made) as file IDs comma separated with last-modified dates, the \"Decision history\" file ID (blank if none), check_id (\"first-brief\" or \"check-<YYYY-MM>\"), the latest brief URL, the \"Signposts\" sheet ID, the \"Board deck\" ID.\n5. `projects_status`: one line per project: name, and whether this month's check is done, plus this run's request if any.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "ready",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "stop reason",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "is_request": {
+        "description": "is request",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "new_folder": {
+        "description": "new folder",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "listed": {
+        "description": "listed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "project_folder_id": {
+        "description": "project folder id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "project_name": {
+        "description": "project name",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "goal": {
+        "description": "goal",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "ceo_name": {
+        "description": "ceo name",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "ceo_email": {
+        "description": "ceo email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "owner_email": {
+        "description": "owner email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "language": {
+        "description": "language",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "internal_ids": {
+        "description": "internal ids",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "internal_dates": {
+        "description": "internal dates",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "history_id": {
+        "description": "history id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "check_id": {
+        "description": "check id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "latest_brief_url": {
+        "description": "latest brief url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "signposts_id": {
+        "description": "signposts id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "deck_id": {
+        "description": "deck id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "projects_status": {
+        "description": "projects status",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "today": {
+        "description": "today",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "month_id": {
+        "description": "month id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "do_first": {
+        "description": "do first",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       },
+       "do_check": {
+        "description": "do check",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 23
+        }
+       },
+       "projects": {
+        "description": "projects",
+        "type": "ARRAY",
+        "items": {
+         "description": "projects",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "goal",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ceo name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "ceo email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "signposts id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "latest brief url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "deck id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "history id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 24
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "is_request",
+       "new_folder",
+       "listed",
+       "project_folder_id",
+       "project_name",
+       "goal",
+       "ceo_name",
+       "ceo_email",
+       "owner_email",
+       "language",
+       "internal_ids",
+       "internal_dates",
+       "history_id",
+       "check_id",
+       "latest_brief_url",
+       "signposts_id",
+       "deck_id",
+       "projects_status",
+       "today",
+       "month_id",
+       "do_first",
+       "do_check",
+       "projects"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "Can this run start?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "Stopped: say why",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "route",
+     "displayName": "What does this run need to do?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "First",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_first"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Check",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_check"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_first"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_check"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "nothing",
+     "displayName": "Nothing to do: say why",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: \"Nothing to do this run.\" then why, from ${read_state.projects_status}. If no project has a brief yet: \"To start a decision brief, open this agent and type your decision question.\" Never write a brief or any other deliverable yourself. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "setup_project",
+     "displayName": "Set up the project folder (only if new)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "New decision: \"${read_state.goal}\" (project \"${read_state.project_name}\").\nIf ${read_state.new_folder} is false and ${read_state.listed} is true: write nothing; return project_folder_id = ${read_state.project_folder_id}.\nOtherwise: 1. if ${read_state.new_folder} is true, create the folder \"${read_state.project_name}\" inside the agent folder {{EXE_B_FOLDER_ID}} with create_file_if_absent (mimeType application/vnd.google-apps.folder); 2. if ${read_state.listed} is false, add one line with the project folder's link to the \"Agent setup\" doc in {{EXE_B_FOLDER_ID}} (append_to_doc, once).\nReturn the project folder ID. Do nothing else. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "project_folder_id": {
+        "description": "project folder id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "project_folder_id"
+      ]
+     }
+    },
+    {
+     "id": "plan",
+     "displayName": "Research plan",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Decision question: ${read_state.goal}. Internal documents (open by ID): ${read_state.internal_ids}, last modified ${read_state.internal_dates}.\nPropose a research plan of 5 to 7 numbered sub-questions covering: market size and growth in the area, licensing and pricing rules, competitors (networks, locations, prices), likely returns by site type, main risks.\nIn `background` give at most 150 words on what the internal documents already say, and say which of them is older than 3 months and therefore probably out of date.\nReturn the sub-questions in `questions`, and `plan_card`: plain text, one sub-question per line numbered 1) 2) ..., a blank line, then 'Background:' and the summary. No brackets or quotes. Read only. Never guess.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "questions": {
+        "description": "questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "background": {
+        "description": "background",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "plan_card": {
+        "description": "plan card",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "questions",
+       "background",
+       "plan_card"
+      ]
+     }
+    },
+    {
+     "id": "gate_plan",
+     "displayName": "Approve the research plan",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "Approve this research plan for: ${read_state.goal}\n\n${plan.plan_card}\n\nTo add a sub-question, type it in the feedback box and approve. To change the plan, reject and start me again with your request reworded.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "merge",
+     "displayName": "Final sub-questions",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Approved sub-questions: ${plan.questions}. The owner's feedback when approving: \"${gate_plan.approval_feedback}\".\nIf the feedback contains extra sub-questions, add each as a clear question (keep the originals). Otherwise return the originals unchanged. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "questions": {
+        "description": "questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "questions"
+      ]
+     }
+    },
+    {
+     "id": "research_loop",
+     "displayName": "For each sub-question",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "merge.questions",
+      "currentItemVariable": "q",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "research_loop_start",
+         "displayName": "For each sub-question",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "q": {
+            "description": "q",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "q"
+          ]
+         }
+        },
+        {
+         "id": "research",
+         "displayName": "Research one sub-question",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Sub-question: ${research_loop_start.q}. Overall decision: ${read_state.goal}. Internal documents (open by ID): ${read_state.internal_ids}.\nUse Google Search for this one sub-question only: regulators, official statistics, competitor announcements, reputable news. Combine with what the internal documents say.\nReturn a focused answer (up to about 300 words): key facts with numbers, each with its source (publisher, title, date and URL). Say where sources disagree, and where the internal documents are now out of date. Never invent facts.",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          },
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "question": {
+            "description": "question",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "question",
+           "findings"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "research_loop_start",
+         "targetNodeId": "research"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "draft",
+     "displayName": "Draft the decision brief",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Decision: ${read_state.goal}. Findings: ${research_loop.output[*].research.findings}.\nWrite the decision brief (Markdown): the realistic options (for example enter now, enter through a partnership, wait and prepare) with the evidence for and against each, the main risks, where sources disagree, and a recommendation.\nThen 4 to 6 signposts: specific, measurable things that would change the recommendation (signpost, metric, threshold, current value, where to check). Return them also as CSV (header signpost,metric,threshold,current_value,source,last_checked).\n`review_card`: the recommendation in two sentences, then the signposts one per line. Never invent facts. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "brief_md": {
+        "description": "brief md",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "signposts_csv": {
+        "description": "signposts csv",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "recommendation": {
+        "description": "recommendation",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "review_card": {
+        "description": "review card",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "brief_md",
+       "signposts_csv",
+       "recommendation",
+       "review_card"
+      ]
+     }
+    },
+    {
+     "id": "save_draft",
+     "displayName": "Save the draft for review",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "In the project folder ${setup_project.project_folder_id} create the Google Doc \"Decision brief draft (${read_state.today})\" from Markdown ${draft.brief_md}, followed by a section \"Signposts\" with the signposts from ${draft.signposts_csv} as a table. Use create_file_if_absent. Return its ID and URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "draft_id": {
+        "description": "draft id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "draft_url": {
+        "description": "draft url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "draft_id",
+       "draft_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_brief",
+     "displayName": "Review the decision brief",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "Review the draft decision brief before it goes to ${read_state.ceo_name}: ${save_draft.draft_url}\n\n${draft.review_card}\n\nAdjust it: edit the draft doc directly, or type your changes in the feedback box. Then approve. Reject to stop: nothing is sent or saved except this draft.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "finalize",
+     "displayName": "One-page brief and deck outline",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Open the draft doc ${save_draft.draft_id}: the owner may have edited it, and his edits win over the original text. Also apply the adjustments he typed: \"${gate_brief.approval_feedback}\" (also to the signposts).\nProduce: `one_pager` (Markdown, one page: question, recommendation, options with evidence, risks, signposts), `deck_outline` (exactly 6 slides as Markdown: '# slide title' then 3 to 5 bullets each), the final `signposts_csv` (header signpost,metric,threshold,current_value,source,last_checked) with last_checked = ${read_state.today}, and `recommendation` in one sentence. Never invent facts. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "one_pager": {
+        "description": "one pager",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "deck_outline": {
+        "description": "deck outline",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "signposts_csv": {
+        "description": "signposts csv",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "recommendation": {
+        "description": "recommendation",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "one_pager",
+       "deck_outline",
+       "signposts_csv",
+       "recommendation"
+      ]
+     }
+    },
+    {
+     "id": "save_first",
+     "displayName": "Save brief, signposts and deck",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "In the project folder ${setup_project.project_folder_id} create exactly four files with create_file_if_absent, nothing else:\n1. Google Doc \"Decision brief v1 (${read_state.today})\" from Markdown ${finalize.one_pager} (text/markdown).\n2. Google Sheet \"Signposts\" from ${finalize.signposts_csv} (text/csv).\n3. Google Slides \"Board deck\" from the outline ${finalize.deck_outline} (create_presentation_from_outline, 6 slides), in the same folder.\n4. Google Sheet \"Decision history\" (text/csv) with the header check_id,date,kind,stage,goal,signposts_triggered,recommendation,recommendation_changed,brief_url,deck_url,notes and one row: check_id=\"first-brief\", date=${read_state.today}, kind=\"first brief\", stage=\"sent\", goal=${read_state.goal}, recommendation=${finalize.recommendation}, brief_url and deck_url (of files 1 and 3; if a URL is not known yet, leave it blank), notes=\"owner approved: ${gate_brief.approval_feedback}\".\nReturn each file's ID and URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "brief_url": {
+        "description": "brief url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "signposts_url": {
+        "description": "signposts url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "deck url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "brief_url",
+       "signposts_url",
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "mail_first",
+     "displayName": "Email the CEO: brief ready",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send one email to ${read_state.ceo_email} (${read_state.ceo_name}). Subject: \"Decision brief: ${read_state.goal}\".\nSay in two or three sentences what the recommendation is (${finalize.recommendation}) and that the strategy manager has reviewed it. Links: brief ${save_first.brief_url}, board deck ${save_first.deck_url}, signposts ${save_first.signposts_url}.\nExplain that from now on the signposts are checked on the 1st of every month, and she will get a three-line note when nothing material has changed, or an updated brief when something has. She does not need to reply.\nWrite like a thoughtful colleague: warm, plain sentences, no headings, no robotic phrases. You are the decision-brief assistant working for the strategy manager; say so once. Write in English unless the Setup doc says Thai.\nSearch the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "summary_first",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: one line saying the first decision brief for \"${read_state.project_name}\" was sent to ${read_state.ceo_name}, and the next check is on the 1st of next month; then ${read_state.projects_status}. `links`: brief ${save_first.brief_url}, deck ${save_first.deck_url}, signposts ${save_first.signposts_url}, one per line. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "links": {
+        "description": "links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "summary",
+       "links"
+      ]
+     }
+    },
+    {
+     "id": "check_loop",
+     "displayName": "For each project: check",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "read_state.projects",
+      "currentItemVariable": "p",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "check_loop_start",
+         "displayName": "For each project: check",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "p": {
+            "description": "p",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "goal",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ceo name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "ceo email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "signposts id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "latest brief url",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "deck id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "history id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "p"
+          ]
+         }
+        },
+        {
+         "id": "check",
+         "displayName": "Check this project's signposts",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Project \"${check_loop_start.p.name}\": ${check_loop_start.p.goal}. Open its sheet ${check_loop_start.p.signposts_id} (signposts) and its latest brief ${check_loop_start.p.latest_brief_url}.\nFor each signpost use Google Search for the latest figure or announcement: new registration figures, regulator decisions, competitor announcements, new incentives. Compare with its threshold and current_value.\nPer signpost: triggered (true/false), new_value, evidence with source and date. material_change = true only if at least one is triggered. `summary`: two short lines on the overall trend.\nIf material_change: also write the updated one-page brief (Markdown) starting with \"What changed\": exactly what changed, which signpost was triggered, and whether the recommendation should change and why; keep the rest of the brief's structure. `replacements`: lines \"old text => new text\" for the deck slides that must change. Otherwise leave those blank.\nRead only. Never invent data; a figure that could not be found is \"not found\" and that signpost is not triggered.",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          },
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "name": {
+            "description": "name",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "material_change": {
+            "description": "material change",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "summary": {
+            "description": "summary",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "triggered": {
+            "description": "triggered",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "signposts": {
+            "description": "signposts",
+            "type": "ARRAY",
+            "items": {
+             "description": "signposts",
+             "type": "OBJECT",
+             "properties": {
+              "signpost": {
+               "description": "signpost",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "triggered": {
+               "description": "triggered",
+               "type": "BOOLEAN",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "new_value": {
+               "description": "new value",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "signpost",
+              "triggered",
+              "new_value",
+              "evidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           },
+           "brief_md": {
+            "description": "brief md",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 5
+            }
+           },
+           "replacements": {
+            "description": "replacements",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 6
+            }
+           },
+           "recommendation": {
+            "description": "recommendation",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 7
+            }
+           },
+           "recommendation_changed": {
+            "description": "recommendation changed",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 8
+            }
+           }
+          },
+          "required": [
+           "name",
+           "material_change",
+           "summary",
+           "triggered",
+           "signposts",
+           "brief_md",
+           "replacements",
+           "recommendation",
+           "recommendation_changed"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "check_loop_start",
+         "targetNodeId": "check"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "collect",
+     "displayName": "Sort the projects",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Projects: ${read_state.projects}. Results, in the same order: ${check_loop.output[*].check}.\nReturn `quiet`: the projects with no material change, each with its fields plus `summary`. Return `material`: the projects with a material change, each with its fields plus brief_md, replacements, recommendation, recommendation_changed, triggered. any_material = material is not empty. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "quiet": {
+        "description": "quiet",
+        "type": "ARRAY",
+        "items": {
+         "description": "quiet",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "goal",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ceo name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "ceo email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "signposts id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "latest brief url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "deck id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "history id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "summary": {
+           "description": "summary",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id",
+          "summary"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "material": {
+        "description": "material",
+        "type": "ARRAY",
+        "items": {
+         "description": "material",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "folder id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "goal",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ceo name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "ceo email",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "signposts id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "latest brief url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "deck id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "history id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "brief_md": {
+           "description": "brief md",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "replacements": {
+           "description": "replacements",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          },
+          "recommendation": {
+           "description": "recommendation",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 11
+           }
+          },
+          "recommendation_changed": {
+           "description": "recommendation changed",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 12
+           }
+          },
+          "triggered": {
+           "description": "triggered",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 13
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id",
+          "brief_md",
+          "replacements",
+          "recommendation",
+          "recommendation_changed",
+          "triggered"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "any_material": {
+        "description": "any material",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "quiet",
+       "material",
+       "any_material"
+      ]
+     }
+    },
+    {
+     "id": "quiet_loop",
+     "displayName": "For each quiet project",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.quiet",
+      "currentItemVariable": "q",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "quiet_loop_start",
+         "displayName": "For each quiet project",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "q": {
+            "description": "q",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "goal",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ceo name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "ceo email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "signposts id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "latest brief url",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "deck id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "history id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "summary": {
+              "description": "summary",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "summary"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "q"
+          ]
+         }
+        },
+        {
+         "id": "mail_quiet",
+         "displayName": "Email the CEO: three-line note",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${quiet_loop_start.q.ceo_email}. Subject: Decision watch ${quiet_loop_start.q.name} ${read_state.month_id}: no material change. Body: Exactly three lines: \"No material change this month.\" / one line on the trend from ${quiet_loop_start.q.summary} / \"Next check: 1 <next month name>.\" Nothing else, no signature block..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sent"
+          ]
+         }
+        },
+        {
+         "id": "mark_quiet",
+         "displayName": "Record: no change",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "In the project folder ${quiet_loop_start.q.folder_id}: in the sheet \"Decision history\" (${quiet_loop_start.q.history_id}), write ONE row with check_id = \"${read_state.month_id}\": if no row has that check_id add it with append_rows, otherwise update it with update_rows_by_key (key column check_id). Values: date=${read_state.today}, kind=\"monthly check\", stage=\"no change\", signposts_triggered=\"none\", notes=\"${quiet_loop_start.q.summary}\". Do not read or change any other file.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "done": {
+            "description": "done",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "done"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "quiet_loop_start",
+         "targetNodeId": "mail_quiet"
+        },
+        {
+         "sourceNodeId": "mail_quiet",
+         "targetNodeId": "mark_quiet"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "route_material",
+     "displayName": "Any material change?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Material",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "collect.any_material"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Quiet",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "collect.any_material"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "summary_quiet",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: monthly check ${read_state.month_id} done; no material change in ${collect.quiet}; a three-line note went to each CEO. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "draft_loop",
+     "displayName": "For each changed project: save draft",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "d",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "draft_loop_start",
+         "displayName": "For each changed project: save draft",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "d": {
+            "description": "d",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "goal",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ceo name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "ceo email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "signposts id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "latest brief url",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "deck id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "history id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "brief md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "replacements",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "recommendation",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "recommendation changed",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "triggered",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "d"
+          ]
+         }
+        },
+        {
+         "id": "save_update_draft",
+         "displayName": "Save the updated brief for review",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "In the project folder ${draft_loop_start.d.folder_id} create the Google Doc \"Decision brief ${read_state.month_id}\" from Markdown ${draft_loop_start.d.brief_md} with create_file_if_absent. Earlier versions stay as they are (decision history). Return the project name, the doc ID and URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "name": {
+            "description": "name",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "brief_id": {
+            "description": "brief id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "brief_url": {
+            "description": "brief url",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           }
+          },
+          "required": [
+           "name",
+           "brief_id",
+           "brief_url"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "draft_loop_start",
+         "targetNodeId": "save_update_draft"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "review_card",
+     "displayName": "Prepare the review",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Changed projects: ${collect.material}. Saved drafts: ${draft_loop.output[*].save_update_draft}.\nWrite `card`: per project, its name, which signpost was triggered, what changed and the new recommendation (at most 4 lines), and the draft link. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "card": {
+        "description": "card",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "card"
+      ]
+     }
+    },
+    {
+     "id": "gate_update",
+     "displayName": "Review the updates before they reach the CEO",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "A signpost was triggered in these projects. Review each update before it goes to the CEO:\n\n${review_card.card}\n\nAdjust: edit the draft docs directly, or type changes in the feedback box (name the project). Then approve. Reject to hold all of them: nothing is sent this month.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "held_loop",
+     "displayName": "For each changed project: record held",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "h",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "held_loop_start",
+         "displayName": "For each changed project: record held",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "h": {
+            "description": "h",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "goal",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ceo name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "ceo email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "signposts id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "latest brief url",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "deck id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "history id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "brief md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "replacements",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "recommendation",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "recommendation changed",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "triggered",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "h"
+          ]
+         }
+        },
+        {
+         "id": "mark_held",
+         "displayName": "Record: update held",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "In the project folder ${held_loop_start.h.folder_id}: in the sheet \"Decision history\" (${held_loop_start.h.history_id}), write ONE row with check_id = \"${read_state.month_id}\": if no row has that check_id add it with append_rows, otherwise update it with update_rows_by_key (key column check_id). Values: date=${read_state.today}, kind=\"monthly check\", stage=\"held by owner\", signposts_triggered=\"${held_loop_start.h.triggered}\", notes=\"${gate_update.approval_feedback}\". Do not read or change any other file.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "done": {
+            "description": "done",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "done"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "held_loop_start",
+         "targetNodeId": "mark_held"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_loop",
+     "displayName": "For each changed project: finish and send",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "u",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "send_loop_start",
+         "displayName": "For each changed project: finish and send",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "u": {
+            "description": "u",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "folder id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "goal",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ceo name",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "ceo email",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "signposts id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "latest brief url",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "deck id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "history id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "brief md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "replacements",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "recommendation",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "recommendation changed",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "triggered",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "u"
+          ]
+         }
+        },
+        {
+         "id": "save_update",
+         "displayName": "Finish this project's brief and deck",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Project \"${send_loop_start.u.name}\". The owner's typed adjustments for all projects: \"${gate_update.approval_feedback}\"; apply only those about this project.\n1. Find the doc \"Decision brief ${read_state.month_id}\" in the project folder ${send_loop_start.u.folder_id}. If there are adjustments for this project, apply them (replace_text or replace_section; his own edits in the doc stay). If none, change nothing.\n2. If the deck ${send_loop_start.u.deck_id} exists: copy_file it to \"Board deck ${read_state.month_id}\" in the same folder (skip if that title exists), then call replace_text_in_presentation ONCE on the copy with the replacements: ${send_loop_start.u.replacements}, so the deck says what the brief now says.\n3. Update the sheet ${send_loop_start.u.signposts_id} with update_rows_by_key (key column signpost; these rows exist): current_value and last_checked=${read_state.today} from this project's check.\nReturn the brief and deck URLs. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "brief_url": {
+            "description": "brief url",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "deck_url": {
+            "description": "deck url",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "brief_url",
+           "deck_url"
+          ]
+         }
+        },
+        {
+         "id": "mail_update",
+         "displayName": "Email the CEO: update",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${send_loop_start.u.ceo_email}. Subject: Decision watch ${send_loop_start.u.name} ${read_state.month_id}: material change. Body: Three or four warm, plain sentences to ${send_loop_start.u.ceo_name}: which signpost was triggered (${send_loop_start.u.triggered}), what changed, whether the recommendation changes (${send_loop_start.u.recommendation}), and that the strategy manager has reviewed it. Links: updated brief ${save_update.brief_url}, deck ${save_update.deck_url}. Earlier versions are kept in the same folder..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sent"
+          ]
+         }
+        },
+        {
+         "id": "mark_update_done",
+         "displayName": "Record: update sent",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "In the project folder ${send_loop_start.u.folder_id}: in the sheet \"Decision history\" (${send_loop_start.u.history_id}), write ONE row with check_id = \"${read_state.month_id}\": if no row has that check_id add it with append_rows, otherwise update it with update_rows_by_key (key column check_id). Values: date=${read_state.today}, kind=\"monthly check\", stage=\"sent\", signposts_triggered=\"${send_loop_start.u.triggered}\", recommendation=\"${send_loop_start.u.recommendation}\", recommendation_changed=\"${send_loop_start.u.recommendation_changed}\", brief_url=\"${save_update.brief_url}\", deck_url=\"${save_update.deck_url}\", notes=\"owner: ${gate_update.approval_feedback}\". Do not read or change any other file.",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "done": {
+            "description": "done",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "done"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "send_loop_start",
+         "targetNodeId": "save_update"
+        },
+        {
+         "sourceNodeId": "save_update",
+         "targetNodeId": "mail_update"
+        },
+        {
+         "sourceNodeId": "mail_update",
+         "targetNodeId": "mark_update_done"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "summary_check",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: monthly check ${read_state.month_id} done. Updates sent: ${collect.material} (links ${send_loop.output[*].save_update}); no material change: ${collect.quiet}. Next check: the 1st of next month. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "route",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "setup_project",
+     "routeString": "First"
+    },
+    {
+     "sourceNodeId": "setup_project",
+     "targetNodeId": "plan"
+    },
+    {
+     "sourceNodeId": "plan",
+     "targetNodeId": "gate_plan"
+    },
+    {
+     "sourceNodeId": "gate_plan",
+     "targetNodeId": "merge",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "merge",
+     "targetNodeId": "research_loop"
+    },
+    {
+     "sourceNodeId": "research_loop",
+     "targetNodeId": "draft"
+    },
+    {
+     "sourceNodeId": "draft",
+     "targetNodeId": "save_draft"
+    },
+    {
+     "sourceNodeId": "save_draft",
+     "targetNodeId": "gate_brief"
+    },
+    {
+     "sourceNodeId": "gate_brief",
+     "targetNodeId": "finalize",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "finalize",
+     "targetNodeId": "save_first"
+    },
+    {
+     "sourceNodeId": "save_first",
+     "targetNodeId": "mail_first"
+    },
+    {
+     "sourceNodeId": "mail_first",
+     "targetNodeId": "summary_first"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "check_loop",
+     "routeString": "Check"
+    },
+    {
+     "sourceNodeId": "check_loop",
+     "targetNodeId": "collect"
+    },
+    {
+     "sourceNodeId": "collect",
+     "targetNodeId": "quiet_loop"
+    },
+    {
+     "sourceNodeId": "quiet_loop",
+     "targetNodeId": "route_material"
+    },
+    {
+     "sourceNodeId": "route_material",
+     "targetNodeId": "summary_quiet",
+     "routeString": "Quiet"
+    },
+    {
+     "sourceNodeId": "route_material",
+     "targetNodeId": "draft_loop",
+     "routeString": "Material"
+    },
+    {
+     "sourceNodeId": "draft_loop",
+     "targetNodeId": "review_card"
+    },
+    {
+     "sourceNodeId": "review_card",
+     "targetNodeId": "gate_update"
+    },
+    {
+     "sourceNodeId": "gate_update",
+     "targetNodeId": "held_loop",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "gate_update",
+     "targetNodeId": "send_loop",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "send_loop",
+     "targetNodeId": "summary_check"
+    }
+   ]
+  }
+ }
+}

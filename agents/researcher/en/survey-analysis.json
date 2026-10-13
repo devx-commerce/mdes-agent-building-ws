@@ -1,0 +1,1530 @@
+{
+ "id": "RES-B",
+ "persona": "researcher",
+ "lang": "en",
+ "display_name": "Survey Analysis",
+ "description": "วิเคราะห์ข้อมูลแบบสอบถาม (Survey analysis): every 30 minutes checks your ข้อมูลแบบสอบถาม folder; when a new data file or a changed analysis plan appears, checks the data against the codebook, asks you how to handle issues (Inbox), runs the analysis plan, and saves a new chapter 4 version (from your latest edited version, changes highlighted), chart and slides next to the old ones, then emails you what changed. Each data file saved there must hold all responses so far.",
+ "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_survey_analysis.py (10 Oct 2026): RES-B rebuilt per docs/HOW-WE-BUILD.md",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "Every 30 minutes (*/30 8-20 * * *, Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "*/30 8-20 * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "find_setup",
+     "displayName": "Find the data folder, codebook, plan and log",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You find what this check needs in the signed-in user's Google Drive. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\n1. Data folder: the folder whose name starts with ข้อมูลแบบสอบถาม (search_files, folders only). data_files = the data files directly in it (CSV, .xlsx, Google Sheets) as name | ID | modified time, newest first.\n2. Codebook: the file whose name starts with คู่มือลงรหัส or codebook (prefer one in the data folder's parent or a sibling folder). Read the codebook (read_file_content; it may be a Doc, a Sheet, a PDF or a table) and turn it into codebook_json: a JSON array, one object per data column, with keys variable (the exact column name in the newest data file; read that file's header row with read_file_content), type (one of id, likert, integer, numeric, category, text), values (likert/integer/numeric: a range like 1-5; category: the allowed labels separated by |), missing (codes meaning no answer, separated by |; omit if none) and label (the question). Expand ranges such as q1-q12 into one object per column. Take every rule from the codebook as written; never invent one.\nAnalysis plan: the file whose name starts with แผนการวิเคราะห์ or analysis plan; plan_modified = its modified time. Read the plan (read_file_content): plan_text = its hypotheses and requested analyses as written.\n3. Log: the Google Sheet named 'บันทึกการวิเคราะห์ข้อมูล' in the data folder's parent; its ID or empty. If found, read it (get_values): last_version = the highest version number in it (0 if none); last_data_id and last_data_modified = the data file ID and modified time of the last row; last_plan_modified = the plan modified time of the last row; last_chapter_link = the chapter link of the last row.\n3b. base_chapter_id = the Doc to start the new chapter from: the chapter of the last log row (its ID from last_chapter_link); if there is no log row, her own draft: a Google Doc whose name starts with 'บทที่ 4 ผลการวิจัย' or 'บทที่ 4' in the data folder's parent; else empty. has_base = true only if base_chapter_id is not empty.\n4. newest = the newest data file. This run's slot (Asia/Bangkok): slot_end = now rounded DOWN to the half hour (minute 00 or 30; a run may start up to 5 minutes late, never early); slot_start = slot_end minus 30 minutes, except for the 08:00 run: then slot_start = yesterday 20:30 (the previous run). saved_in_slot = true only if newest's modified time or plan_modified is on or after slot_start and before slot_end (compare in Asia/Bangkok time). new_work = true only if there is a data file and saved_in_slot and (no log row yet, or newest's ID or modified time differs from the last row, or plan_modified differs from last_plan_modified). An older change is never started again here: a later run would repeat a batch whose cards are still waiting. reason = 'new data file' or 'analysis plan changed' (Thai + English); when new_work is false: why (no new file saved in this half hour, or it is the version already logged).\n5. output_folder_id = the data folder's parent; owner_email = the data folder owner's email; today = today in Asia/Bangkok.\n6. ready = data folder, codebook and analysis plan each found exactly once. stop_items = what is missing (empty if ready).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "data_folder_id": {
+        "description": "Data folder ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "data_files": {
+        "description": "Data files, newest first",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "newest_id": {
+        "description": "Newest data file ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "newest_name": {
+        "description": "Its name",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "newest_modified": {
+        "description": "Its modified time",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "codebook_id": {
+        "description": "Codebook ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "codebook_json": {
+        "description": "Codebook as an inline JSON array",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "plan_id": {
+        "description": "Analysis plan ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "plan_modified": {
+        "description": "Plan modified time",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "plan_text": {
+        "description": "Hypotheses and analyses",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "log_id": {
+        "description": "Log ID or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "last_version": {
+        "description": "Last version, a whole number without decimals; 0 if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "last_data_id": {
+        "description": "Data file of the last version",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "last_chapter_link": {
+        "description": "Last chapter link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "base_chapter_id": {
+        "description": "Chapter to start from, or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "has_base": {
+        "description": "true if base_chapter_id is not empty",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "new_work": {
+        "description": "true if there is something new",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "reason": {
+        "description": "Why",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "output_folder_id": {
+        "description": "Folder",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "owner_email": {
+        "description": "The researcher's email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "ready": {
+        "description": "true if found",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "stop_items": {
+        "description": "What is missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       }
+      },
+      "required": [
+       "data_folder_id",
+       "data_files",
+       "newest_id",
+       "newest_name",
+       "newest_modified",
+       "codebook_id",
+       "codebook_json",
+       "plan_id",
+       "plan_modified",
+       "plan_text",
+       "log_id",
+       "last_version",
+       "last_data_id",
+       "last_chapter_link",
+       "base_chapter_id",
+       "has_base",
+       "new_work",
+       "reason",
+       "output_folder_id",
+       "owner_email",
+       "today",
+       "ready",
+       "stop_items"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "Folder, codebook and plan found?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "report_setup",
+     "displayName": "Email what is missing",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The survey analysis could not start: ${find_setup.stop_items}. Send exactly ONE email with send_email to ${find_setup.owner_email} (if empty, to = an empty string for the user to type; never invent an address). Subject: วิเคราะห์ข้อมูลแบบสอบถาม: ยังเริ่มไม่ได้ (survey analysis: cannot start). Body in short Thai with English in brackets: list ONLY the items in the line above (they are the missing ones; never list a file that was found), each with the name to give it so it is found next time: the data = a folder whose name starts with ข้อมูลแบบสอบถาม, the codebook = a file whose name starts with คู่มือลงรหัส, the analysis plan = a file whose name starts with แผนการวิเคราะห์; then one line that each data file saved there must hold ALL responses so far (the newest file is analysed). sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "has_new_work",
+     "displayName": "New data or a changed plan?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "New",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.new_work"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing new",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.new_work"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_nothing_new",
+     "displayName": "Nothing new",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nNothing new: data ${find_setup.newest_name}, last version ${find_setup.last_version}. Why: ${find_setup.reason}\nSay in one line that nothing changed. If a data file was saved earlier and never analysed, say to save it again (or edit the analysis plan): the next half-hourly run then analyses it.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "ensure_log",
+     "displayName": "Make sure the analysis log exists",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Log ID found: \"${find_setup.log_id}\". If not empty: call no tool; log_id = that ID. If empty: create it ONCE with Drive create_file: title 'บันทึกการวิเคราะห์ข้อมูล', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly this header line: วันที่,เวอร์ชัน,ไฟล์ข้อมูล,ID ไฟล์ข้อมูล,แก้ไขล่าสุดของไฟล์ข้อมูล,แก้ไขล่าสุดของแผน,กฎการจัดการข้อมูล,บทที่ 4,สไลด์,สรุปการเปลี่ยนแปลง ; log_id = the ID returned. Then read the log with Sheets get_spreadsheet: log_tab = the exact title of its FIRST tab (as the tool returns it; never guess or translate it).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file | Sheets MCP: get_spreadsheet.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems.\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "log_id": {
+        "description": "Log ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "log_tab": {
+        "description": "Exact title of the log's first tab",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "log_id",
+       "log_tab"
+      ]
+     }
+    },
+    {
+     "id": "check_data",
+     "displayName": "Check the data against the codebook",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ANALYSIS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{ANALYSIS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call check_survey_data ONCE with sourceId ${find_setup.newest_id} and codebook = this JSON array exactly: ${find_setup.codebook_json}. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nissues = one plain Thai line per problem, with numbers and example ids, e.g. 'q12 should be 1-5 but 14 answers are 9', '23 respondents left income blank', 'region uses South (English) in 300 rows instead of ภาคใต้', missing or extra columns. has_issues = true if there is any. n_rows = the number of rows. Never decide how to handle them.\n\nTools for this step (their inputs are described by the tools themselves): Analysis MCP: check_survey_data, analyse_survey.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "n_rows": {
+        "description": "Rows, a whole number written without decimals, e.g. 1200",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "has_issues": {
+        "description": "true if any problem",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "issues": {
+        "description": "Problems, one per line",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "Tool errors; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "n_rows",
+       "has_issues",
+       "issues",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "issues_found",
+     "displayName": "Any data issues?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Issues",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_data.has_issues"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No issues",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_data.has_issues"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "handling_rules",
+     "displayName": "How should the data issues be handled?",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ข้อมูลใหม่ (New data): ${find_setup.newest_name} (${check_data.n_rows} แถว rows) · เหตุผล (why): ${find_setup.reason}\nปัญหาที่พบ (Issues found): ${check_data.issues}\n\nพิมพ์วิธีจัดการแต่ละปัญหาในช่องความคิดเห็น เช่น '9 = ไม่ทราบ ให้เป็นค่าว่าง; South = ภาคใต้; คนที่ไม่ตอบรายได้ ให้เก็บไว้แต่ไม่ใช้ในการวิเคราะห์รายได้' แล้วกด Approve เพื่อวิเคราะห์ (Type how to handle each issue in the comment, then Approve to run the analysis; the agent never decides these rules). ถ้าไม่มีปัญหา กด Approve ได้เลย (No issues: just Approve). Reject = หยุด ไม่วิเคราะห์ (stop).",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "tell_stopped",
+     "displayName": "Stopped by the researcher",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe researcher rejected. Comment: \"${handling_rules.approval_feedback}\"\nSay nothing was analysed or changed.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "analyse",
+     "displayName": "Run the analysis plan",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ANALYSIS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{ANALYSIS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Run the analysis plan on ${find_setup.newest_id} with the researcher's rules. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nAnalysis plan: ${find_setup.plan_text}\nIssues found: ${check_data.issues}\nThe researcher's rules (apply exactly; never add your own): \"${handling_rules.approval_feedback}\" (if this says no value provided, the data had no issues and there are no rules)\n1. Turn the rules into analyse_survey inputs: recode for value changes (e.g. South -> ภาคใต้, 9 -> missing), excludeIds only if she said to drop respondents; a variable she said to leave out of one analysis is left out of that test only.\n2. Call analyse_survey ONCE with sourceId ${find_setup.newest_id}, codebook = this JSON array exactly: ${find_setup.codebook_json}, every test in the plan (ids H1, H2, ...) and compareWithSourceId = ${find_setup.last_data_id} if it is not empty and not the same file.\n3. results = the descriptives and every test as returned (statistic, p, n, means), copied exactly. changes = in Thai with English in brackets, one or two lines: if ${find_setup.last_version} is 0 or empty: 'เวอร์ชันแรก (first version)'. Otherwise read the previous chapter ${find_setup.base_chapter_id} with Drive read_file_content and compare: name every test the plan added or removed (e.g. 'เพิ่ม H5: … (added H5)'), every result whose significance changed and every mean that moved by 0.1 or more; if the data or plan changed but no result changed, say exactly that. Never write 'first version' when last_version is 1 or more (#256). chart_csv = CSV for one chart that shows the main group comparison (header row + one row per group; numbers rounded to 2 decimals, e.g. 2.87). version = ${find_setup.last_version} + 1.\n\nTools for this step (their inputs are described by the tools themselves): Analysis MCP: check_survey_data, analyse_survey | Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "results": {
+        "description": "All numbers as returned",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "changes": {
+        "description": "What changed vs the previous version",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "chart_csv": {
+        "description": "CSV for the main chart",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "chart_title": {
+        "description": "Chart title",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "version": {
+        "description": "New version number, a whole number without decimals, e.g. 2",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "rules_applied": {
+        "description": "The rules as applied",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "ok": {
+        "description": "true if the analysis ran",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       }
+      },
+      "required": [
+       "results",
+       "changes",
+       "chart_csv",
+       "chart_title",
+       "version",
+       "rules_applied",
+       "ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "analysis_ok",
+     "displayName": "Analysis ran?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Done",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "analyse.ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Failed",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "analyse.ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_analysis_failed",
+     "displayName": "Tell the analysis failed",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe analysis did not run. Details: ${analyse.problems}\nSay nothing was changed.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "base_found",
+     "displayName": "Earlier chapter to start from?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Yes",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_base"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_setup.has_base"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "write_chapter",
+     "displayName": "Write chapter 4 (first version)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Write ONE new Google Doc with Drive create_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html', textContent = the whole HTML. Create nothing else.\nIn Thai (academic style for a TCI journal): 4.1 data and cleaning rules (${analyse.rules_applied}; n = ${check_data.n_rows}), 4.2 descriptive statistics (tables with ร้อยละ and ค่าเฉลี่ย), 4.3 hypothesis tests (each test with statistic, p and n, and whether it is supported), 4.4 summary. Use ONLY these numbers, exactly: ${analyse.results}. doc_id = the ID returned; created = true only if an ID came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Chapter Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true only if created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "copy_chapter",
+     "displayName": "Copy her latest chapter as the new version",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Copy the Doc ${find_setup.base_chapter_id} with Drive copy_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}. Never change the original. Copy nothing else. doc_id = the new copy's ID; created = true only if an ID came back.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: copy_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "New chapter Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true only if copied",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_chapter",
+     "displayName": "Update only the sections that changed",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The new chapter ${copy_chapter.doc_id} is a copy of her latest version; keep her wording, headings and order. Read it with Docs read_doc (section headings and their text). New results (use ONLY these numbers, exactly): ${analyse.results}. What changed since the previous version: ${analyse.changes}. Rules applied: ${analyse.rules_applied}; n = ${check_data.n_rows}.\nFor each section whose numbers or meaning the new results change (at most 4 sections, usually 4.1 rules/n, 4.3 tests, 4.4 summary), call Docs replace_section ONCE with that section's heading and its new content in Markdown, in Thai: keep every sentence that is still true word for word; change only the numbers and sentences the new results change; add new material only where the plan asks for it (e.g. a new hypothesis); put every changed or added sentence in **bold** followed by (ปรับปรุงใน v${analyse.version}). Do NOT add a change paragraph inside a section, and when you replace a section drop any paragraph in it that starts with 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (an old change line). The change line (#256): the copy's FIRST paragraph is the previous version's line starting 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (what changed since the previous version); replace it with Docs replace_text ONCE: find = that whole first paragraph exactly as read_doc shows it, replace = 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน (v${analyse.version}): ' + ${analyse.changes} and nothing else. If the first paragraph does not start that way, skip this call. Section 4.2 holds the previous version's chart image, and a new chart is inserted after this step: ALWAYS replace section 4.2 (its text, numbers updated if they changed, no image) so the old chart is removed (a copied chart would pile up: v6 had 3, #259). Leave other unchanged sections alone. sections = the headings you replaced; updated = true only if every replace was confirmed. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Docs MCP: read_doc, replace_text, replace_section.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sections": {
+        "description": "Headings replaced",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "updated": {
+        "description": "true only if all confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "sections",
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "chapter_ref",
+     "displayName": "Which chapter was made",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Use no tools. First-version result: doc ${write_chapter.doc_id}, created ${write_chapter.created}, problems ${write_chapter.problems}. Copy result: doc ${copy_chapter.doc_id}, created ${copy_chapter.created}; sections updated ${update_chapter.sections}, updated ${update_chapter.updated}, problems ${update_chapter.problems}. Only one of the two paths ran: the values of the other say 'no value provided'. doc_id = the real Doc ID of the path that ran; created = true only if that path made the Doc (for the copy path: copied, even if a section update failed); problems = that path's problems (empty if none).\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Chapter Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true if a chapter Doc exists",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "chapter_made",
+     "displayName": "Chapter saved?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Saved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "chapter_ref.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not saved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "chapter_ref.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_chapter_failed",
+     "displayName": "Tell the chapter was not saved",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nThe chapter could not be saved. Details: ${chapter_ref.problems}\nResults: ${analyse.results}\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "chart_sheet",
+     "displayName": "Save the chart data",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Create ONE Google Sheet with Drive create_file: title 'ข้อมูลกราฟ – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly ${analyse.chart_csv}. sheet_id = the ID returned.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sheet_id": {
+        "description": "Chart data Sheet ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sheet_id"
+      ]
+     }
+    },
+    {
+     "id": "chart",
+     "displayName": "Make the chart",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Call Sheets create_chart ONCE on spreadsheet ${chart_sheet.sheet_id} (first tab, all data): a COLUMN chart titled '${analyse.chart_title}'. chart_id = the chart ID returned; made = true only if it came back.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: create_chart.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "chart_id": {
+        "description": "Chart ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "made": {
+        "description": "true only if made",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "chart_id",
+       "made"
+      ]
+     }
+    },
+    {
+     "id": "insert_chart",
+     "displayName": "Put the chart in the chapter",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "If ${chart.made} is false, call no tool and set inserted = false. Otherwise call Docs insert_sheets_chart ONCE: document ${chapter_ref.doc_id}, spreadsheet ${chart_sheet.sheet_id}, chart ${chart.chart_id}, at the end of section 4.2. inserted = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Docs MCP: insert_sheets_chart.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "inserted": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "inserted",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "make_slides",
+     "displayName": "Update the slides (new version)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Create ONE new deck with Slides create_presentation_from_outline: title 'สไลด์ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, 6-8 slides in Thai for a conference: what changed since the previous version (${analyse.changes}), sample and cleaning, key descriptives, each hypothesis result, the main group comparison, summary. Use ONLY these numbers: ${analyse.results}. Never edit an earlier deck. deck_id = the ID returned; created = true only if it came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Slides MCP: create_presentation_from_outline.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "deck_id": {
+        "description": "Deck ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "created": {
+        "description": "true only if created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "deck_id",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "log_version",
+     "displayName": "Log this version",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Append ONE row to the log ${ensure_log.log_id} with Sheets append_rows, range = the tab name ${ensure_log.log_tab} in single quotes: ${find_setup.today}, ${analyse.version}, ${find_setup.newest_name}, ${find_setup.newest_id}, ${find_setup.newest_modified}, ${find_setup.plan_modified}, ${analyse.rules_applied}, https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, ${analyse.changes}. appended = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "appended"
+      ]
+     }
+    },
+    {
+     "id": "email_note",
+     "displayName": "Email the change note",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send exactly ONE email with send_email to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ผลวิเคราะห์ข้อมูลแบบสอบถาม v${analyse.version} (survey analysis v${analyse.version}). Body in short Thai: what changed in the data (${find_setup.reason}: ${find_setup.newest_name}, ${check_data.n_rows} rows; rules: ${analyse.rules_applied}), what changed in the results (${analyse.changes}), and the new files: chapter https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, slides https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, log https://docs.google.com/spreadsheets/d/${ensure_log.log_id}/edit. Earlier versions are kept. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "Tell it is done",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nVersion ${analyse.version}. Chapter: https://docs.google.com/document/d/${chapter_ref.doc_id}/edit Slides: https://docs.google.com/presentation/d/${make_slides.deck_id}/edit Chart in chapter: ${insert_chart.inserted}. Email sent: ${email_note.sent}. Changes: ${analyse.changes}\nList the links and what changed.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "find_setup"
+    },
+    {
+     "sourceNodeId": "find_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "report_setup",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "has_new_work",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "has_new_work",
+     "targetNodeId": "tell_nothing_new",
+     "routeString": "Nothing new"
+    },
+    {
+     "sourceNodeId": "has_new_work",
+     "targetNodeId": "ensure_log",
+     "routeString": "New"
+    },
+    {
+     "sourceNodeId": "ensure_log",
+     "targetNodeId": "check_data"
+    },
+    {
+     "sourceNodeId": "check_data",
+     "targetNodeId": "issues_found"
+    },
+    {
+     "sourceNodeId": "issues_found",
+     "targetNodeId": "handling_rules",
+     "routeString": "Issues"
+    },
+    {
+     "sourceNodeId": "issues_found",
+     "targetNodeId": "analyse",
+     "routeString": "No issues"
+    },
+    {
+     "sourceNodeId": "handling_rules",
+     "targetNodeId": "tell_stopped",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "handling_rules",
+     "targetNodeId": "analyse",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "analyse",
+     "targetNodeId": "analysis_ok"
+    },
+    {
+     "sourceNodeId": "analysis_ok",
+     "targetNodeId": "tell_analysis_failed",
+     "routeString": "Failed"
+    },
+    {
+     "sourceNodeId": "analysis_ok",
+     "targetNodeId": "base_found",
+     "routeString": "Done"
+    },
+    {
+     "sourceNodeId": "base_found",
+     "targetNodeId": "copy_chapter",
+     "routeString": "Yes"
+    },
+    {
+     "sourceNodeId": "base_found",
+     "targetNodeId": "write_chapter",
+     "routeString": "No"
+    },
+    {
+     "sourceNodeId": "copy_chapter",
+     "targetNodeId": "update_chapter"
+    },
+    {
+     "sourceNodeId": "update_chapter",
+     "targetNodeId": "chapter_ref"
+    },
+    {
+     "sourceNodeId": "write_chapter",
+     "targetNodeId": "chapter_ref"
+    },
+    {
+     "sourceNodeId": "chapter_ref",
+     "targetNodeId": "chapter_made"
+    },
+    {
+     "sourceNodeId": "chapter_made",
+     "targetNodeId": "tell_chapter_failed",
+     "routeString": "Not saved"
+    },
+    {
+     "sourceNodeId": "chapter_made",
+     "targetNodeId": "chart_sheet",
+     "routeString": "Saved"
+    },
+    {
+     "sourceNodeId": "chart_sheet",
+     "targetNodeId": "chart"
+    },
+    {
+     "sourceNodeId": "chart",
+     "targetNodeId": "insert_chart"
+    },
+    {
+     "sourceNodeId": "insert_chart",
+     "targetNodeId": "make_slides"
+    },
+    {
+     "sourceNodeId": "make_slides",
+     "targetNodeId": "log_version"
+    },
+    {
+     "sourceNodeId": "log_version",
+     "targetNodeId": "email_note"
+    },
+    {
+     "sourceNodeId": "email_note",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

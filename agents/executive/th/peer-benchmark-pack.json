@@ -1,0 +1,2474 @@
+{
+ "id": "EXE-A",
+ "persona": "executive",
+ "lang": "th",
+ "display_name": "Peer Benchmark Pack (TH)",
+ "description": "กำกับดูแลโดยหัวหน้าฝ่ายกลยุทธ์ ปฏิบัติการทุกวันทำการ: ตรวจสอบไฟล์ของธนาคาร จัดทำตารางเปรียบเทียบ ส่งอีเมลให้นักวิเคราะห์ตรวจสอบ ยกร่างรายงานและเอกสารนำเสนอคณะกรรมการเพื่อให้หัวหน้าฝ่ายตรวจสอบ และจัดส่งชุดเอกสารให้แก่เลขานุการบริษัท",
+ "_built_from": "mdes-work-log/wf/lens.py build specs/exe_a.py (Thai, field names in Thai where allowed; 13 Oct 2026)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "กำหนดการ",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 9 * * 1-5",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "อ่านข้อมูลไตรมาสและประมวลผลขั้นตอนการดำเนินงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "โฟลเดอร์ \"Peer Benchmark\" มี ID คือ {{EXE_A_FOLDER_ID}} วันที่ปัจจุบันคือวันนี้ (Asia/Bangkok)\n1. แต่ละไตรมาสจะเป็นโฟลเดอร์ \"Peer Benchmark <quarter>\" ที่อยู่ภายใน โดยมีเอกสาร \"Setup\" กำกับอยู่ รอบปัจจุบัน = รอบที่มีกำหนดวันประชุมคณะกรรมการล่าสุด รอบก่อนหน้า = รอบก่อนหน้านั้นถัดไป\n2. จากเอกสาร Setup ของรอบปัจจุบัน: วันประชุมคณะกรรมการ, วันสิ้นไตรมาส (หรือคำนวณจากไตรมาสในชื่อโฟลเดอร์), อีเมลหัวหน้าฝ่ายกลยุทธ์, อีเมลนักวิเคราะห์ (หนึ่งคนขึ้นไป), อีเมลเลขานุการบริษัท, ลิงก์ไปยังรายชื่อธนาคาร (Bank list) และคำนิยามตัวชี้วัด (Metric definitions) (ส่งคืนรหัสไฟล์ดังกล่าว)\n3. ข้อมูลที่มีอยู่ (ค้นหาในโฟลเดอร์รอบการดำเนินงานและกล่องข้อความที่ส่งแล้ว): table_exists = Google Sheets \"Comparison table\"; check_sent = อีเมลที่ส่งแล้วโดยมีหัวข้อ \"<cycle name> - could you check the numbers?\"; report_exists = Google Docs \"Board report\"; deck_exists = Google Slides \"Board deck\"; delivered = อีเมลที่ส่งแล้วโดยมีหัวข้อ \"<cycle name> - board pack\"; last_reminder = วันที่ของอีเมลที่ส่งล่าสุดซึ่งมีหัวข้อ \"<cycle name> - bank reports still missing\" (เว้นว่างไว้หากไม่มี)\n4. window_open = วันนี้ตรงกับหรือหลังจากวันสิ้นไตรมาส + 21 วัน และก่อนวันประชุมคณะกรรมการ days_to_board = จำนวนวันนับจากวันนี้ถึงวันประชุมคณะกรรมการ\n5. ขั้นตอน: do_files = window_open และไม่มี table_exists; do_analyst = มี table_exists และ check_sent แต่ไม่มี report_exists และไม่มี delivered; do_head = มี report_exists และ deck_exists แต่ไม่มี delivered นอกเหนือจากนี้ให้เป็น false ทั้งหมด\nส่งคืนรหัสโฟลเดอร์ของรอบก่อนหน้า อ่านอย่างเดียว ห้ามคาดเดา ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามล้มเหลว ห้ามสอบถามผู้ใช้ ห้ามรอ หากเครื่องมือขาดหายหรือทำงานล้มเหลว หรือไม่พบไฟล์หรือเอกสารที่จำเป็น ให้ดำเนินการให้เสร็จสิ้น: ส่งคืน ready=false และระบุใน stop_reason อย่างชัดเจนว่ามีสิ่งใดขาดหายและต้องแก้ไขอย่างไร (ตัวอย่างเช่น \"ไม่ได้เชื่อมต่อ Google Drive: โปรดเชื่อมต่อเครื่องมือ Drive ใน Gemini Enterprise แล้วดำเนินการอีกครั้ง\") มิฉะนั้นให้ส่งคืน ready=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "พร้อมดำเนินการ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "เหตุผลที่หยุดการทำงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "cycle_folder_id": {
+        "description": "รหัสโฟลเดอร์รอบการดำเนินงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "cycle_name": {
+        "description": "ชื่อรอบการดำเนินงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "board_date": {
+        "description": "วันประชุมคณะกรรมการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "สิ้น_ไตรมาส": {
+        "description": "วันสิ้นไตรมาส",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "year_end_cycle": {
+        "description": "รอบสิ้นปี",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "head_email": {
+        "description": "อีเมลหัวหน้าฝ่ายกลยุทธ์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "analyst_emails": {
+        "description": "อีเมลนักวิเคราะห์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "secretary_email": {
+        "description": "อีเมลเลขานุการบริษัท",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "bank_list_id": {
+        "description": "รหัสเอกสารรายชื่อธนาคาร",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "definitions_id": {
+        "description": "รหัสเอกสารคำนิยาม",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "prior_cycle_folder_id": {
+        "description": "รหัสโฟลเดอร์รอบก่อนหน้า",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "วัน_นี้": {
+        "description": "วันนี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "days_to_board": {
+        "description": "จำนวนวันก่อนการประชุมคณะกรรมการ",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "last_reminder": {
+        "description": "การแจ้งเตือนล่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "do_files": {
+        "description": "ดำเนินการจัดการไฟล์",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "do_analyst": {
+        "description": "ดำเนินการตรวจสอบโดยนักวิเคราะห์",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "do_head": {
+        "description": "ดำเนินการตรวจสอบโดยหัวหน้าฝ่าย",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "cycle_folder_id",
+       "cycle_name",
+       "board_date",
+       "สิ้น_ไตรมาส",
+       "year_end_cycle",
+       "head_email",
+       "analyst_emails",
+       "secretary_email",
+       "bank_list_id",
+       "definitions_id",
+       "prior_cycle_folder_id",
+       "วัน_นี้",
+       "days_to_board",
+       "last_reminder",
+       "do_files",
+       "do_analyst",
+       "do_head"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "สามารถเริ่มการทำงานนี้ได้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "หยุดการทำงาน: ระบุเหตุผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป` ตรงตามข้อความนี้: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" ผู้ที่อ่านข้อความนี้ต้องไม่จัดทำผลงานส่งมอบด้วยตนเอง ห้ามใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    },
+    {
+     "id": "route",
+     "displayName": "การทำงานนี้ต้องดำเนินการสิ่งใด",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Files",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_files"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Analyst",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_analyst"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Head",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_head"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_files"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_analyst"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_head"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "nothing",
+     "displayName": "ไม่มีสิ่งที่ต้องดำเนินการ: ระบุเหตุผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป`: \"Nothing to do today for ${read_state.cycle_name}.\" ตามด้วยเหตุผลในหนึ่งบรรทัด (อยู่นอกช่วงเวลาดำเนินการ: ระบบเปิดรับในวันสิ้นสุดไตรมาส + 21 วัน และปิดในวันประชุมคณะกรรมการ ${read_state.board_date} หรือกำลังรอการตอบกลับจากนักวิเคราะห์ หรือได้ส่งชุดเอกสารเรียบร้อยแล้ว) ห้ามจัดทำผลงานส่งมอบใด ๆ ด้วยตนเอง ห้ามใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป"
+      ]
+     }
+    },
+    {
+     "id": "check_files",
+     "displayName": "ตรวจสอบไฟล์ของธนาคาร",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "เปิดรายชื่อธนาคาร ${read_state.bank_list_id} สำหรับแต่ละธนาคาร ให้เปิดโฟลเดอร์ย่อยใน ${read_state.cycle_folder_id} และส่งคืน file ID ของงบการเงิน (FINANCIAL_STATEMENTS), หมายเหตุประกอบงบการเงิน (NOTES), MD&A, รายงานของผู้สอบบัญชี และรายงาน 56-1 One Report (หาก ${read_state.year_end_cycle} เป็นจริง โดยเว้นว่างหากไม่มี)\nถือว่าขาดข้อมูลธนาคารหากไม่มีไฟล์งบการเงิน complete = ข้อมูลธนาคารครบถ้วนทั้งหมด\nremind = มีข้อมูลธนาคารบางแห่งขาดหายไป และการแจ้งเตือนครั้งล่าสุด (${read_state.last_reminder}) ดำเนินการไปแล้วตั้งแต่ 2 วันขึ้นไป หรือยังไม่เคยมีการแจ้งเตือน\nask_head = มีข้อมูลธนาคารบางแห่งขาดหายไป และ ${read_state.days_to_board} มีค่าไม่เกิน 7 วัน\n`missing_card`: หนึ่งบรรทัด เช่น \"Bank K and Bank L not yet received\" อ่านอย่างเดียว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "complete": {
+        "description": "เสร็จสมบูรณ์",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "remind": {
+        "description": "แจ้งเตือน",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "ask_head": {
+        "description": "สอบถามหัวหน้าฝ่าย",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "missing": {
+        "description": "ข้อมูลที่ขาดหาย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "missing_card": {
+        "description": "บัตรข้อมูลที่ขาดหาย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "banks": {
+        "description": "ธนาคาร",
+        "type": "ARRAY",
+        "items": {
+         "description": "ธนาคาร",
+         "type": "OBJECT",
+         "properties": {
+          "bank": {
+           "description": "ธนาคาร",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "กลุ่ม_ขนาด": {
+           "description": "กลุ่มขนาด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "statements_id": {
+           "description": "รหัสเอกสารงบการเงิน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "notes_id": {
+           "description": "รหัสเอกสารหมายเหตุประกอบงบการเงิน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "mda_id": {
+           "description": "รหัสเอกสาร MD&A",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "auditor_id": {
+           "description": "รหัสเอกสารรายงานของผู้สอบบัญชี",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "annual_id": {
+           "description": "รหัสเอกสารรายงานประจำปี",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "bank",
+          "กลุ่ม_ขนาด",
+          "statements_id",
+          "notes_id",
+          "mda_id",
+          "auditor_id",
+          "annual_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 5
+        }
+       }
+      },
+      "required": [
+       "complete",
+       "remind",
+       "ask_head",
+       "missing",
+       "missing_card",
+       "banks"
+      ]
+     }
+    },
+    {
+     "id": "route_files",
+     "displayName": "พร้อมจัดทำหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "AskHead",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.ask_head"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.ask_head"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.remind"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "mail_reminder",
+     "displayName": "ส่งอีเมลแจ้งนักวิเคราะห์: ยังขาดรายงานของธนาคาร",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงฉบับเดียวด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.analyst_emails} หัวข้อ: ${read_state.cycle_name} - bank reports still missing เนื้อหา: จากผู้ช่วยฝ่ายเทียบเคียงผลการดำเนินงานซึ่งปฏิบัติงานให้แก่หัวหน้าฝ่ายกลยุทธ์ ด้วยน้ำเสียงที่เป็นกันเองและเรียบง่าย ความยาวไม่เกิน 120 คำ: ${check_files.missing_card} โปรดบันทึกไฟล์ดังกล่าวลงในโฟลเดอร์ของธนาคารนั้น ๆ ภายในโฟลเดอร์ประจำไตรมาสเมื่อมีการเผยแพร่ ทั้งนี้จะตรวจสอบอีกครั้งในอีกสองวัน การวิเคราะห์จะเริ่มต้นเมื่อได้รับข้อมูลครบถ้วน หรือเมื่อหัวหน้าฝ่ายกลยุทธ์ตัดสินใจให้ดำเนินการต่อโดยไม่ต้องรอข้อมูลดังกล่าว\nเรียกใช้คำสั่งส่งเพียงครั้งเดียว การตอบกลับเช่น 'Action Confirmed' หรือ 'Review completed' หมายความว่าได้ส่งอีเมลแล้ว: ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "gate_go",
+     "displayName": "ดำเนินการต่อโดยไม่มีธนาคารที่ขาดหายไปหรือไม่",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "${read_state.cycle_name}: ${check_files.missing_card} การประชุมคณะกรรมการจะมีขึ้นในวันที่ ${read_state.board_date} (อีก ${read_state.days_to_board} วัน)\n\nApprove = จัดทำตารางทันที โดยธนาคารเหล่านั้นจะแสดงสถานะเป็น \"not received\" พร้อมข้อความของท่าน (สามารถพิมพ์ในกล่องข้อเสนอแนะได้ตามต้องการ)\nReject = ให้รอต่อไป โดยระบบจะยังคงส่งข้อความแจ้งเตือนแก่นักวิเคราะห์ และจะสอบถามท่านอีกครั้งในวันพรุ่งนี้",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "banks",
+     "displayName": "สำหรับแต่ละธนาคาร",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "check_files.banks",
+      "currentItemVariable": "bank_item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "banks_start",
+         "displayName": "สำหรับแต่ละธนาคาร",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "bank_item": {
+            "description": "รายการธนาคาร",
+            "type": "OBJECT",
+            "properties": {
+             "bank": {
+              "description": "ธนาคาร",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "กลุ่ม_ขนาด": {
+              "description": "กลุ่มขนาด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "statements_id": {
+              "description": "รหัสเอกสารงบการเงิน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "notes_id": {
+              "description": "รหัสเอกสารหมายเหตุประกอบงบการเงิน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "mda_id": {
+              "description": "รหัสเอกสาร MD&A",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "auditor_id": {
+              "description": "รหัสเอกสารรายงานของผู้สอบบัญชี",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "annual_id": {
+              "description": "รหัสเอกสารรายงานประจำปี",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "bank",
+             "กลุ่ม_ขนาด",
+             "statements_id",
+             "notes_id",
+             "mda_id",
+             "auditor_id",
+             "annual_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "bank_item"
+          ]
+         }
+        },
+        {
+         "id": "extract",
+         "displayName": "สกัดข้อมูลธนาคารรายหนึ่ง",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ธนาคาร ${banks_start.bank_item.bank} เปิดตาม ID เท่านั้น: งบการเงิน ${banks_start.bank_item.statements_id}, หมายเหตุประกอบงบการเงิน ${banks_start.bank_item.notes_id}, MD&A ${banks_start.bank_item.mda_id}, รายงานของผู้สอบบัญชี ${banks_start.bank_item.auditor_id}, แบบ 56-1 One Report ${banks_start.bank_item.annual_id} (แต่ละรายการอาจเว้นว่างได้)\nอ่านเอกสาร ${read_state.definitions_id} ดึงข้อมูล RAW ITEMS ให้ตรงตามที่ระบุ โดยปฏิบัติตามหลักเกณฑ์ทั่วไป ส่งคืนข้อมูลแต่ละรายการ ได้แก่ มูลค่า (text), แหล่ง_ที่มา (ตัวระบุแหล่งที่มาตามคำนิยาม), ธง_สถานะ ห้ามคำนวณอัตราส่วน ห้ามคาดเดาโดยเด็ดขาด\nส่งคืน `ประเด็น_หลัก` ด้วย: จาก MD&A และแบบ 56-1 (digital lending, virtual bank plans, ESG) และเรื่องสำคัญในการตรวจสอบของผู้สอบบัญชี (credit risk) ความยาวสั้น ๆ หัวข้อละหนึ่งบรรทัดพร้อมระบุแหล่งที่มา หากไม่มี MD&A ให้ระบุว่า \"no MD&A provided\"",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "bank": {
+            "description": "ธนาคาร",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "ขอบเขต": {
+            "description": "ขอบเขต",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "หน่วย_นับ": {
+            "description": "หน่วย",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "ประเด็น_หลัก": {
+            "description": "หัวข้อหลัก",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "รายการ": {
+            "description": "รายการ",
+            "type": "ARRAY",
+            "items": {
+             "description": "รายการ",
+             "type": "OBJECT",
+             "properties": {
+              "ชื่อ": {
+               "description": "ชื่อ",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "มูลค่า": {
+               "description": "ค่า",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "แหล่ง_ที่มา": {
+               "description": "แหล่งที่มา",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "ธง_สถานะ": {
+               "description": "ธงกำกับ",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "ชื่อ",
+              "มูลค่า",
+              "แหล่ง_ที่มา",
+              "ธง_สถานะ"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "bank",
+           "ขอบเขต",
+           "หน่วย_นับ",
+           "ประเด็น_หลัก",
+           "รายการ"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "banks_start",
+         "targetNodeId": "extract"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "write_table",
+     "displayName": "จัดทำและบันทึกตารางเปรียบเทียบ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "อ่านเอกสาร ${read_state.definitions_id} คำนวณค่า nim_proxy, npl, cost_to_income, loan_growth_ytd สำหรับแต่ละธนาคารจากรายการที่ดึงข้อมูลมา ${banks.output[*].extract} ให้ตรงตามที่กำหนดไว้อย่างเคร่งครัด ติดแฟล็กตามรายการในคำนิยาม ในช่อง basis ให้ระบุข้อมูลนำเข้าและแหล่งที่มาในหนึ่งบรรทัด ปัดเศษทศนิยมเป็น 2 ตำแหน่ง\nห้ามคาดเดาโดยเด็ดขาด\nสร้าง Google Sheet ชื่อ \"Comparison table\" ในโฟลเดอร์ ${read_state.cycle_folder_id} จาก CSV (ส่วนหัว bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) ด้วย create_file_if_absent ส่งคืน URL ของไฟล์ ค้นหาชื่อเรื่องที่ตรงกันทุกประการในโฟลเดอร์ก่อน และใช้ create_file_if_absent เพื่อไม่ให้เกิดการสร้างไฟล์ซ้ำในการเรียกใช้ครั้งที่สอง ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "URL ของตาราง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "flagged": {
+        "description": "รายการที่มีการตั้งค่าสถานะ",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "flagged"
+      ]
+     }
+    },
+    {
+     "id": "mail_check",
+     "displayName": "ส่งอีเมลแจ้งนักวิเคราะห์: โปรดตรวจสอบตัวเลข",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงฉบับเดียวด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.analyst_emails} หัวข้อ: ${read_state.cycle_name} - could you check the numbers? เนื้อหา: เขียนด้วยน้ำเสียงของเพื่อนร่วมงานที่ใส่ใจ ประโยคเรียบง่าย อบอุ่น ไม่มีหัวข้อ และไม่มีถ้อยคำเหมือนหุ่นยนต์ ระบุเพียงครั้งเดียวว่าท่านคือผู้ช่วยฝ่ายเทียบเคียงผลการดำเนินงานซึ่งปฏิบัติงานให้แก่หัวหน้าฝ่ายกลยุทธ์ ระบุสิ่งที่ต้องการอย่างชัดเจนว่า เพียงแค่ตอบกลับด้วยถ้อยคำธรรมดาของตนเองก็เพียงพอแล้ว (ยกตัวอย่างอย่างเป็นธรรมชาติหนึ่งตัวอย่าง) รวมถึงขั้นตอนที่จะเกิดขึ้นหลังจากตอบกลับ ความยาวไม่เกินประมาณ 150 คำ ตารางเปรียบเทียบอยู่ที่นี่: ${write_table.table_url} (เซลล์ที่ติดแฟล็ก ${write_table.flagged} เซลล์) ขอให้ตรวจสอบเซลล์ที่ติดแฟล็กเทียบกับแหล่งที่มาในคอลัมน์ 'basis' และแก้ไขจุดที่ผิดพลาดในตารางหรือในคำตอบกลับ (เช่น \"SCB's NPL should be 3.70 per note 7.2\") แจ้งว่าจะร่างรายงานและชุดนำเสนอต่อคณะกรรมการเพื่อเสนอหัวหน้าฝ่ายกลยุทธ์ต่อไป และจะยังไม่ดำเนินการใด ๆ เพิ่มเติมจนกว่าจะมีผู้ตอบกลับหนึ่งราย\nเรียกใช้คำสั่งส่งเพียงครั้งเดียว การตอบกลับเช่น 'Action Confirmed' หรือ 'Review completed' หมายความว่าได้ส่งอีเมลแล้ว: ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "go_banks",
+     "displayName": "สำหรับแต่ละธนาคาร",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "check_files.banks",
+      "currentItemVariable": "bank_item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "go_banks_start",
+         "displayName": "สำหรับแต่ละธนาคาร",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "bank_item": {
+            "description": "รายการธนาคาร",
+            "type": "OBJECT",
+            "properties": {
+             "bank": {
+              "description": "ธนาคาร",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "กลุ่ม_ขนาด": {
+              "description": "กลุ่มขนาด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "statements_id": {
+              "description": "รหัสเอกสารงบการเงิน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "notes_id": {
+              "description": "รหัสเอกสารหมายเหตุประกอบงบการเงิน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "mda_id": {
+              "description": "รหัสเอกสาร MD&A",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "auditor_id": {
+              "description": "รหัสเอกสารรายงานของผู้สอบบัญชี",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "annual_id": {
+              "description": "รหัสเอกสารรายงานประจำปี",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "bank",
+             "กลุ่ม_ขนาด",
+             "statements_id",
+             "notes_id",
+             "mda_id",
+             "auditor_id",
+             "annual_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "bank_item"
+          ]
+         }
+        },
+        {
+         "id": "go_extract",
+         "displayName": "สกัดข้อมูลธนาคารรายหนึ่ง",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ธนาคาร ${go_banks_start.bank_item.bank} เปิดตาม ID เท่านั้น: งบการเงิน ${go_banks_start.bank_item.statements_id}, หมายเหตุประกอบงบการเงิน ${go_banks_start.bank_item.notes_id}, MD&A ${go_banks_start.bank_item.mda_id}, รายงานของผู้สอบบัญชี ${go_banks_start.bank_item.auditor_id}, แบบ 56-1 One Report ${go_banks_start.bank_item.annual_id} (แต่ละรายการอาจเว้นว่างได้)\nอ่านเอกสาร ${read_state.definitions_id} ดึงข้อมูล RAW ITEMS ให้ตรงตามที่ระบุ โดยปฏิบัติตามหลักเกณฑ์ทั่วไป ส่งคืนข้อมูลแต่ละรายการ ได้แก่ มูลค่า (text), แหล่ง_ที่มา (ตัวระบุแหล่งที่มาตามคำนิยาม), ธง_สถานะ ห้ามคำนวณอัตราส่วน ห้ามคาดเดาโดยเด็ดขาด\nส่งคืน `ประเด็น_หลัก` ด้วย: จาก MD&A และแบบ 56-1 (digital lending, virtual bank plans, ESG) และเรื่องสำคัญในการตรวจสอบของผู้สอบบัญชี (credit risk) ความยาวสั้น ๆ หัวข้อละหนึ่งบรรทัดพร้อมระบุแหล่งที่มา หากไม่มี MD&A ให้ระบุว่า \"no MD&A provided\"",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "bank": {
+            "description": "ธนาคาร",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "ขอบเขต": {
+            "description": "ขอบเขต",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "หน่วย_นับ": {
+            "description": "หน่วย",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "ประเด็น_หลัก": {
+            "description": "หัวข้อหลัก",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "รายการ": {
+            "description": "รายการ",
+            "type": "ARRAY",
+            "items": {
+             "description": "รายการ",
+             "type": "OBJECT",
+             "properties": {
+              "ชื่อ": {
+               "description": "ชื่อ",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "มูลค่า": {
+               "description": "ค่า",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "แหล่ง_ที่มา": {
+               "description": "แหล่งที่มา",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "ธง_สถานะ": {
+               "description": "ธงกำกับ",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "ชื่อ",
+              "มูลค่า",
+              "แหล่ง_ที่มา",
+              "ธง_สถานะ"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "bank",
+           "ขอบเขต",
+           "หน่วย_นับ",
+           "ประเด็น_หลัก",
+           "รายการ"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "go_banks_start",
+         "targetNodeId": "go_extract"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "go_write_table",
+     "displayName": "จัดทำและบันทึกตารางเปรียบเทียบ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "อ่านเอกสาร ${read_state.definitions_id} คำนวณค่า nim_proxy, npl, cost_to_income, loan_growth_ytd สำหรับแต่ละธนาคารจากรายการที่ดึงข้อมูลมา ${go_banks.output[*].go_extract} ให้ตรงตามที่กำหนดไว้อย่างเคร่งครัด ติดแฟล็กตามรายการในคำนิยาม ในช่อง basis ให้ระบุข้อมูลนำเข้าและแหล่งที่มาในหนึ่งบรรทัด ปัดเศษทศนิยมเป็น 2 ตำแหน่ง\nหัวหน้าฝ่ายกลยุทธ์อนุมัติให้ดำเนินการต่อโดยไม่ต้องรอธนาคารที่ขาดข้อมูล (${check_files.missing}): ให้เพิ่มแถวของแต่ละธนาคารดังกล่าวโดยระบุทุกตัวชี้วัดเป็น \"not received\" และติดแฟล็ก \"excluded by Head of Strategy: ${gate_go.approval_feedback}\" ห้ามคาดเดาโดยเด็ดขาด\nสร้าง Google Sheet ชื่อ \"Comparison table\" ในโฟลเดอร์ ${read_state.cycle_folder_id} จาก CSV (ส่วนหัว bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) ด้วย create_file_if_absent ส่งคืน URL ของไฟล์ ค้นหาชื่อเรื่องที่ตรงกันทุกประการในโฟลเดอร์ก่อน และใช้ create_file_if_absent เพื่อไม่ให้เกิดการสร้างไฟล์ซ้ำในการเรียกใช้ครั้งที่สอง ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "URL ของตาราง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "flagged": {
+        "description": "รายการที่มีการตั้งค่าสถานะ",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "flagged"
+      ]
+     }
+    },
+    {
+     "id": "go_mail_check",
+     "displayName": "ส่งอีเมลแจ้งนักวิเคราะห์: โปรดตรวจสอบตัวเลข",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงฉบับเดียวด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.analyst_emails} หัวข้อ: ${read_state.cycle_name} - could you check the numbers? เนื้อหา: เขียนด้วยน้ำเสียงของเพื่อนร่วมงานที่ใส่ใจ ประโยคเรียบง่าย อบอุ่น ไม่มีหัวข้อ และไม่มีถ้อยคำเหมือนหุ่นยนต์ ระบุเพียงครั้งเดียวว่าท่านคือผู้ช่วยฝ่ายเทียบเคียงผลการดำเนินงานซึ่งปฏิบัติงานให้แก่หัวหน้าฝ่ายกลยุทธ์ ระบุสิ่งที่ต้องการอย่างชัดเจนว่า เพียงแค่ตอบกลับด้วยถ้อยคำธรรมดาของตนเองก็เพียงพอแล้ว (ยกตัวอย่างอย่างเป็นธรรมชาติหนึ่งตัวอย่าง) รวมถึงขั้นตอนที่จะเกิดขึ้นหลังจากตอบกลับ ความยาวไม่เกินประมาณ 150 คำ ตารางเปรียบเทียบอยู่ที่นี่: ${go_write_table.table_url} (เซลล์ที่ติดแฟล็ก ${go_write_table.flagged} เซลล์) ขอให้ตรวจสอบเซลล์ที่ติดแฟล็กเทียบกับแหล่งที่มาในคอลัมน์ 'basis' และแก้ไขจุดที่ผิดพลาดในตารางหรือในคำตอบกลับ (เช่น \"SCB's NPL should be 3.70 per note 7.2\") แจ้งว่าจะร่างรายงานและชุดนำเสนอต่อคณะกรรมการเพื่อเสนอหัวหน้าฝ่ายกลยุทธ์ต่อไป และจะยังไม่ดำเนินการใด ๆ เพิ่มเติมจนกว่าจะมีผู้ตอบกลับหนึ่งราย\nเรียกใช้คำสั่งส่งเพียงครั้งเดียว การตอบกลับเช่น 'Action Confirmed' หรือ 'Review completed' หมายความว่าได้ส่งอีเมลแล้ว: ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "read_analyst",
+     "displayName": "อ่านข้อความตอบกลับของนักวิเคราะห์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ค้นหาชุดข้อความใน Gmail ที่มีหัวข้อ \"${read_state.cycle_name} - could you check the numbers?\" และอ่านเฉพาะคำตอบกลับจาก ${read_state.analyst_emails} เท่านั้น (ละเว้นบุคคลอื่นทั้งหมด) ตีความข้อความอย่างเป็นธรรมชาติ:\napproved = มีผู้ใดผู้หนึ่งยินยอมอย่างชัดเจนให้ใช้ตัวเลขดังกล่าวต่อไปได้ (อาจมีการแก้ไขเพิ่มเติมได้) corrections = ทุกรายการแก้ไขที่มีผู้ระบุไว้ บรรทัดละหนึ่งรายการ (หากข้อความขัดแย้งกันสองรายการ ให้ถือตามรายการล่าสุดเป็นหลัก หากยังคงไม่ชัดเจน ให้ระบุลงใน reply_text แทน)\nneeds_reply = คำตอบกลับที่ไม่ชัดเจน มีการตั้งคำถาม หรือระบุว่าตัวเลขยังไม่พร้อม (approved เป็น false); reply_text = คำตอบกลับสั้น ๆ อย่างเป็นธรรมชาติที่สอบถามสิ่งที่ต้องการอย่างชัดเจน หากยังไม่มีการตอบกลับ: ให้ทั้งสองค่าเป็น false การนิ่งเงียบหรือการระบุว่า \"ok maybe\" จะไม่ถือเป็นการอนุมัติโดยเด็ดขาด ข้อความ_อ้างอิง = ข้อความจริงตามที่ระบุ อ่านอย่างเดียว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "approved": {
+        "description": "อนุมัติแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "needs_reply": {
+        "description": "ต้องได้รับการตอบกลับ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "corrections": {
+        "description": "รายการแก้ไข",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "ข้อความ_อ้างอิง": {
+        "description": "ข้อความอ้างอิง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "reply_text": {
+        "description": "ข้อความตอบกลับ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "approved",
+       "needs_reply",
+       "corrections",
+       "ข้อความ_อ้างอิง",
+       "reply_text"
+      ]
+     }
+    },
+    {
+     "id": "route_analyst",
+     "displayName": "ได้รับการอนุมัติหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Approved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.approved"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Question",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.approved"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.needs_reply"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "mail_clarify",
+     "displayName": "ตอบกลับนักวิเคราะห์",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงฉบับเดียวด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${read_state.analyst_emails} หัวข้อ: Re: ${read_state.cycle_name} - could you check the numbers? เนื้อหา: ${read_analyst.reply_text}\nเรียกใช้คำสั่งส่งเพียงครั้งเดียว การตอบกลับเช่น 'Action Confirmed' หรือ 'Review completed' หมายความว่าได้ส่งอีเมลแล้ว: ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืน ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "report",
+     "displayName": "ปรับใช้การแก้ไขและบันทึกรายงานคณะกรรมการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "1. รายการแก้ไขจากนักวิเคราะห์: \"${read_analyst.corrections}\" หากไม่เป็นค่าว่าง ให้ปรับปรุงชีต \"Comparison table\" ใน ${read_state.cycle_folder_id} ด้วย update_rows_by_key (คอลัมน์คีย์ bank) โดยเพิ่มข้อความใน flags ของแต่ละแถวที่มีการเปลี่ยนแปลงว่า \"analyst override: was <old>, now <new> (<their reason>)\" และระบุ \"differs from source\" หากมีการเปลี่ยนแปลงมากกว่า 0.5 จุด หากเป็นค่าว่าง ไม่ต้องแก้ไขชีตดังกล่าว\n2. อ่านตาราง (ฉบับแก้ไข) รายงาน \"Board report\" ของรอบก่อนหน้าใน ${read_state.prior_cycle_folder_id} และ \"Comparison table\" ของทุกรอบก่อนหน้าที่ค้นพบ (การเคลื่อนไหวและแนวโน้มต่อเนื่อง) อ่านคำจำกัดความ ${read_state.definitions_id} รวมถึง MD&A และรายงานของผู้สอบบัญชีของแต่ละธนาคารเพื่อสรุปประเด็นหลัก\n3. จัดทำรายงานการประชุมคณะกรรมการ (Markdown) ตามรูปแบบของรายงานฉบับก่อนหน้า โดยเรียงลำดับหัวข้อดังนี้: \"What changed since last quarter\" เป็นลำดับแรก ตามด้วยบทสรุปสำหรับผู้บริหารความยาวหนึ่งหน้า การจัดลำดับ (ภาพรวมและตามกลุ่มขนาด) การเปลี่ยนแปลงที่มีนัยสำคัญ (การเปลี่ยนแปลงเกิน 0.25 จุด ตัวชี้วัดที่เปลี่ยนแปลงในทิศทางเดียวกันติดต่อกันสามไตรมาส ระบุแนวโน้มต่อเนื่องที่ไม่สามารถคำนวณได้เนื่องจากข้อมูลย้อนหลังไม่เพียงพอ) ประเด็นหลัก (digital lending, virtual bank, แนวโน้มความเสี่ยงด้านสินเชื่อ, ESG ระบุ 'no MD&A provided' ในกรณีที่ไม่มีข้อมูล) ส่วน \"For discussion\" ที่เว้นว่างไว้ และภาคผนวกที่แสดงแหล่งข้อมูล ธงกำกับ (flags) และการปรับแก้โดยนักวิเคราะห์ทั้งหมด กำหนดวันประชุมคณะกรรมการ ${read_state.board_date} ห้ามสร้างตัวเลขขึ้นเองโดยเด็ดขาด\n4. สร้าง Google Doc ชื่อ \"Board report\" ใน ${read_state.cycle_folder_id} จาก Markdown ดังกล่าวด้วย create_file_if_absent\nส่งคืน URL ของรายงานและ `moves` (การเปลี่ยนแปลงที่มีนัยสำคัญ ความยาวหนึ่งย่อหน้า) ค้นหาชื่อที่ตรงกันทุกประการในโฟลเดอร์ก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันไม่ให้การทำงานซ้ำสร้างไฟล์สำเนาขึ้นมาอีก ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "report_url": {
+        "description": "URL ของรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "moves": {
+        "description": "รายการเปลี่ยนแปลง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "report_url",
+       "moves"
+      ]
+     }
+    },
+    {
+     "id": "deck",
+     "displayName": "จัดทำเอกสารนำเสนอคณะกรรมการจากเอกสารของไตรมาสก่อนหน้า",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "1. หากมี \"Board deck\" อยู่ใน ${read_state.cycle_folder_id} ให้ใช้ไฟล์ดังกล่าว หากไม่มี ให้ใช้ copy_file คัดลอก \"Board deck\" ของรอบก่อนหน้า (ใน ${read_state.prior_cycle_folder_id}) ไปยัง ${read_state.cycle_folder_id} โดยตั้งชื่อว่า \"Board deck\"\n2. อ่านข้อมูลดังกล่าว (read_presentation) ได้แก่ ข้อความและตารางในทุกสไลด์ ป้ายกำกับไตรมาสเดิม และตัวเลขเดิมทั้งหมด\n3. อ่าน \"Comparison table\" ใน ${read_state.cycle_folder_id} ตารางก่อนหน้า และการเปลี่ยนแปลงที่มีนัยสำคัญ: \"${report.moves}\"\n4. เรียกใช้ replace_text_in_presentation เพียงครั้งเดียวพร้อมรายการแทนที่ทั้งหมด โดยแบ่งเป็นสองรอบในรายการเดียวกัน (ค่าเดิม -> โทเค็นเฉพาะ เช่น \"[[R1]]\" จากนั้นโทเค็น -> ข้อความใหม่) กำหนดขอบเขตตาม pageIds ในกรณีที่ตัวเลขปรากฏในหลายสไลด์ คงตารางไว้และแก้ไขเฉพาะข้อความภายในตารางเท่านั้น\nส่งคืน URL ของชุดสไลด์ ห้ามสร้างตัวเลขขึ้นเองโดยเด็ดขาด ค้นหาชื่อที่ตรงกันทุกประการในโฟลเดอร์ก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันไม่ให้การทำงานซ้ำสร้างไฟล์สำเนาขึ้นมาอีก ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "deck_url": {
+        "description": "URL ของเอกสารนำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_head",
+     "displayName": "ตรวจสอบรายงานและเอกสารนำเสนอคณะกรรมการ",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ร่างเอกสาร ${read_state.cycle_name} พร้อมแล้ว รายงาน: ${report.report_url}  ชุดสไลด์: ${deck.deck_url}\n\nโปรดเพิ่มข้อมูลในส่วน \"For discussion\" ของรายงาน (แก้ไขลงในเอกสารโดยตรง) และพิมพ์การแก้ไขอื่น ๆ ลงในช่องข้อคิดเห็น การอนุมัติ (Approve) = ระบบจะนำข้อความที่ท่านพิมพ์ไปปรับใช้และจัดส่งชุดเอกสารให้แก่เลขานุการบริษัท การปฏิเสธ (Reject) = จะไม่มีการส่งเอกสารใด ๆ และระบบจะแสดงข้อมูลนี้ให้ท่านพิจารณาอีกครั้งในวันพรุ่งนี้",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "finish",
+     "displayName": "ปรับใช้การเปลี่ยนแปลงและบันทึกข้อความการปฏิบัติงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ข้อความการแก้ไขที่พิมพ์โดยหัวหน้า: \"${gate_head.approval_feedback}\"\n1. หากมีการแก้ไข ให้นำการแก้ไขแต่ละรายการไปปรับใช้กับเอกสาร \"Board report\" (replace_text หรือ replace_section) และ \"Board deck\" (replace_text_in_presentation หนึ่งครั้ง) ใน ${read_state.cycle_folder_id} ห้ามเปลี่ยนแปลงตัวเลข เว้นแต่หัวหน้าจะระบุค่าใหม่และแหล่งข้อมูลมาด้วย ทั้งนี้ ให้คงส่วนที่หัวหน้าแก้ไขเองในรายงานไว้ตามเดิม\n2. สร้าง Google Doc ชื่อ \"Work note\" ใน ${read_state.cycle_folder_id} ด้วย create_file_if_absent (Markdown) ประกอบด้วย: ข้อมูลที่ตรวจพบ ธนาคารที่ถูกคัดออกพร้อมระบุเหตุผล การแก้ไขของนักวิเคราะห์ บันทึกสำหรับไตรมาสถัดไป การอนุมัติของนักวิเคราะห์ และการอนุมัติของหัวหน้าพร้อมถ้อยคำที่ระบุไว้\nส่งคืน URL ของ \"Comparison table\", \"Board report\", \"Board deck\" และ \"Work note\" รวมถึง `could_not` (รายการแก้ไขที่ไม่สามารถดำเนินการได้พร้อมเหตุผล) ค้นหาชื่อที่ตรงกันทุกประการในโฟลเดอร์ก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันไม่ให้การทำงานซ้ำสร้างไฟล์สำเนาขึ้นมาอีก ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "URL ของตาราง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_url": {
+        "description": "URL ของรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "URL ของเอกสารนำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "work_note_url": {
+        "description": "URL ของบันทึกข้อความการปฏิบัติงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "could_not": {
+        "description": "ไม่สามารถดำเนินการได้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "report_url",
+       "deck_url",
+       "work_note_url",
+       "could_not"
+      ]
+     }
+    },
+    {
+     "id": "mail_secretary",
+     "displayName": "ส่งอีเมลถึงเลขานุการบริษัท",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงหนึ่งฉบับด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วยุติการทำงาน ถึง: ${read_state.secretary_email} (สำเนาถึง ${read_state.head_email}) หัวข้อ: ${read_state.cycle_name} - board pack เนื้อความ: จากผู้ช่วยงานเปรียบเทียบเทียบเคียง (benchmark assistant) ของหัวหน้าฝ่ายยุทธศาสตร์ ด้วยภาษาที่สุภาพและเรียบง่าย: หัวหน้าฝ่ายยุทธศาสตร์ได้อนุมัติชุดเอกสารสำหรับการประชุมคณะกรรมการในวันที่ ${read_state.board_date} เรียบร้อยแล้ว ลิงก์: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url} สำหรับเวอร์ชัน Word และ PowerPoint: ไฟล์ > ดาวน์โหลด หากมีข้อสงสัยหรือขาดเอกสารใด สามารถตอบกลับอีเมลนี้ได้\nเรียกใช้คำสั่งส่งเพียงครั้งเดียวเท่านั้น หากได้รับคำตอบ เช่น 'Action Confirmed' หรือ 'Review completed' แสดงว่าได้ส่งข้อมูลเรียบร้อยแล้ว ห้ามสอบถามซ้ำและห้ามส่งซ้ำ ส่งคืนค่า ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "summary",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป`: ได้จัดส่งชุดเอกสารการประชุมคณะกรรมการสำหรับ ${read_state.cycle_name} ให้แก่เลขานุการบริษัทเรียบร้อยแล้ว `จุด_เชื่อมโยง`: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url}, Work note ${finish.work_note_url} และรายการแก้ไขที่ไม่ได้ดำเนินการ: ${finish.could_not} ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "จุด_เชื่อมโยง": {
+        "description": "ลิงก์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป",
+       "จุด_เชื่อมโยง"
+      ]
+     }
+    },
+    {
+     "id": "find_drafts",
+     "displayName": "ค้นหาร่างเอกสาร",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ค้นหา Google Doc ชื่อ \"Board report\" และ Google Slides ชื่อ \"Board deck\" ใน ${read_state.cycle_folder_id} และส่งคืน URL ของเอกสารดังกล่าว ดำเนินการแบบอ่านอย่างเดียว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "report_url": {
+        "description": "URL ของรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "deck_url": {
+        "description": "URL ของเอกสารนำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "report_url",
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_head2",
+     "displayName": "ตรวจสอบรายงานและเอกสารนำเสนอคณะกรรมการ",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ร่างเอกสาร ${read_state.cycle_name} อยู่ระหว่างรอการพิจารณาจากท่าน รายงาน: ${find_drafts.report_url}  ชุดสไลด์: ${find_drafts.deck_url}\n\nโปรดเพิ่มข้อมูลในส่วน \"For discussion\" ของรายงาน (แก้ไขลงในเอกสารโดยตรง) และพิมพ์การแก้ไขอื่น ๆ ลงในช่องข้อคิดเห็น การอนุมัติ (Approve) = ระบบจะนำข้อความที่ท่านพิมพ์ไปปรับใช้และจัดส่งชุดเอกสารให้แก่เลขานุการบริษัท การปฏิเสธ (Reject) = จะไม่มีการส่งเอกสารใด ๆ และระบบจะแสดงข้อมูลนี้ให้ท่านพิจารณาอีกครั้งในวันพรุ่งนี้",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "h_finish",
+     "displayName": "ปรับใช้การเปลี่ยนแปลงและบันทึกข้อความการปฏิบัติงาน",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ข้อความการแก้ไขที่พิมพ์โดยหัวหน้า: \"${gate_head2.approval_feedback}\"\n1. หากมีการแก้ไข ให้นำการแก้ไขแต่ละรายการไปปรับใช้กับเอกสาร \"Board report\" (replace_text หรือ replace_section) และ \"Board deck\" (replace_text_in_presentation หนึ่งครั้ง) ใน ${read_state.cycle_folder_id} ห้ามเปลี่ยนแปลงตัวเลข เว้นแต่หัวหน้าจะระบุค่าใหม่และแหล่งข้อมูลมาด้วย ทั้งนี้ ให้คงส่วนที่หัวหน้าแก้ไขเองในรายงานไว้ตามเดิม\n2. สร้าง Google Doc ชื่อ \"Work note\" ใน ${read_state.cycle_folder_id} ด้วย create_file_if_absent (Markdown) ประกอบด้วย: ข้อมูลที่ตรวจพบ ธนาคารที่ถูกคัดออกพร้อมระบุเหตุผล การแก้ไขของนักวิเคราะห์ บันทึกสำหรับไตรมาสถัดไป การอนุมัติของนักวิเคราะห์ และการอนุมัติของหัวหน้าพร้อมถ้อยคำที่ระบุไว้\nส่งคืน URL ของ \"Comparison table\", \"Board report\", \"Board deck\" และ \"Work note\" รวมถึง `could_not` (รายการแก้ไขที่ไม่สามารถดำเนินการได้พร้อมเหตุผล) ค้นหาชื่อที่ตรงกันทุกประการในโฟลเดอร์ก่อนเสมอ และใช้ create_file_if_absent เพื่อป้องกันไม่ให้การทำงานซ้ำสร้างไฟล์สำเนาขึ้นมาอีก ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "URL ของตาราง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_url": {
+        "description": "URL ของรายงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "URL ของเอกสารนำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "work_note_url": {
+        "description": "URL ของบันทึกข้อความการปฏิบัติงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "could_not": {
+        "description": "ไม่สามารถดำเนินการได้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "report_url",
+       "deck_url",
+       "work_note_url",
+       "could_not"
+      ]
+     }
+    },
+    {
+     "id": "h_mail_secretary",
+     "displayName": "ส่งอีเมลถึงเลขานุการบริษัท",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลเพียงหนึ่งฉบับด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วยุติการทำงาน ถึง: ${read_state.secretary_email} (สำเนาถึง ${read_state.head_email}) หัวข้อ: ${read_state.cycle_name} - board pack เนื้อความ: จากผู้ช่วยงานเปรียบเทียบเทียบเคียง (benchmark assistant) ของหัวหน้าฝ่ายยุทธศาสตร์ ด้วยภาษาที่สุภาพและเรียบง่าย: หัวหน้าฝ่ายยุทธศาสตร์ได้อนุมัติชุดเอกสารสำหรับการประชุมคณะกรรมการในวันที่ ${read_state.board_date} เรียบร้อยแล้ว ลิงก์: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url} สำหรับเวอร์ชัน Word และ PowerPoint: ไฟล์ > ดาวน์โหลด หากมีข้อสงสัยหรือขาดเอกสารใด สามารถตอบกลับอีเมลนี้ได้\nเรียกใช้คำสั่งส่งเพียงครั้งเดียวเท่านั้น หากได้รับคำตอบ เช่น 'Action Confirmed' หรือ 'Review completed' แสดงว่าได้ส่งข้อมูลเรียบร้อยแล้ว ห้ามสอบถามซ้ำและห้ามส่งซ้ำ ส่งคืนค่า ส่ง_แล้ว=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "h_summary",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `บท_สรุป`: ได้จัดส่งชุดเอกสารการประชุมคณะกรรมการสำหรับ ${read_state.cycle_name} ให้แก่เลขานุการบริษัทเรียบร้อยแล้ว `จุด_เชื่อมโยง`: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url}, Work note ${h_finish.work_note_url} และรายการแก้ไขที่ไม่ได้ดำเนินการ: ${h_finish.could_not} ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "บท_สรุป": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "จุด_เชื่อมโยง": {
+        "description": "ลิงก์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "บท_สรุป",
+       "จุด_เชื่อมโยง"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "route",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "check_files",
+     "routeString": "Files"
+    },
+    {
+     "sourceNodeId": "check_files",
+     "targetNodeId": "route_files"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "mail_reminder",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "gate_go",
+     "routeString": "AskHead"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "banks",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "banks",
+     "targetNodeId": "write_table"
+    },
+    {
+     "sourceNodeId": "write_table",
+     "targetNodeId": "mail_check"
+    },
+    {
+     "sourceNodeId": "gate_go",
+     "targetNodeId": "go_banks",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "go_banks",
+     "targetNodeId": "go_write_table"
+    },
+    {
+     "sourceNodeId": "go_write_table",
+     "targetNodeId": "go_mail_check"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "read_analyst",
+     "routeString": "Analyst"
+    },
+    {
+     "sourceNodeId": "read_analyst",
+     "targetNodeId": "route_analyst"
+    },
+    {
+     "sourceNodeId": "route_analyst",
+     "targetNodeId": "mail_clarify",
+     "routeString": "Question"
+    },
+    {
+     "sourceNodeId": "route_analyst",
+     "targetNodeId": "report",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "report",
+     "targetNodeId": "deck"
+    },
+    {
+     "sourceNodeId": "deck",
+     "targetNodeId": "gate_head"
+    },
+    {
+     "sourceNodeId": "gate_head",
+     "targetNodeId": "finish",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "finish",
+     "targetNodeId": "mail_secretary"
+    },
+    {
+     "sourceNodeId": "mail_secretary",
+     "targetNodeId": "summary"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "find_drafts",
+     "routeString": "Head"
+    },
+    {
+     "sourceNodeId": "find_drafts",
+     "targetNodeId": "gate_head2"
+    },
+    {
+     "sourceNodeId": "gate_head2",
+     "targetNodeId": "h_finish",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "h_finish",
+     "targetNodeId": "h_mail_secretary"
+    },
+    {
+     "sourceNodeId": "h_mail_secretary",
+     "targetNodeId": "h_summary"
+    }
+   ]
+  }
+ }
+}

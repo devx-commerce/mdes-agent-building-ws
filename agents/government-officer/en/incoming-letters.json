@@ -1,0 +1,2491 @@
+{
+ "id": "GOV-C",
+ "persona": "government-officer",
+ "lang": "en",
+ "display_name": "Incoming Letters",
+ "description": "หนังสือเข้า (Incoming letters): finds new letters in your inbox and the หนังสือเข้า folder, reads them (scanned Thai too), suggests the unit from your routing table, drafts the reply with marked blanks, emails the Section Head a routing note and acts on the reply (calendar reminder with the draft for the officer, register), and sends the Monday list. Runs every hour (up to 3 letters, most urgent first); creates the หนังสือเข้า folder and routing table if you have none.",
+ "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/gov/build_incoming_letters.py (v2, 12 Oct 2026): hourly; creates a missing folder/routing table; up to 3 letters per run in a Loop, most urgent first; letters in progress are not started again.",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "Every hour (0 * * * *, Asia/Bangkok)",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 * * * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": ""
+       }
+      }
+     }
+    },
+    {
+     "id": "get_setup",
+     "displayName": "Find the folder, routing table and register",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You find what this run needs in the signed-in user's Google Drive. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nThis run was started by the schedule: there is no user message. Links in it are used first. A Google Drive link carries the file ID: drive.google.com/drive/folders/<ID>, drive.google.com/file/d/<ID>/..., docs.google.com/document|spreadsheets|presentation/d/<ID>/... Take the ID from the link and check it with get_file_metadata.\n1. Letters folder: the folder named หนังสือเข้า (search_files, folders only, include folders shared with the user). folder_status: found = exactly one; ambiguous = more than one (list each as name + link in stop_items); missing = none. folder_parent_id = its parent folder's ID (get_file_metadata).\n2. Routing table: the Google Sheet whose name starts with ตารางมอบหมายงาน. Read every row (get_values). units = one line per row: topics | unit | officer email. section_head_email = the email in the row whose topic or unit names the Section Head (หัวหน้ากลุ่มงาน); empty if none. Same found / ambiguous / missing rule.\n3. Register: the Google Sheet whose name starts with ทะเบียนติดตามหนังสือ or ทะเบียนหนังสือรับ. register_id = its ID, or empty if there is none (the next step creates it; that is not a problem). If found: register_rows = every row of the first tab as plain text, with its row number; handled_ids = every Drive file ID and Gmail message or thread ID found inside the links of the first tab (column ไฟล์ต้นฉบับ: the part after /file/d/ or after #all/) plus every ID listed in the tab named ข้ามแล้ว (comma-separated; empty if none); start_date = the register's creation date converted to Asia/Bangkok time (YYYY-MM-DD; get_file_metadata gives UTC). If not found: start_date = today.\n4. Past replies (optional, for the writing style): the folder whose name starts with หนังสือตอบเดิม; its ID or empty.\n5. owner_email = the owner's email of the letters folder (get_file_metadata); this is the officer who runs the agent (Khun Pranee).\n6. today = today's date in Asia/Bangkok (YYYY-MM-DD); weekday = its English weekday name; hour = the current hour (0-23) in Asia/Bangkok. Test override: if the message contains today=YYYY-MM-DD (and optionally hour=HH), use those instead (weekday from that date).\n7. Routing table content: unit_rows = how many rows name a unit with an officer email (not the Section Head row, not the header).\n8. What stops the run (each true/false): need_fix = the letters folder or the routing table was found more than once (fix_items = one line per such item: name + link of each match); folder_missing = no letters folder; table_missing = no routing table; table_empty = the routing table exists but unit_rows is 0 or section_head_email is empty. setup_parent_id = the parent folder of the letters folder or of the routing table, whichever was found (empty = My Drive). missing_any = folder_missing or table_missing. ready = true only if none of need_fix, folder_missing, table_missing, table_empty is true.\nUse only names, IDs and links the tools return; never make one up.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "folder_id": {
+        "description": "Letters folder ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "folder_parent_id": {
+        "description": "Its parent folder ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "routing_table_id": {
+        "description": "Routing table ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "units": {
+        "description": "Routing table rows: topics | unit | officer email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "section_head_email": {
+        "description": "Section Head's email from the routing table; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "register_id": {
+        "description": "Register ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "register_rows": {
+        "description": "Register rows as text with row numbers",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "handled_ids": {
+        "description": "Every file/message/thread ID already in the register or the skipped tab",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "start_date": {
+        "description": "Only letters from this date (YYYY-MM-DD)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "past_replies_folder_id": {
+        "description": "Past replies folder ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "owner_email": {
+        "description": "The agent's user",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "today": {
+        "description": "YYYY-MM-DD in Asia/Bangkok",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "weekday": {
+        "description": "English weekday",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "hour": {
+        "description": "0-23 in Asia/Bangkok",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "unit_rows": {
+        "description": "Routing table rows with a unit and officer email",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "need_fix": {
+        "description": "true if the folder or table was found more than once",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "fix_items": {
+        "description": "The matches to choose from",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "folder_missing": {
+        "description": "true if there is no letters folder",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "table_missing": {
+        "description": "true if there is no routing table",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "table_empty": {
+        "description": "true if the routing table has no units or no Section Head email",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "missing_any": {
+        "description": "true if the folder or the routing table is missing",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "setup_parent_id": {
+        "description": "Where a new folder or table goes; empty = My Drive",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "ready": {
+        "description": "true if the run can go on",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       }
+      },
+      "required": [
+       "folder_id",
+       "folder_parent_id",
+       "routing_table_id",
+       "units",
+       "section_head_email",
+       "register_id",
+       "register_rows",
+       "handled_ids",
+       "start_date",
+       "past_replies_folder_id",
+       "owner_email",
+       "today",
+       "weekday",
+       "hour",
+       "unit_rows",
+       "need_fix",
+       "fix_items",
+       "folder_missing",
+       "table_missing",
+       "table_empty",
+       "missing_any",
+       "setup_parent_id",
+       "ready"
+      ]
+     }
+    },
+    {
+     "id": "setup_ok",
+     "displayName": "Folder and routing table ready?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "setup_fix",
+     "displayName": "Found more than once?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Fix",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.need_fix"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No duplicates",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.need_fix"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_fix",
+     "displayName": "Tell what to fix",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nItems found more than once: ${get_setup.fix_items}\nSay that nothing was read or sent, list each item's matches as names and links, and say: keep one and rename the others (the name must start with หนังสือเข้า or ตารางมอบหมายงาน); the next hourly run uses it.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "setup_missing",
+     "displayName": "Folder or table missing?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.missing_any"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not missing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_setup.missing_any"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "create_setup",
+     "displayName": "Create the missing folder / routing table",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Create only what is missing, with Drive create_file, once each. parentId ${get_setup.setup_parent_id} (leave parentId out if empty: My Drive).\n- Letters folder missing = ${get_setup.folder_missing}: if true, create the folder 'หนังสือเข้า' (contentMimeType 'application/vnd.google-apps.folder', no content).\n- Routing table missing = ${get_setup.table_missing}: if true, create 'ตารางมอบหมายงาน' with contentMimeType 'text/csv' (Drive turns it into a Google Sheet) and textContent = exactly these two lines, separated by a real line break (never the two characters backslash and n):\nหัวข้อ/ประเภทเรื่อง,หน่วยงานผู้รับผิดชอบ,อีเมลเจ้าหน้าที่ผู้รับผิดชอบ\nหัวหน้ากลุ่มงาน,หัวหน้ากลุ่มงาน,\nAdd no example units: every row the user leaves would be used for routing. Create nothing else.\nfolder_link / table_link = the links of what you created (empty if not created); created_all = true only if everything that was missing was created. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "folder_link": {
+        "description": "New letters folder link; empty if not created",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "table_link": {
+        "description": "New routing table link; empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "created_all": {
+        "description": "true if everything missing was created",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "folder_link",
+       "table_link",
+       "created_all",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_setup_created",
+     "displayName": "Tell what was created",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nCreated now: letters folder ${create_setup.folder_link}; routing table ${create_setup.table_link}. All created: ${create_setup.created_all}. Problems: ${create_setup.problems}\nSay what was created (links) because it was missing, and: How to fill the routing table, in Thai with the English in brackets: one row per unit with three columns: หัวข้อ/ประเภทเรื่อง (topics, e.g. งบประมาณ, บุคลากร, ภัยพิบัติ), หน่วยงานผู้รับผิดชอบ (unit), อีเมลเจ้าหน้าที่ผู้รับผิดชอบ (officer email); and in the row หัวหน้ากลุ่มงาน (Section Head) put the Section Head's email in the third column. Scans go into the folder หนังสือเข้า (incoming letters). The next hourly run starts reading letters once this is done.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "tell_fill_table",
+     "displayName": "Tell to fill in the routing table",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nRouting table found but not ready: units with an officer email = ${get_setup.unit_rows}; Section Head email = '${get_setup.section_head_email}'.\nSay that nothing was read or sent yet because the routing table needs units and the Section Head's email, and: How to fill the routing table, in Thai with the English in brackets: one row per unit with three columns: หัวข้อ/ประเภทเรื่อง (topics, e.g. งบประมาณ, บุคลากร, ภัยพิบัติ), หน่วยงานผู้รับผิดชอบ (unit), อีเมลเจ้าหน้าที่ผู้รับผิดชอบ (officer email); and in the row หัวหน้ากลุ่มงาน (Section Head) put the Section Head's email in the third column. Scans go into the folder หนังสือเข้า (incoming letters). The next hourly run starts reading letters once this is done.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "ensure_register",
+     "displayName": "Make sure the register exists",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Register ID found: \"${get_setup.register_id}\".\nIf it is not empty: call no tool; register_id = that ID; created = false.\nIf it is empty: create the register ONCE with Drive create_file: title 'ทะเบียนติดตามหนังสือ', parentId ${get_setup.folder_parent_id}, contentMimeType 'text/csv', textContent = exactly this one header line: วันที่รับ,ผู้ส่ง,เรื่อง,ระดับความเร่งด่วน,หน่วยงานที่ได้รับมอบหมาย,เจ้าหน้าที่ผู้รับผิดชอบ,กำหนดส่ง,สถานะ,ไฟล์ต้นฉบับ,ร่างหนังสือตอบ,เลขที่หนังสือ (so it becomes a Google Sheet). register_id = the ID the tool returns; created = true. Create nothing else. register_link = the register's link (get_file_metadata if it already existed).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems.\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "register_id": {
+        "description": "The register's ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "register_link": {
+        "description": "The register's link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "created": {
+        "description": "true if created in this run",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "register_id",
+       "register_link",
+       "created"
+      ]
+     }
+    },
+    {
+     "id": "find_reply",
+     "displayName": "Check the Section Head's replies",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You check the Section Head's replies to earlier routing notes. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nRegister rows: ${get_setup.register_rows}\nRouting table (topics | unit | officer email): ${get_setup.units}\nToday: ${get_setup.today} (${get_setup.weekday}).\n1. Pending letters = rows whose status (สถานะ) is รอเกษียณ, oldest first. For each, find its routing-note thread: search_threads for subject:\"[เกษียณหนังสือ]\" with the letter's number (เลขที่หนังสือ) or subject, in:sent, then get_thread.\n2. A reply = a later message in that thread whose text does NOT contain '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)' (that mark is on every email this agent sends: the routing note and reminders). Use the reply's own new text only (ignore quoted earlier text). Decide from it: approved (อนุมัติ, ok, เห็นชอบ, or a plain yes); reassigned (it names another unit from the routing table: use that unit and its officer email); rejected (ไม่อนุมัติ, reject); unclear (anything else: leave it waiting).\n3. Take the FIRST pending letter that has an approved, reassigned or rejected reply: has_decision = true, approved = true for approved or reassigned, false for rejected; fill the letter's fields from its row; unit and officer_email = the final unit (the new one if reassigned). has_deadline = true only if the row has a real deadline date.\n4. If no letter has a decision: has_decision = false. remind = true only if the oldest pending letter's routing note was sent before the last working day (Mon-Fri) and the thread has no reminder (a later message containing '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)') sent today; then fill that letter's fields too.\nNever guess a decision; unclear means waiting.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: search_threads, get_thread, get_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "has_decision": {
+        "description": "true if one letter has a decision",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "approved": {
+        "description": "true = approved or reassigned",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "remind": {
+        "description": "true if a reminder is due",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "row_number": {
+        "description": "Register row of that letter",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "letter_no": {
+        "description": "เลขที่หนังสือ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "subject": {
+        "description": "เรื่อง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "sender": {
+        "description": "ผู้ส่ง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "deadline": {
+        "description": "YYYY-MM-DD or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "has_deadline": {
+        "description": "true if a real deadline",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "unit": {
+        "description": "Final unit",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "officer_email": {
+        "description": "Final officer email (from the routing table)",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "draft_link": {
+        "description": "Draft reply link from the row",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "source_link": {
+        "description": "Original letter link from the row",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "thread_id": {
+        "description": "Routing-note thread ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "decision_text": {
+        "description": "The reply's words, quoted",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       }
+      },
+      "required": [
+       "has_decision",
+       "approved",
+       "remind",
+       "row_number",
+       "letter_no",
+       "subject",
+       "sender",
+       "deadline",
+       "has_deadline",
+       "unit",
+       "officer_email",
+       "draft_link",
+       "source_link",
+       "thread_id",
+       "decision_text"
+      ]
+     }
+    },
+    {
+     "id": "reply_found",
+     "displayName": "A decision from the Section Head?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Decision",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_decision"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No decision",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_decision"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "is_approved",
+     "displayName": "Approved?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Approved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.approved"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Rejected",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.approved"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "has_deadline",
+     "displayName": "Has a deadline?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Deadline",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_deadline"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No deadline",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.has_deadline"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "invite_officer",
+     "displayName": "Deadline reminder for the officer (draft attached)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The Section Head approved this letter for ${find_reply.unit}. Create exactly ONE event with Calendar create_event: title 'ครบกำหนดส่ง: ${find_reply.subject}', date ${find_reply.deadline} 09:00-09:30, time zone Asia/Bangkok; attendee ${find_reply.officer_email} only; send the invitation to the attendee; attach the draft reply (${find_reply.draft_link}) to the event. Description in Thai: from ${find_reply.sender}, letter ${find_reply.letter_no}, what is asked, due ${find_reply.deadline}, original letter ${find_reply.source_link}, draft reply ${find_reply.draft_link}; fill in the marked blanks, finish the reply and send it through e-Saraban. created = true only if the tool returned an event ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Calendar MCP: create_event.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "created": {
+        "description": "true only if an event ID came back",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "event_link": {
+        "description": "Event link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "created",
+       "event_link",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "email_officer",
+     "displayName": "Email the officer the draft (no deadline)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "The Section Head approved this letter for ${find_reply.unit}; it has no deadline. Send exactly ONE email with send_email to ${find_reply.officer_email} only (no CC/BCC). Subject: มอบหมายงาน: ${find_reply.subject}. Body in short Thai: from ${find_reply.sender}, letter ${find_reply.letter_no}, original ${find_reply.source_link}, draft reply ${find_reply.draft_link}; fill in the marked blanks and send it through e-Saraban. sent = true only if the tool returned a message ID. End the email body with this exact last line: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_assigned",
+     "displayName": "Register: assigned",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Update ONE register row with Sheets update_row: spreadsheet ${ensure_register.register_id}, first tab, row ${find_reply.row_number}. Set หน่วยงานที่ได้รับมอบหมาย = ${find_reply.unit}, เจ้าหน้าที่ผู้รับผิดชอบ = ${find_reply.officer_email}, สถานะ = รอดำเนินการ. Change nothing else. updated = true only if the tool confirmed it.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: update_row.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "update_rejected",
+     "displayName": "Register: not approved",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Update ONE register row with Sheets update_row: spreadsheet ${ensure_register.register_id}, first tab, row ${find_reply.row_number}: สถานะ = ไม่อนุมัติ. Change nothing else. updated = true only if the tool confirmed it.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: update_row.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "updated": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "updated",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "needs_reminder",
+     "displayName": "Reminder due?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.remind"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No reminder",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_reply.remind"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_reminder",
+     "displayName": "Remind the Section Head",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Reply ONCE in the routing-note thread ${find_reply.thread_id} with send_email (to the thread's original recipient only, same subject with Re:). Body in short Thai: a reminder that letter ${find_reply.letter_no} (${find_reply.subject}) from ${find_reply.sender} is waiting for the routing decision, due ${find_reply.deadline} (write ไม่มี (none) if empty); reply อนุมัติ, the name of another unit, or ไม่อนุมัติ. sent = true only if the tool returned a message ID. End the email body with this exact last line: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "find_new",
+     "displayName": "Find new letters (most urgent first)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You find the next incoming letters. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nOnly items from ${get_setup.start_date} on. Already handled = any item whose file ID, message ID or thread ID is in ${get_setup.handled_ids}: leave those out completely (never look at them again and never list them as skips).\n1. Emails: search_threads 'in:inbox after:<the day before start_date, as YYYY/MM/DD>' and keep only messages whose date in Asia/Bangkok time is on or after the start date. Leave out this agent's own emails and their replies: threads whose subject contains [เกษียณหนังสือ] or [สรุปหนังสือค้าง] or starts with มอบหมายงาน: or ตัวช่วยหนังสือเข้า:, and any message whose text contains '— ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant)'; also calendar invitations and everything already handled. (Letters may come from any sender, including the signed-in user's own address.)\n2. Scans: files directly in folder ${get_setup.folder_id} created on or after the start date (Asia/Bangkok), not already handled.\n3. Letters already in progress (an earlier run started them and their cards may still be waiting): search_threads 'in:sent subject:\"[เกษียณหนังสือ]\" after:<the day before start_date>' and list the letter numbers in those subjects; search_files for Google Docs whose name starts with 'ร่างหนังสือตอบ – ' in folder ${get_setup.folder_parent_id} and list their names.\n4. Oldest first, look at up to 10 items (get_message for emails; read_file_content for files) and decide: a letter = an official letter (หนังสือราชการ: it has a letter number ที่, a subject เรื่อง and an addressee เรียน, from an organisation), in the email body or in an attached PDF/image. Not a letter (newsletters, invitations, personal mail, adverts) -> skips, reason not_a_letter. An item carrying a letter number and sender already in the register rows (${get_setup.register_rows}) -> skips, reason duplicate. A letter whose number is in a sent [เกษียณหนังสือ] subject, or whose subject matches a 'ร่างหนังสือตอบ – ' Doc name from step 3 -> in progress: leave it out (list it in in_progress, not in skips).\n5. letters = the real new letters, MOST URGENT FIRST (ด่วนที่สุด, then ด่วนมาก, then ด่วน, then the rest; oldest first within each), at most 3. Each entry is ONE line of text: 'source=<email or scan>; id=<message ID or file ID>; link=<https://mail.google.com/mail/u/0/#all/<thread ID> or https://drive.google.com/file/d/<file ID>/view>; attachments=<the email's attachment IDs, comma-separated, or none>; urgency=<as printed or ปกติ>'. has_letters = true if letters is not empty; letter_count = how many.\nskips = at most 20 items; has_skips = true if skips is not empty. Never guess: if you cannot tell, treat it as a letter.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: search_threads, get_thread, get_message | Drive MCP: search_files, read_file_content, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "letters": {
+        "description": "Up to 3 new letters, most urgent first, one line of text each",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "has_letters": {
+        "description": "true if there is at least one new letter",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "letter_count": {
+        "description": "How many letters this run",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "in_progress": {
+        "description": "Letters left out because an earlier run already started them",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "has_skips": {
+        "description": "true if there are skips",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "skips": {
+        "description": "Items that are not letters or are duplicates",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 5
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "Message or file ID",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "title": {
+           "description": "Subject or file name",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "reason": {
+           "description": "not_a_letter or duplicate",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "id",
+          "title",
+          "reason"
+         ]
+        }
+       }
+      },
+      "required": [
+       "letters",
+       "has_letters",
+       "letter_count",
+       "in_progress",
+       "has_skips",
+       "skips"
+      ]
+     }
+    },
+    {
+     "id": "skips_found",
+     "displayName": "Anything to skip?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Skips",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_skips"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No skips",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_skips"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "record_skips",
+     "displayName": "Remember the skipped items",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Append the skipped items to the tab named ข้ามแล้ว of spreadsheet ${ensure_register.register_id} with Sheets append_rows, in ONE call: one row per item: date ${get_setup.today}, id, title, reason. If that tab does not exist, first create it with add_sheet (header: วันที่, ID, ชื่อ, เหตุผล). Items: ${find_new.skips}. appended = true only if the tool confirmed it.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: get_spreadsheet, add_sheet, append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "appended": {
+        "description": "true only if confirmed",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "appended",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "letter_found",
+     "displayName": "New letters?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "New letters",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_letters"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No new letter",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "find_new.has_letters"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "each_letter",
+     "displayName": "For each new letter",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "find_new.letters",
+      "currentItemVariable": "item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "loop_trigger",
+         "displayName": "This letter",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "item": {
+            "type": "STRING"
+           }
+          }
+         }
+        },
+        {
+         "id": "read_letter",
+         "displayName": "Read the letter (scanned Thai too)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ],
+          "instruction": "Read this incoming letter in full. The letter (from the list of this run): \"${loop_trigger.item}\" (source = email or scan; id = the message ID or file ID; link; attachments = the email's attachment IDs). For an email: get_message; if the letter is in an attachment, save it to Drive ONCE with save_attachment_to_drive (into folder ${get_setup.folder_id}) and read it with read_file_content. For a scan: read_file_content (it reads scanned Thai).\nReturn: sender (the sending organisation), letter_no (ที่), letter_date, subject (เรื่อง), addressed_to (เรียน), request_summary (what is asked, short Thai), deadline (YYYY-MM-DD; convert Buddhist-era dates and 'within N days' from the letter date or today ${get_setup.today}; empty if none), deadline_text (as written), urgency (ด่วนที่สุด / ด่วนมาก / ด่วน / ปกติ, as printed), urgent = true if urgency is ด่วนที่สุด or ด่วนมาก or the deadline is within 3 days of today; reply_format = หนังสือภายนอก (another organisation) or บันทึกข้อความ (inside the office); file_link = the Drive link of the letter file (the saved attachment, the scan, or empty for a body-only email); readable = false only if the letter cannot be read; problems = what could not be read; source_id and source_link = the id and link from the item above.\nNever invent a number, date or name. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: get_message, save_attachment_to_drive | Drive MCP: read_file_content, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "sender": {
+            "description": "Sending organisation",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "letter_no": {
+            "description": "ที่",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "letter_date": {
+            "description": "Letter date",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "subject": {
+            "description": "เรื่อง",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "addressed_to": {
+            "description": "เรียน",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           },
+           "request_summary": {
+            "description": "What is asked",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 5
+            }
+           },
+           "deadline": {
+            "description": "YYYY-MM-DD or empty",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 6
+            }
+           },
+           "deadline_text": {
+            "description": "Deadline as written",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 7
+            }
+           },
+           "urgency": {
+            "description": "As printed",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 8
+            }
+           },
+           "urgent": {
+            "description": "true if very urgent or due within 3 days",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 9
+            }
+           },
+           "reply_format": {
+            "description": "หนังสือภายนอก or บันทึกข้อความ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 10
+            }
+           },
+           "file_link": {
+            "description": "Drive link of the letter file",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 11
+            }
+           },
+           "readable": {
+            "description": "false if it cannot be read",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 12
+            }
+           },
+           "source_id": {
+            "description": "Message ID or file ID (from the item)",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 13
+            }
+           },
+           "source_link": {
+            "description": "Link to the original (from the item)",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 14
+            }
+           },
+           "problems": {
+            "description": "Empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 15
+            }
+           }
+          },
+          "required": [
+           "sender",
+           "letter_no",
+           "letter_date",
+           "subject",
+           "addressed_to",
+           "request_summary",
+           "deadline",
+           "deadline_text",
+           "urgency",
+           "urgent",
+           "reply_format",
+           "file_link",
+           "readable",
+           "source_id",
+           "source_link",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "letter_ok",
+         "displayName": "Readable?",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Readable",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "read_letter.readable"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Unreadable",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "read_letter.readable"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "route",
+         "displayName": "Suggest the unit (routing table)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "instruction": "Choose the unit for this letter. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Use no tools.\nLetter: from ${read_letter.sender}; subject ${read_letter.subject}; asks: ${read_letter.request_summary}.\nRouting table (topics | unit | officer email): ${get_setup.units}\nPick the ONE row whose topics best match (never the Section Head row). matched = true; unit and officer_email from that row; reason = one short Thai line. If no row fits: matched = false, unit = ไม่พบในตารางมอบหมายงาน, officer_email = ${get_setup.owner_email}. Never invent an email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+         },
+         "outputSchema": {
+          "properties": {
+           "matched": {
+            "description": "true if a row fits",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "unit": {
+            "description": "Suggested unit",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "officer_email": {
+            "description": "Officer email",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "reason": {
+            "description": "Why, one Thai line",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "matched",
+           "unit",
+           "officer_email",
+           "reason"
+          ]
+         }
+        },
+        {
+         "id": "draft_reply",
+         "displayName": "Draft the reply (blanks marked)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "Draft the reply to this letter as ONE Google Doc in the correct official format: ${read_letter.reply_format}.\nLetter: from ${read_letter.sender}, ที่ ${read_letter.letter_no}, ลงวันที่ ${read_letter.letter_date}, เรื่อง ${read_letter.subject}, เรียน ${read_letter.addressed_to}; asks: ${read_letter.request_summary}; due ${read_letter.deadline_text}. Suggested unit: ${route.unit}.\nStyle: if folder \"${get_setup.past_replies_folder_id}\" is not empty, read 1-2 past replies in it on a similar subject and follow their wording and layout. Wherever information only the responsible unit knows is needed (numbers, names, dates), leave a clearly marked blank like [……] with what belongs there; never invent it. Leave the official letter number (ที่) of the reply blank too. Never put an image or a picture link in the draft: where the Garuda emblem (ครุฑ) belongs, write the text [ตราครุฑ] (Garuda emblem) for the officer to replace.\nHOW: call create_file ONCE: title 'ร่างหนังสือตอบ – ${read_letter.subject}', parentId ${get_setup.folder_parent_id}, contentMimeType 'text/html', textContent = the whole HTML. Create nothing else. draft_id = the ID the tool returns; draft_link = its link; created = true only if it returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "draft_id": {
+            "description": "Draft Doc ID; empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "draft_link": {
+            "description": "Draft Doc link",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "created": {
+            "description": "true only if the tool returned an ID",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "problems": {
+            "description": "Empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "draft_id",
+           "draft_link",
+           "created",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "draft_made",
+         "displayName": "Draft created?",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Created",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "draft_reply.created"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Not created",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "draft_reply.created"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "register_row",
+         "displayName": "Register: new letter (awaiting routing)",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "Add ONE row to the first tab of the register ${ensure_register.register_id} with Sheets append_rows (read the header first with get_values to keep the column order). Values: วันที่รับ ${get_setup.today}; ผู้ส่ง ${read_letter.sender}; เรื่อง ${read_letter.subject}; ระดับความเร่งด่วน ${read_letter.urgency}; หน่วยงานที่ได้รับมอบหมาย ${route.unit}; เจ้าหน้าที่ผู้รับผิดชอบ ${route.officer_email}; กำหนดส่ง ${read_letter.deadline} (or ไม่มี if there is no deadline); สถานะ รอเกษียณ; ไฟล์ต้นฉบับ ${read_letter.source_link}; ร่างหนังสือตอบ ${draft_reply.draft_link}; เลขที่หนังสือ ${read_letter.letter_no}. If the header has no เลขที่หนังสือ column, put the letter number at the end of the row. appended = true only if the tool confirmed it.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: get_values, append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "appended": {
+            "description": "true only if confirmed",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "problems": {
+            "description": "Empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "appended",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "row_made",
+         "displayName": "Register row added?",
+         "nodeType": "CONDITION_NODE",
+         "conditionNode": {
+          "ruleBasedRouting": {
+           "rules": [
+            {
+             "branch": "Added",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "register_row.appended"
+                   },
+                   "conditionOperator": "IS_TRUE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            },
+            {
+             "branch": "Not added",
+             "rule": {
+              "rootExpression": {
+               "logicalGroup": {
+                "logicalOperator": "AND",
+                "expressions": [
+                 {
+                  "condition": {
+                   "left": {
+                    "variablePath": "register_row.appended"
+                   },
+                   "conditionOperator": "IS_FALSE"
+                  }
+                 }
+                ]
+               }
+              }
+             }
+            }
+           ]
+          }
+         }
+        },
+        {
+         "id": "email_head",
+         "displayName": "Routing note to the Section Head",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "Send exactly ONE email with send_email. to = ${get_setup.section_head_email} (from the routing table); if that is empty, to = an empty string: the user types it on the confirm card. Never invent an address. No CC/BCC.\nSubject: [เกษียณหนังสือ] ${read_letter.letter_no} – ${read_letter.subject}; if ${read_letter.urgent} is true, put [${read_letter.urgency}] right after the first tag.\nBody in short Thai (a digital routing note, เกษียณหนังสือ): จาก (from) ${read_letter.sender}; ที่ ${read_letter.letter_no}; ต้องการ (asks) ${read_letter.request_summary}; กำหนดส่ง (due) ${read_letter.deadline_text} (write ไม่มี (none) if empty); ความเร่งด่วน ${read_letter.urgency}; หน่วยงานที่เสนอ (suggested unit) ${route.unit} (${route.reason}); original ${read_letter.source_link}; draft reply ${draft_reply.draft_link} (it can be edited directly). Last line: ตอบกลับอีเมลนี้: อนุมัติ / ชื่อหน่วยงานอื่น / ไม่อนุมัติ (reply: approve / another unit's name / not approved). sent = true only if the tool returned a message ID. End the email body with this exact last line: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "true only if sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "to": {
+            "description": "Recipient",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "problems": {
+            "description": "Empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           }
+          },
+          "required": [
+           "sent",
+           "to",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "report_problem",
+         "displayName": "Email the officer about a problem letter",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "A letter could not be handled. Letter: ${read_letter.source_link}. What went wrong: readable = ${read_letter.readable} (${read_letter.problems}).\nSend exactly ONE email with send_email to ${get_setup.owner_email} (if empty, to = an empty string: the user types it on the card). Subject: ตัวช่วยหนังสือเข้า: ต้องตรวจสอบ (incoming letters: needs a check). Body in short Thai with the English in brackets: the link and what went wrong; it is not in the register; it will not be emailed again (fix it by hand or scan it again under a new name). sent = true only if the tool returned a message ID. End the email body with this exact last line: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "sent": {
+            "description": "true only if sent",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "problems": {
+            "description": "Empty if none",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "sent",
+           "problems"
+          ]
+         }
+        },
+        {
+         "id": "record_problem",
+         "displayName": "Remember the problem letter",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.1-pro-preview",
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ],
+          "instruction": "Append ONE row to the tab named ข้ามแล้ว of spreadsheet ${ensure_register.register_id} with Sheets append_rows (create the tab with add_sheet first if it does not exist, header: วันที่, ID, ชื่อ, เหตุผล): ${get_setup.today}, ${read_letter.source_id}, ${read_letter.source_link}, needs_check: ${read_letter.problems}. appended = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: get_spreadsheet, add_sheet, append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+         },
+         "outputSchema": {
+          "properties": {
+           "appended": {
+            "description": "true only if confirmed",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "appended"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "loop_trigger",
+         "targetNodeId": "read_letter"
+        },
+        {
+         "sourceNodeId": "read_letter",
+         "targetNodeId": "letter_ok"
+        },
+        {
+         "sourceNodeId": "letter_ok",
+         "targetNodeId": "route",
+         "routeString": "Readable"
+        },
+        {
+         "sourceNodeId": "letter_ok",
+         "targetNodeId": "report_problem",
+         "routeString": "Unreadable"
+        },
+        {
+         "sourceNodeId": "route",
+         "targetNodeId": "draft_reply"
+        },
+        {
+         "sourceNodeId": "draft_reply",
+         "targetNodeId": "draft_made"
+        },
+        {
+         "sourceNodeId": "draft_made",
+         "targetNodeId": "register_row",
+         "routeString": "Created"
+        },
+        {
+         "sourceNodeId": "draft_made",
+         "targetNodeId": "report_problem",
+         "routeString": "Not created"
+        },
+        {
+         "sourceNodeId": "register_row",
+         "targetNodeId": "row_made"
+        },
+        {
+         "sourceNodeId": "row_made",
+         "targetNodeId": "email_head",
+         "routeString": "Added"
+        },
+        {
+         "sourceNodeId": "row_made",
+         "targetNodeId": "report_problem",
+         "routeString": "Not added"
+        },
+        {
+         "sourceNodeId": "report_problem",
+         "targetNodeId": "record_problem"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "weekly_check",
+     "displayName": "Monday list due?",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You decide whether this week's list is due. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nToday ${get_setup.today} is a ${get_setup.weekday}, hour ${get_setup.hour} (Asia/Bangkok).\n1. due = true only if it is Monday, the hour is 8 or later, and search_threads finds no email with subject [สรุปหนังสือค้าง] sent by the user today. Otherwise due = false and stop.\n2. If due: read the register's first tab ${ensure_register.register_id} (get_values). list_text = in Thai: เกินกำหนด (overdue): rows whose deadline is before today and whose status is not done (เสร็จสิ้น) or not approved (ไม่อนุมัติ); ครบกำหนดภายในสัปดาห์นี้ (due this week): deadline from today to Sunday; for each: subject, sender, deadline, unit, responsible officer. Say ไม่มี (none) for an empty group.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: search_threads, get_thread, get_message | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "due": {
+        "description": "true if the Monday list is due",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "list_text": {
+        "description": "The list in Thai",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "due",
+       "list_text"
+      ]
+     }
+    },
+    {
+     "id": "weekly_due",
+     "displayName": "Send the Monday list?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Due",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "weekly_check.due"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not due",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "weekly_check.due"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_weekly",
+     "displayName": "Email the Monday list",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Send exactly ONE email with send_email to ${get_setup.section_head_email} (if empty, to = an empty string: the user types it on the card). No CC/BCC. Subject: [สรุปหนังสือค้าง] ${get_setup.today}. Body: ${weekly_check.list_text}. sent = true only if the tool returned a message ID. End the email body with this exact last line: — ส่งโดยตัวช่วยหนังสือเข้า (sent by the incoming-letters assistant) Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "Summary of this run",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSection Head decision found: ${find_reply.has_decision} (approved: ${find_reply.approved}; letter ${find_reply.subject}); reminder due: ${find_reply.remind}. New letters this run: ${find_new.letter_count} (${find_new.letters}); left out because an earlier run already started them: ${find_new.in_progress}; items skipped: ${find_new.skips}. Monday list due: ${weekly_check.due}. Register: ${ensure_register.register_link}\nSay in a few lines what this run did and link the register.\nWrite only what the data above says.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "get_setup"
+    },
+    {
+     "sourceNodeId": "get_setup",
+     "targetNodeId": "setup_ok"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "setup_fix",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "setup_ok",
+     "targetNodeId": "ensure_register",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "setup_fix",
+     "targetNodeId": "tell_fix",
+     "routeString": "Fix"
+    },
+    {
+     "sourceNodeId": "setup_fix",
+     "targetNodeId": "setup_missing",
+     "routeString": "No duplicates"
+    },
+    {
+     "sourceNodeId": "setup_missing",
+     "targetNodeId": "create_setup",
+     "routeString": "Missing"
+    },
+    {
+     "sourceNodeId": "setup_missing",
+     "targetNodeId": "tell_fill_table",
+     "routeString": "Not missing"
+    },
+    {
+     "sourceNodeId": "create_setup",
+     "targetNodeId": "tell_setup_created"
+    },
+    {
+     "sourceNodeId": "ensure_register",
+     "targetNodeId": "find_reply"
+    },
+    {
+     "sourceNodeId": "find_reply",
+     "targetNodeId": "reply_found"
+    },
+    {
+     "sourceNodeId": "reply_found",
+     "targetNodeId": "is_approved",
+     "routeString": "Decision"
+    },
+    {
+     "sourceNodeId": "reply_found",
+     "targetNodeId": "needs_reminder",
+     "routeString": "No decision"
+    },
+    {
+     "sourceNodeId": "is_approved",
+     "targetNodeId": "has_deadline",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "is_approved",
+     "targetNodeId": "update_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "has_deadline",
+     "targetNodeId": "invite_officer",
+     "routeString": "Deadline"
+    },
+    {
+     "sourceNodeId": "has_deadline",
+     "targetNodeId": "email_officer",
+     "routeString": "No deadline"
+    },
+    {
+     "sourceNodeId": "invite_officer",
+     "targetNodeId": "update_assigned"
+    },
+    {
+     "sourceNodeId": "email_officer",
+     "targetNodeId": "update_assigned"
+    },
+    {
+     "sourceNodeId": "needs_reminder",
+     "targetNodeId": "send_reminder",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "needs_reminder",
+     "targetNodeId": "find_new",
+     "routeString": "No reminder"
+    },
+    {
+     "sourceNodeId": "update_assigned",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "update_rejected",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "send_reminder",
+     "targetNodeId": "find_new"
+    },
+    {
+     "sourceNodeId": "find_new",
+     "targetNodeId": "skips_found"
+    },
+    {
+     "sourceNodeId": "skips_found",
+     "targetNodeId": "record_skips",
+     "routeString": "Skips"
+    },
+    {
+     "sourceNodeId": "skips_found",
+     "targetNodeId": "letter_found",
+     "routeString": "No skips"
+    },
+    {
+     "sourceNodeId": "record_skips",
+     "targetNodeId": "letter_found"
+    },
+    {
+     "sourceNodeId": "letter_found",
+     "targetNodeId": "each_letter",
+     "routeString": "New letters"
+    },
+    {
+     "sourceNodeId": "letter_found",
+     "targetNodeId": "weekly_check",
+     "routeString": "No new letter"
+    },
+    {
+     "sourceNodeId": "each_letter",
+     "targetNodeId": "weekly_check"
+    },
+    {
+     "sourceNodeId": "weekly_check",
+     "targetNodeId": "weekly_due"
+    },
+    {
+     "sourceNodeId": "weekly_due",
+     "targetNodeId": "send_weekly",
+     "routeString": "Due"
+    },
+    {
+     "sourceNodeId": "weekly_due",
+     "targetNodeId": "tell_done",
+     "routeString": "Not due"
+    },
+    {
+     "sourceNodeId": "send_weekly",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}

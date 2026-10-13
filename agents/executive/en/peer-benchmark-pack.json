@@ -1,0 +1,2474 @@
+{
+ "id": "EXE-A",
+ "persona": "executive",
+ "lang": "en",
+ "display_name": "Peer Benchmark Pack",
+ "description": "Owned by the Head of Strategy. Each weekday: checks the banks' files, builds the comparison table, has the analysts check it by email, drafts the board report and deck for his review, and sends the pack to the Company Secretary.",
+ "_built_from": "mdes-work-log/wf/specs/exe_a.py (13 Oct 2026, Navya)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "Schedule",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 9 * * 1-5",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "Read the quarter and work out the stage",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Folder \"Peer Benchmark\" has ID {{EXE_A_FOLDER_ID}}. Today's date is today (Asia/Bangkok).\n1. Each quarter is a folder \"Peer Benchmark <quarter>\" inside it, with a \"Setup\" doc. The current cycle = the one with the latest board meeting date; the prior cycle = the next earlier one.\n2. From the current Setup doc: board meeting date, quarter-end date (or work it out from the quarter in the folder name), Head of Strategy email, analyst emails (one or more), Company Secretary email, links to the Bank list and Metric definitions (return their file IDs).\n3. What exists (search the cycle folder and the Sent mailbox): table_exists = a Google Sheet \"Comparison table\"; check_sent = a sent email with subject \"<cycle name> - could you check the numbers?\"; report_exists = a Google Doc \"Board report\"; deck_exists = Google Slides \"Board deck\"; delivered = a sent email with subject \"<cycle name> - board pack\"; last_reminder = the date of the newest sent email with subject \"<cycle name> - bank reports still missing\" (blank if none).\n4. window_open = today is on or after quarter-end + 21 days and before the board date. days_to_board = days from today to the board date.\n5. Stage: do_files = window_open and not table_exists. do_analyst = table_exists and check_sent and not report_exists and not delivered. do_head = report_exists and deck_exists and not delivered. Otherwise all false.\nReturn the prior cycle folder ID. Read only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "ready",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "stop reason",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "cycle_folder_id": {
+        "description": "cycle folder id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "cycle_name": {
+        "description": "cycle name",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "board_date": {
+        "description": "board date",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "quarter_end": {
+        "description": "quarter end",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "year_end_cycle": {
+        "description": "year end cycle",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "head_email": {
+        "description": "head email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "analyst_emails": {
+        "description": "analyst emails",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "secretary_email": {
+        "description": "secretary email",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "bank_list_id": {
+        "description": "bank list id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "definitions_id": {
+        "description": "definitions id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "prior_cycle_folder_id": {
+        "description": "prior cycle folder id",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "today": {
+        "description": "today",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "days_to_board": {
+        "description": "days to board",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "last_reminder": {
+        "description": "last reminder",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "do_files": {
+        "description": "do files",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "do_analyst": {
+        "description": "do analyst",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "do_head": {
+        "description": "do head",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "cycle_folder_id",
+       "cycle_name",
+       "board_date",
+       "quarter_end",
+       "year_end_cycle",
+       "head_email",
+       "analyst_emails",
+       "secretary_email",
+       "bank_list_id",
+       "definitions_id",
+       "prior_cycle_folder_id",
+       "today",
+       "days_to_board",
+       "last_reminder",
+       "do_files",
+       "do_analyst",
+       "do_head"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "Can this run start?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "Stopped: say why",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "route",
+     "displayName": "What does this run need to do?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Files",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_files"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Analyst",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_analyst"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Head",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_head"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_files"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_analyst"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_head"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "nothing",
+     "displayName": "Nothing to do: say why",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: \"Nothing to do today for ${read_state.cycle_name}.\" then the reason in one line (outside the window: it opens on quarter-end + 21 days and closes on the board date ${read_state.board_date}; or waiting for the analysts' reply; or the pack was already sent). Never write any deliverable yourself. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "check_files",
+     "displayName": "Check the bank files",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Open the Bank list ${read_state.bank_list_id}. For each bank open its sub-folder in ${read_state.cycle_folder_id} and return the file IDs of its statements (FINANCIAL_STATEMENTS), notes (NOTES), MD&A, auditor report, and, if ${read_state.year_end_cycle} is true, its 56-1 One Report (blank if absent).\nA bank is missing if it has no statements file. complete = no bank is missing.\nremind = some bank is missing and the last reminder (${read_state.last_reminder}) was 2 or more days ago, or there was none.\nask_head = some bank is missing and ${read_state.days_to_board} is 7 or less.\n`missing_card`: one line, e.g. \"Bank K and Bank L not yet received\". Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "complete": {
+        "description": "complete",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "remind": {
+        "description": "remind",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "ask_head": {
+        "description": "ask head",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "missing": {
+        "description": "missing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "missing_card": {
+        "description": "missing card",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "banks": {
+        "description": "banks",
+        "type": "ARRAY",
+        "items": {
+         "description": "banks",
+         "type": "OBJECT",
+         "properties": {
+          "bank": {
+           "description": "bank",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "size_group": {
+           "description": "size group",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "statements_id": {
+           "description": "statements id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "notes_id": {
+           "description": "notes id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "mda_id": {
+           "description": "mda id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "auditor_id": {
+           "description": "auditor id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "annual_id": {
+           "description": "annual id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "bank",
+          "size_group",
+          "statements_id",
+          "notes_id",
+          "mda_id",
+          "auditor_id",
+          "annual_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 5
+        }
+       }
+      },
+      "required": [
+       "complete",
+       "remind",
+       "ask_head",
+       "missing",
+       "missing_card",
+       "banks"
+      ]
+     }
+    },
+    {
+     "id": "route_files",
+     "displayName": "Ready to build?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "AskHead",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.ask_head"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Remind",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.complete"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.ask_head"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_files.remind"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "mail_reminder",
+     "displayName": "Email the analysts: reports still missing",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.analyst_emails}. Subject: ${read_state.cycle_name} - bank reports still missing. Body: From the benchmark assistant working for the Head of Strategy, warm and plain, under 120 words: ${check_files.missing_card}. Please save them to their bank's folder in the quarter folder when they are published. I check again in two days; the analysis starts when the set is complete or the Head of Strategy decides to go ahead without them..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "gate_go",
+     "displayName": "Go ahead without the missing banks?",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "${read_state.cycle_name}: ${check_files.missing_card}. The board meets on ${read_state.board_date} (${read_state.days_to_board} days).\n\nApprove = build the table now; those banks are shown as \"not received\" with your words (type them in the feedback box if you like).\nReject = keep waiting; the analysts keep getting reminders and I ask you again tomorrow.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "banks",
+     "displayName": "For each bank",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "check_files.banks",
+      "currentItemVariable": "bank_item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "banks_start",
+         "displayName": "For each bank",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "bank_item": {
+            "description": "bank item",
+            "type": "OBJECT",
+            "properties": {
+             "bank": {
+              "description": "bank",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "size_group": {
+              "description": "size group",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "statements_id": {
+              "description": "statements id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "notes_id": {
+              "description": "notes id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "mda_id": {
+              "description": "mda id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "auditor_id": {
+              "description": "auditor id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "annual_id": {
+              "description": "annual id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "bank",
+             "size_group",
+             "statements_id",
+             "notes_id",
+             "mda_id",
+             "auditor_id",
+             "annual_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "bank_item"
+          ]
+         }
+        },
+        {
+         "id": "extract",
+         "displayName": "Extract one bank",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Bank ${banks_start.bank_item.bank}. Open by ID only: statements ${banks_start.bank_item.statements_id}, notes ${banks_start.bank_item.notes_id}, MD&A ${banks_start.bank_item.mda_id}, auditor report ${banks_start.bank_item.auditor_id}, 56-1 One Report ${banks_start.bank_item.annual_id} (each may be blank).\nRead doc ${read_state.definitions_id}. Extract exactly its RAW ITEMS, following its general rules. Per item return value (text), source (the definitions' source locator), flag. Do not compute ratios. Never guess.\nAlso return `themes`: from the MD&A and 56-1 (digital lending, virtual bank plans, ESG) and the auditor's key audit matters (credit risk), one short line each with its source; if no MD&A write \"no MD&A provided\".",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "bank": {
+            "description": "bank",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "scope": {
+            "description": "scope",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "unit": {
+            "description": "unit",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "themes": {
+            "description": "themes",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "items": {
+            "description": "items",
+            "type": "ARRAY",
+            "items": {
+             "description": "items",
+             "type": "OBJECT",
+             "properties": {
+              "name": {
+               "description": "name",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "value": {
+               "description": "value",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "source": {
+               "description": "source",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "flag": {
+               "description": "flag",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "name",
+              "value",
+              "source",
+              "flag"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "bank",
+           "scope",
+           "unit",
+           "themes",
+           "items"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "banks_start",
+         "targetNodeId": "extract"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "write_table",
+     "displayName": "Build and save the comparison table",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${banks.output[*].extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources in one line. Round to 2 decimals.\nNever guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "table url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "flagged": {
+        "description": "flagged",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "flagged"
+      ]
+     }
+    },
+    {
+     "id": "mail_check",
+     "displayName": "Email the analysts: please check the numbers",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.analyst_emails}. Subject: ${read_state.cycle_name} - could you check the numbers?. Body: Write like a thoughtful colleague: warm, plain sentences, no headings, no robotic phrases. You are the benchmark assistant working for the Head of Strategy; say so once. Say exactly what you need, that a plain reply in their own words is enough (one natural example), and what happens after they reply. Under about 150 words. The comparison table is here: ${write_table.table_url} (${write_table.flagged} flagged cells). Ask them to check the flagged cells against the sources in the 'basis' column and correct anything wrong, in the sheet or in their reply (example: \"SCB's NPL should be 3.70 per note 7.2\"). Say I will then draft the board report and deck for the Head of Strategy, and nothing goes further until one of them replies..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "go_banks",
+     "displayName": "For each bank",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "check_files.banks",
+      "currentItemVariable": "bank_item",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "go_banks_start",
+         "displayName": "For each bank",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "bank_item": {
+            "description": "bank item",
+            "type": "OBJECT",
+            "properties": {
+             "bank": {
+              "description": "bank",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "size_group": {
+              "description": "size group",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "statements_id": {
+              "description": "statements id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "notes_id": {
+              "description": "notes id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "mda_id": {
+              "description": "mda id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "auditor_id": {
+              "description": "auditor id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "annual_id": {
+              "description": "annual id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "bank",
+             "size_group",
+             "statements_id",
+             "notes_id",
+             "mda_id",
+             "auditor_id",
+             "annual_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "bank_item"
+          ]
+         }
+        },
+        {
+         "id": "go_extract",
+         "displayName": "Extract one bank",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "Bank ${go_banks_start.bank_item.bank}. Open by ID only: statements ${go_banks_start.bank_item.statements_id}, notes ${go_banks_start.bank_item.notes_id}, MD&A ${go_banks_start.bank_item.mda_id}, auditor report ${go_banks_start.bank_item.auditor_id}, 56-1 One Report ${go_banks_start.bank_item.annual_id} (each may be blank).\nRead doc ${read_state.definitions_id}. Extract exactly its RAW ITEMS, following its general rules. Per item return value (text), source (the definitions' source locator), flag. Do not compute ratios. Never guess.\nAlso return `themes`: from the MD&A and 56-1 (digital lending, virtual bank plans, ESG) and the auditor's key audit matters (credit risk), one short line each with its source; if no MD&A write \"no MD&A provided\".",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "bank": {
+            "description": "bank",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "scope": {
+            "description": "scope",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "unit": {
+            "description": "unit",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "themes": {
+            "description": "themes",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "items": {
+            "description": "items",
+            "type": "ARRAY",
+            "items": {
+             "description": "items",
+             "type": "OBJECT",
+             "properties": {
+              "name": {
+               "description": "name",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "value": {
+               "description": "value",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "source": {
+               "description": "source",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "flag": {
+               "description": "flag",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "name",
+              "value",
+              "source",
+              "flag"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "bank",
+           "scope",
+           "unit",
+           "themes",
+           "items"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "go_banks_start",
+         "targetNodeId": "go_extract"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "go_write_table",
+     "displayName": "Build and save the comparison table",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${go_banks.output[*].go_extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources in one line. Round to 2 decimals.\nThe Head approved going ahead without the missing banks (${check_files.missing}): add one row each with every metric \"not received\" and flag \"excluded by Head of Strategy: ${gate_go.approval_feedback}\". Never guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "table url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "flagged": {
+        "description": "flagged",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "flagged"
+      ]
+     }
+    },
+    {
+     "id": "go_mail_check",
+     "displayName": "Email the analysts: please check the numbers",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.analyst_emails}. Subject: ${read_state.cycle_name} - could you check the numbers?. Body: Write like a thoughtful colleague: warm, plain sentences, no headings, no robotic phrases. You are the benchmark assistant working for the Head of Strategy; say so once. Say exactly what you need, that a plain reply in their own words is enough (one natural example), and what happens after they reply. Under about 150 words. The comparison table is here: ${go_write_table.table_url} (${go_write_table.flagged} flagged cells). Ask them to check the flagged cells against the sources in the 'basis' column and correct anything wrong, in the sheet or in their reply (example: \"SCB's NPL should be 3.70 per note 7.2\"). Say I will then draft the board report and deck for the Head of Strategy, and nothing goes further until one of them replies..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "read_analyst",
+     "displayName": "Read the analysts' reply",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Search Gmail for the thread with subject \"${read_state.cycle_name} - could you check the numbers?\" and read the replies from ${read_state.analyst_emails} only (ignore anyone else). Read them as a person would:\napproved = one of them is clearly happy for the numbers to go ahead (possibly with corrections). corrections = every correction any of them listed, one per line (if two contradict, the later one wins; if still unclear, put it in reply_text instead).\nneeds_reply = a reply that is unclear, asks a question, or says the numbers are not ready (approved false); reply_text = a short natural reply asking exactly what you need. No reply yet: both false. Silence or \"ok maybe\" is never approval. quote = their exact words. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "approved": {
+        "description": "approved",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "needs_reply": {
+        "description": "needs reply",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "corrections": {
+        "description": "corrections",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "quote": {
+        "description": "quote",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "reply_text": {
+        "description": "reply text",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "approved",
+       "needs_reply",
+       "corrections",
+       "quote",
+       "reply_text"
+      ]
+     }
+    },
+    {
+     "id": "route_analyst",
+     "displayName": "Did they approve?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Approved",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.approved"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Question",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.approved"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.needs_reply"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "mail_clarify",
+     "displayName": "Reply to the analysts",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.analyst_emails}. Subject: Re: ${read_state.cycle_name} - could you check the numbers?. Body: ${read_analyst.reply_text}.\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "report",
+     "displayName": "Apply corrections and save the board report",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "1. Corrections from the analysts: \"${read_analyst.corrections}\". If not blank, update the sheet \"Comparison table\" in ${read_state.cycle_folder_id} with update_rows_by_key (key column bank), appending to each changed row's flags \"analyst override: was <old>, now <new> (<their reason>)\"; add \"differs from source\" if it moves more than 0.5 points. If blank, make no change to the sheet.\n2. Read the (corrected) table, the prior cycle's \"Board report\" in ${read_state.prior_cycle_folder_id}, and the \"Comparison table\" of every earlier cycle you can find (movement and streaks). Read definitions ${read_state.definitions_id} and each bank's MD&A and auditor report for themes.\n3. Write the board report (Markdown) in the prior report's layout: \"What changed since last quarter\" first, then a one-page executive summary, rankings (overall and within size group), notable moves (changes over 0.25 points; a metric moving the same way three quarters in a row; say which streaks could not be computed for lack of history), themes (digital lending, virtual bank, credit risk outlook, ESG; 'no MD&A provided' where missing), an empty \"For discussion\" section, and an appendix with every source, flag and analyst override. Board date ${read_state.board_date}. Never invent numbers.\n4. Create the Google Doc \"Board report\" in ${read_state.cycle_folder_id} from that Markdown with create_file_if_absent.\nReturn the report URL and `moves` (notable moves, one paragraph). Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "report_url": {
+        "description": "report url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "moves": {
+        "description": "moves",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "report_url",
+       "moves"
+      ]
+     }
+    },
+    {
+     "id": "deck",
+     "displayName": "Build the board deck from last quarter's deck",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "1. If \"Board deck\" exists in ${read_state.cycle_folder_id} use it; otherwise copy_file the prior cycle's \"Board deck\" (in ${read_state.prior_cycle_folder_id}) into ${read_state.cycle_folder_id} as \"Board deck\".\n2. Read it (read_presentation): every slide's text and tables, the old quarter label and every old number.\n3. Read the \"Comparison table\" in ${read_state.cycle_folder_id}, the prior table, and the notable moves: \"${report.moves}\".\n4. Call replace_text_in_presentation ONCE with all replacements, in two passes in the same list (old value -> unique token like \"[[R1]]\", then token -> new text), scoped by pageIds where a number appears on several slides. Keep the tables; change only their text.\nReturn the deck URL. Never invent numbers. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "deck_url": {
+        "description": "deck url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_head",
+     "displayName": "Review the board report and deck",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "${read_state.cycle_name} drafts are ready. Report: ${report.report_url}  Deck: ${deck.deck_url}\n\nAdd what only you can add under \"For discussion\" in the report (edit it directly). Type any other changes in the feedback box. Approve = I apply your typed changes and send the pack to the Company Secretary. Reject = nothing is sent; I show you this again tomorrow.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "finish",
+     "displayName": "Apply his changes and write the work note",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "The Head's typed changes: \"${gate_head.approval_feedback}\".\n1. If there are changes, apply each to the \"Board report\" Doc (replace_text or replace_section) and the \"Board deck\" (replace_text_in_presentation, once) in ${read_state.cycle_folder_id}. Never change a number unless he gave the new value and source. His own edits in the report stay.\n2. Create the Google Doc \"Work note\" in ${read_state.cycle_folder_id} with create_file_if_absent (Markdown): what was found, banks excluded and why, analyst corrections, notes for next quarter, the analysts' approval and the Head's approval with their words.\nReturn the URLs of \"Comparison table\", \"Board report\", \"Board deck\" and \"Work note\", and `could_not` (changes you could not make, and why). Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "table url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_url": {
+        "description": "report url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "deck url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "work_note_url": {
+        "description": "work note url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "could_not": {
+        "description": "could not",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "report_url",
+       "deck_url",
+       "work_note_url",
+       "could_not"
+      ]
+     }
+    },
+    {
+     "id": "mail_secretary",
+     "displayName": "Email the Company Secretary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.secretary_email} (cc ${read_state.head_email}). Subject: ${read_state.cycle_name} - board pack. Body: From the benchmark assistant working for the Head of Strategy, warm and plain: the Head of Strategy has approved the pack for the board meeting on ${read_state.board_date}. Links: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url}. Word and PowerPoint versions: File > Download. Invite a reply if anything is missing..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "summary",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. `links`: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url}, Work note ${finish.work_note_url}; and changes not made: ${finish.could_not}. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "links": {
+        "description": "links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "summary",
+       "links"
+      ]
+     }
+    },
+    {
+     "id": "find_drafts",
+     "displayName": "Find the drafts",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "In ${read_state.cycle_folder_id} find the Google Doc \"Board report\" and the Google Slides \"Board deck\". Return their URLs. Read only.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "report_url": {
+        "description": "report url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "deck_url": {
+        "description": "deck url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "report_url",
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_head2",
+     "displayName": "Review the board report and deck",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "${read_state.cycle_name} drafts are waiting for you. Report: ${find_drafts.report_url}  Deck: ${find_drafts.deck_url}\n\nAdd what only you can add under \"For discussion\" in the report (edit it directly). Type any other changes in the feedback box. Approve = I apply your typed changes and send the pack to the Company Secretary. Reject = nothing is sent; I show you this again tomorrow.",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "h_finish",
+     "displayName": "Apply his changes and write the work note",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "The Head's typed changes: \"${gate_head2.approval_feedback}\".\n1. If there are changes, apply each to the \"Board report\" Doc (replace_text or replace_section) and the \"Board deck\" (replace_text_in_presentation, once) in ${read_state.cycle_folder_id}. Never change a number unless he gave the new value and source. His own edits in the report stay.\n2. Create the Google Doc \"Work note\" in ${read_state.cycle_folder_id} with create_file_if_absent (Markdown): what was found, banks excluded and why, analyst corrections, notes for next quarter, the analysts' approval and the Head's approval with their words.\nReturn the URLs of \"Comparison table\", \"Board report\", \"Board deck\" and \"Work note\", and `could_not` (changes you could not make, and why). Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "table_url": {
+        "description": "table url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "report_url": {
+        "description": "report url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "deck url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "work_note_url": {
+        "description": "work note url",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "could_not": {
+        "description": "could not",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "table_url",
+       "report_url",
+       "deck_url",
+       "work_note_url",
+       "could_not"
+      ]
+     }
+    },
+    {
+     "id": "h_mail_secretary",
+     "displayName": "Email the Company Secretary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Send exactly one email with Gmail (tool send_email, or send_message), then stop. To: ${read_state.secretary_email} (cc ${read_state.head_email}). Subject: ${read_state.cycle_name} - board pack. Body: From the benchmark assistant working for the Head of Strategy, warm and plain: the Head of Strategy has approved the pack for the board meeting on ${read_state.board_date}. Links: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url}. Word and PowerPoint versions: File > Download. Invite a reply if anything is missing..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "sent",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "sent"
+      ]
+     }
+    },
+    {
+     "id": "h_summary",
+     "displayName": "Final summary",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "Return `summary`: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. `links`: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url}, Work note ${h_finish.work_note_url}; and changes not made: ${h_finish.could_not}. No tools.",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "summary",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "links": {
+        "description": "links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "summary",
+       "links"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "route",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "check_files",
+     "routeString": "Files"
+    },
+    {
+     "sourceNodeId": "check_files",
+     "targetNodeId": "route_files"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "mail_reminder",
+     "routeString": "Remind"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "gate_go",
+     "routeString": "AskHead"
+    },
+    {
+     "sourceNodeId": "route_files",
+     "targetNodeId": "banks",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "banks",
+     "targetNodeId": "write_table"
+    },
+    {
+     "sourceNodeId": "write_table",
+     "targetNodeId": "mail_check"
+    },
+    {
+     "sourceNodeId": "gate_go",
+     "targetNodeId": "go_banks",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "go_banks",
+     "targetNodeId": "go_write_table"
+    },
+    {
+     "sourceNodeId": "go_write_table",
+     "targetNodeId": "go_mail_check"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "read_analyst",
+     "routeString": "Analyst"
+    },
+    {
+     "sourceNodeId": "read_analyst",
+     "targetNodeId": "route_analyst"
+    },
+    {
+     "sourceNodeId": "route_analyst",
+     "targetNodeId": "mail_clarify",
+     "routeString": "Question"
+    },
+    {
+     "sourceNodeId": "route_analyst",
+     "targetNodeId": "report",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "report",
+     "targetNodeId": "deck"
+    },
+    {
+     "sourceNodeId": "deck",
+     "targetNodeId": "gate_head"
+    },
+    {
+     "sourceNodeId": "gate_head",
+     "targetNodeId": "finish",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "finish",
+     "targetNodeId": "mail_secretary"
+    },
+    {
+     "sourceNodeId": "mail_secretary",
+     "targetNodeId": "summary"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "find_drafts",
+     "routeString": "Head"
+    },
+    {
+     "sourceNodeId": "find_drafts",
+     "targetNodeId": "gate_head2"
+    },
+    {
+     "sourceNodeId": "gate_head2",
+     "targetNodeId": "h_finish",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "h_finish",
+     "targetNodeId": "h_mail_secretary"
+    },
+    {
+     "sourceNodeId": "h_mail_secretary",
+     "targetNodeId": "h_summary"
+    }
+   ]
+  }
+ }
+}

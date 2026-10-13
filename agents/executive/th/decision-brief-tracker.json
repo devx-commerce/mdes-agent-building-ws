@@ -1,0 +1,3204 @@
+{
+ "id": "EXE-B",
+ "persona": "executive",
+ "lang": "th",
+ "display_name": "Decision Brief Tracker (TH)",
+ "description": "กำกับดูแลโดยผู้จัดการฝ่ายยุทธศาสตร์ ในการทำงานรอบแรก: จัดทำแผนการศึกษาวิจัย สรุปย่อเพื่อการตัดสินใจ สัญญาณบ่งชี้ และสไลด์นำเสนอสำหรับ CEO หลังจากนั้นเป็นประจำทุกเดือน: ตรวจสอบสัญญาณบ่งชี้และส่งบันทึกข้อความสั้นหรือรายการปรับปรุงที่ผ่านการตรวจสอบแล้ว",
+ "_built_from": "mdes-work-log/wf/lens.py build specs/exe_b.py (Thai, field names in Thai where allowed; 13 Oct 2026)",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "schedule",
+     "displayName": "กำหนดการ",
+     "nodeType": "SCHEDULE_TRIGGER",
+     "scheduleTrigger": {
+      "schedule": {
+       "cronTab": "0 9 1 * *",
+       "timeZone": "Asia/Bangkok",
+       "query": {
+        "text": "[scheduled run]"
+       }
+      }
+     }
+    },
+    {
+     "id": "read_state",
+     "displayName": "อ่านคำขอและพิจารณาตัดสินใจ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "รหัสโฟลเดอร์ของเอเจนต์ {{EXE_B_FOLDER_ID}} วันที่ปัจจุบันคือวันนี้\n0. ข้อความที่เริ่มต้นการทำงานนี้: หากมีข้อความตรงกับ \"[scheduled run]\" (หรือเว้นว่างไว้) แสดงว่าเป็นการทำงานตามกำหนดการ หากเป็นข้อความอื่นที่คุณต้นพิมพ์เข้ามา แสดงว่าเป็นคำขอ\n1. เปิดเอกสาร \"Agent setup\" ในโฟลเดอร์ของเอเจนต์: โฟลเดอร์โครงการที่ต้องติดตาม (ลิงก์หรือรหัส บรรทัดละหนึ่งรายการ) ชื่อและอีเมลของ CEO อีเมลของผู้จัดการฝ่ายยุทธศาสตร์ และภาษา\n2. สำหรับแต่ละโฟลเดอร์โครงการที่ระบุไว้ ให้อ่านชีต \"Decision history\" หากมีอยู่: เป้าหมาย (ในแถว \"first-brief\") has_brief = มีแถว \"first-brief\" อยู่ checked_this_month = มีแถว \"monthly check\" อยู่ในเดือนปฏิทินนี้\n3. กรณีคำขอ: do_first = true เป้าหมาย = คำถามเชิงการตัดสินใจตามสำนวนของคุณต้น ค้นหาโฟลเดอร์โครงการดังกล่าว: หากมีลิงก์โฟลเดอร์ในคำขอให้ใช้ลิงก์นั้น มิฉะนั้นให้หาโฟลเดอร์ย่อยในโฟลเดอร์ของเอเจนต์ที่มีชื่อตรงกับหัวข้อของคำขอ หากไม่พบ (new_folder = true และ project_name = ชื่อสั้นๆ สำหรับการตัดสินใจ เช่น \"EV Charging Decision\") หากโครงการดังกล่าวมีสรุปย่อแล้ว ให้กำหนด do_first = false และระบุไว้ใน projects_status\n   กรณีการทำงานตามกำหนดการ: `projects` = ทุกโครงการที่ระบุซึ่งมี has_brief และยังไม่มี checked_this_month (การทำงานซ้ำในเดือนเดียวกันจะข้ามโครงการที่ดำเนินการแล้ว) do_check = projects ไม่ใช่ค่าว่าง\n   มิฉะนั้น ทั้งสองค่าจะเป็น false\n4. สำหรับแต่ละโครงการใน `projects` ให้ส่งคืน: รหัสโฟลเดอร์ ชื่อ เป้าหมาย ชื่อและอีเมลของ CEO (จาก Agent setup) รหัสชีต \"Signposts\" URL ของสรุปย่อล่าสุด รหัส \"Board deck\" รหัสไฟล์ \"Decision history\" month_id = \"check-<YYYY-MM>\"\n   สำหรับกรณีคำขอ ให้ส่งคืนข้อมูลโครงการ ได้แก่ รหัสโฟลเดอร์ (เว้นว่างหาก new_folder) และชื่อ listed = มีระบุไว้ใน Agent setup แล้ว เอกสารภายในที่อยู่ในโฟลเดอร์ (ไม่รวมไฟล์ที่เอเจนต์นี้สร้างขึ้น) ในรูปแบบรหัสไฟล์คั่นด้วยจุลภาคพร้อมวันที่แก้ไขล่าสุด รหัสไฟล์ \"Decision history\" (เว้นว่างหากไม่มี) รหัส_ตรวจสอบ (\"first-brief\" หรือ \"check-<YYYY-MM>\") URL ของสรุปย่อล่าสุด รหัสชีต \"Signposts\" รหัส \"Board deck\"\n5. `projects_status`: บรรทัดละหนึ่งโครงการ ระบุชื่อและสถานะว่าตรวจสอบประจำเดือนนี้แล้วหรือไม่ พร้อมทั้งคำขอของการทำงานรอบนี้ (หากมี)\nอ่านข้อมูลเท่านั้น ห้ามคาดเดา ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามล้มเหลว ห้ามถามข้อมูลใดๆ จากผู้ใช้ ห้ามรอ หากเครื่องมือขาดหายหรือทำงานไม่สำเร็จ หรือไม่พบไฟล์หรือเอกสารที่จำเป็น ให้ดำเนินการให้เสร็จสิ้นโดยส่งคืน ready=false และระบุใน stop_reason อย่างชัดเจนว่ามีสิ่งใดขาดหายและแก้ไขอย่างไร (เช่น \"Google Drive ไม่ได้เชื่อมต่อ: โปรดเชื่อมต่อเครื่องมือ Drive ใน Gemini Enterprise แล้วเริ่มทำงานใหม่อีกครั้ง\") มิฉะนั้นให้ระบุ ready=true",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ready": {
+        "description": "พร้อมดำเนินการ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "stop_reason": {
+        "description": "เหตุผลที่หยุดการทำงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "เป็น_คำขอ": {
+        "description": "เป็นคำขอหรือไม่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "new_folder": {
+        "description": "โฟลเดอร์ใหม่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "listed": {
+        "description": "ระบุไว้ในรายการแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "project_folder_id": {
+        "description": "รหัสโฟลเดอร์โครงการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "project_name": {
+        "description": "ชื่อโครงการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "goal": {
+        "description": "เป้าหมาย",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "ceo_name": {
+        "description": "ชื่อ CEO",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "ceo_email": {
+        "description": "อีเมล CEO",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "อีเมล_ผู้รับผิดชอบ": {
+        "description": "อีเมลผู้รับผิดชอบ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "ภาษา": {
+        "description": "ภาษา",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "internal_ids": {
+        "description": "รหัสเอกสารภายใน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       },
+       "internal_dates": {
+        "description": "วันที่เอกสารภายใน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 13
+        }
+       },
+       "history_id": {
+        "description": "รหัสประวัติการตัดสินใจ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 14
+        }
+       },
+       "รหัส_ตรวจสอบ": {
+        "description": "รหัสการตรวจสอบ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 15
+        }
+       },
+       "latest_brief_url": {
+        "description": "URL สรุปย่อล่าสุด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 16
+        }
+       },
+       "signposts_id": {
+        "description": "รหัสชีตสัญญาณบ่งชี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 17
+        }
+       },
+       "deck_id": {
+        "description": "รหัสสไลด์นำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 18
+        }
+       },
+       "projects_status": {
+        "description": "สถานะโครงการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 19
+        }
+       },
+       "today": {
+        "description": "วันนี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 20
+        }
+       },
+       "month_id": {
+        "description": "รหัสประจำเดือน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 21
+        }
+       },
+       "do_first": {
+        "description": "ดำเนินการครั้งแรก",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 22
+        }
+       },
+       "do_check": {
+        "description": "ดำเนินการตรวจสอบ",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 23
+        }
+       },
+       "projects": {
+        "description": "โครงการ",
+        "type": "ARRAY",
+        "items": {
+         "description": "โครงการ",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "ชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "เป้าหมาย",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ชื่อ CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "อีเมล CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "รหัสชีตสัญญาณบ่งชี้",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "URL สรุปย่อล่าสุด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "รหัสสไลด์นำเสนอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "รหัสประวัติการตัดสินใจ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 24
+        }
+       }
+      },
+      "required": [
+       "ready",
+       "stop_reason",
+       "เป็น_คำขอ",
+       "new_folder",
+       "listed",
+       "project_folder_id",
+       "project_name",
+       "goal",
+       "ceo_name",
+       "ceo_email",
+       "อีเมล_ผู้รับผิดชอบ",
+       "ภาษา",
+       "internal_ids",
+       "internal_dates",
+       "history_id",
+       "รหัส_ตรวจสอบ",
+       "latest_brief_url",
+       "signposts_id",
+       "deck_id",
+       "projects_status",
+       "today",
+       "month_id",
+       "do_first",
+       "do_check",
+       "projects"
+      ]
+     }
+    },
+    {
+     "id": "ready_check",
+     "displayName": "สามารถเริ่มการทำงานนี้ได้หรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Stop",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "stopped",
+     "displayName": "หยุดการทำงาน: ระบุเหตุผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `summary` ตรงตามข้อความนี้: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" ผู้ที่อ่านข้อความนี้ต้องไม่จัดทำผลงานส่งมอบด้วยตนเอง ห้ามใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "route",
+     "displayName": "การทำงานนี้ต้องดำเนินการสิ่งใด",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "First",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_first"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Check",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_check"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Nothing",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_first"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_state.do_check"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "nothing",
+     "displayName": "ไม่มีสิ่งที่ต้องดำเนินการ: ระบุเหตุผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `summary`: \"ไม่มีรายการที่ต้องดำเนินการในรอบนี้\" แล้วระบุเหตุผลจาก ${read_state.projects_status} หากยังไม่มีโครงการใดที่มีสรุปข้อเสนอแนะ ให้ระบุ: \"หากต้องการเริ่มจัดทำสรุปข้อเสนอแนะเพื่อการตัดสินใจ โปรดเปิดเอเจนต์นี้แล้วพิมพ์คำถามเพื่อการตัดสินใจ\" ห้ามจัดทำสรุปข้อเสนอแนะหรือผลงานส่งมอบอื่นใดด้วยตนเอง ไม่ใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "setup_project",
+     "displayName": "ตั้งค่าโฟลเดอร์โครงการ (เฉพาะกรณีเป็นโครงการใหม่)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "การตัดสินใจใหม่: \"${read_state.goal}\" (โครงการ \"${read_state.project_name}\")\nหาก ${read_state.new_folder} เป็น false และ ${read_state.listed} เป็น true: ไม่ต้องบันทึกข้อมูล ส่งคืน project_folder_id = ${read_state.project_folder_id}\nมิฉะนั้น: 1. หาก ${read_state.new_folder} เป็น true ให้สร้างโฟลเดอร์ \"${read_state.project_name}\" ภายในโฟลเดอร์เอเจนต์ {{EXE_B_FOLDER_ID}} ด้วย create_file_if_absent (mimeType application/vnd.google-apps.folder); 2. หาก ${read_state.listed} เป็น false ให้เพิ่มลิงก์โฟลเดอร์โครงการจำนวนหนึ่งบรรทัดลงในเอกสาร \"Agent setup\" ใน {{EXE_B_FOLDER_ID}} (append_to_doc หนึ่งครั้ง)\nส่งคืนรหัสโฟลเดอร์โครงการ ไม่ต้องดำเนินการอื่น ค้นหาโฟลเดอร์ตามชื่อที่ตรงกันทุกประการก่อน ใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างโฟลเดอร์ซ้ำซ้อน ห้ามพยายามเขียนข้อมูลซ้ำหากได้รับการยืนยันแล้ว เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' หมายถึงการดำเนินการเสร็จสิ้นแล้ว: ห้ามถามซ้ำและห้ามทำซ้ำโดยเด็ดขาด",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "project_folder_id": {
+        "description": "รหัสโฟลเดอร์โครงการ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "project_folder_id"
+      ]
+     }
+    },
+    {
+     "id": "plan",
+     "displayName": "แผนการศึกษาวิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ประเด็นคำถามเพื่อการตัดสินใจ: ${read_state.goal} เอกสารภายใน (เปิดด้วยรหัส): ${read_state.internal_ids} แก้ไขล่าสุดเมื่อ ${read_state.internal_dates}\nเสนอแผนการศึกษาวิจัยเป็นประเด็นคำถามย่อย 5 ถึง 7 ข้อ โดยใส่หมายเลขกำกับ ครอบคลุมประเด็น: ขนาดและการเติบโตของตลาดในพื้นที่ กฎระเบียบด้านใบอนุญาตและการกำหนดราคา คู่แข่ง (เครือข่าย สถานที่ตั้ง ราคา) ผลตอบแทนที่คาดว่าจะได้รับจำแนกตามประเภทพื้นที่ และความเสี่ยงหลัก\nในส่วน `ภูมิหลัง` ให้ระบุสรุปสาระสำคัญจากเอกสารภายในความยาวไม่เกิน 150 คำ และระบุว่าเอกสารใดมีอายุเกิน 3 เดือน ซึ่งอาจมีข้อมูลที่ไม่เป็นปัจจุบันแล้ว\nส่งคืนประเด็นคำถามย่อยใน `questions` และส่งคืน `plan_card`: ข้อความธรรมดา คำถามย่อยบรรทัดละหนึ่งข้อพร้อมหมายเลขกำกับ 1) 2) ... ตามด้วยบรรทัดว่าง แล้วจึงขึ้นต้นด้วย 'Background:' ตามด้วยบทสรุป ห้ามใส่วงเล็บหรือเครื่องหมายคำพูด อ่านข้อมูลเท่านั้น ห้ามคาดเดา",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "questions": {
+        "description": "คำถาม",
+        "type": "ARRAY",
+        "items": {
+         "description": "คำถาม",
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "ภูมิหลัง": {
+        "description": "ข้อมูลความเป็นมา",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "plan_card": {
+        "description": "การ์ดแสดงแผนงาน",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "questions",
+       "ภูมิหลัง",
+       "plan_card"
+      ]
+     }
+    },
+    {
+     "id": "gate_plan",
+     "displayName": "อนุมัติแผนการศึกษาวิจัย",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "โปรดพิจารณาอนุมัติแผนการศึกษาวิจัยสำหรับ: ${read_state.goal}\n\n${plan.plan_card}\n\nหากประสงค์จะเพิ่มคำถามย่อย โปรดพิมพ์ลงในช่องข้อเสนอแนะแล้วกดยืนยันอนุมัติ หากประสงค์จะปรับเปลี่ยนแผน โปรดปฏิเสธและเริ่มต้นการทำงานใหม่อีกครั้งโดยปรับข้อความคำขอ",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "merge",
+     "displayName": "คำถามย่อยขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ประเด็นคำถามย่อยที่ได้รับอนุมัติ: ${plan.questions} ข้อเสนอแนะจากเจ้าของโครงการเมื่ออนุมัติ: \"${gate_plan.approval_feedback}\"\nหากในข้อเสนอแนะมีคำถามย่อยเพิ่มเติม ให้เพิ่มแต่ละคำถามเป็นคำถามที่ชัดเจน (โดยคงคำถามเดิมไว้) มิฉะนั้นให้ส่งคืนคำถามเดิมโดยไม่มีการเปลี่ยนแปลง ไม่ใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "questions": {
+        "description": "คำถาม",
+        "type": "ARRAY",
+        "items": {
+         "description": "คำถาม",
+         "type": "STRING"
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "questions"
+      ]
+     }
+    },
+    {
+     "id": "research_loop",
+     "displayName": "สำหรับแต่ละคำถามย่อย",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "merge.questions",
+      "currentItemVariable": "q",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "research_loop_start",
+         "displayName": "สำหรับแต่ละคำถามย่อย",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "q": {
+            "description": "คำถาม",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "q"
+          ]
+         }
+        },
+        {
+         "id": "research",
+         "displayName": "ศึกษาวิจัยคำถามย่อยหนึ่งข้อ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ประเด็นคำถามย่อย: ${research_loop_start.q} การตัดสินใจภาพรวม: ${read_state.goal} เอกสารภายใน (เปิดด้วยรหัส): ${read_state.internal_ids}\nใช้ Google Search สำหรับประเด็นคำถามย่อยนี้เท่านั้น: หน่วยงานกำกับดูแล สถิติทางการ ประกาศของคู่แข่ง ข่าวสารจากแหล่งข้อมูลที่น่าเชื่อถือ นำมาประมวลผลร่วมกับข้อมูลในเอกสารภายใน\nส่งคืนคำตอบที่ตรงประเด็น (ความยาวไม่เกินประมาณ 300 คำ): ข้อเท็จจริงสำคัญพร้อมตัวเลข ระบุแหล่งที่มาของแต่ละข้อมูล (ผู้เผยแพร่ ชื่อเรื่อง วันที่ และ URL) ระบุประเด็นที่แหล่งข้อมูลมีความเห็นไม่ตรงกัน และประเด็นที่เอกสารภายในไม่เป็นปัจจุบันแล้ว ห้ามสร้างข้อเท็จจริงขึ้นเองโดยเด็ดขาด",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          },
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "คำถาม": {
+            "description": "คำถาม",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "findings": {
+            "description": "ผลการศึกษา",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "คำถาม",
+           "findings"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "research_loop_start",
+         "targetNodeId": "research"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "draft",
+     "displayName": "ยกร่างสรุปย่อเพื่อการตัดสินใจ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "การตัดสินใจ: ${read_state.goal} ผลการสืบค้น: ${research_loop.output[*].research.findings}\nจัดทำสรุปข้อเสนอแนะเพื่อการตัดสินใจ (รูปแบบ Markdown): ทางเลือกที่เป็นไปได้ในทางปฏิบัติ (เช่น เข้าสู่ตลาดทันที เข้าสู่ตลาดผ่านการร่วมมือ หรือชะลอเพื่อเตรียมความพร้อม) พร้อมหลักฐานสนับสนุนและข้อโต้แย้งสำหรับแต่ละทางเลือก ความเสี่ยงหลัก ประเด็นที่แหล่งข้อมูลเห็นต่าง และข้อเสนอแนะ\nจากนั้นระบุสัญญาณบ่งชี้ (Signposts) จำนวน 4 ถึง 6 รายการ: สิ่งที่ระบุได้ชัดเจนและวัดผลได้ซึ่งจะมีผลให้ข้อเสนอแนะเปลี่ยนแปลงไป (สัญญาณบ่งชี้, ตัวชี้วัด, เกณฑ์ตัดสิน, ค่าปัจจุบัน, แหล่งตรวจสอบ) และส่งคืนในรูปแบบ CSV ด้วยเช่นกัน (หัวตาราง signpost,metric,threshold,current_value,source,last_checked)\n`review_card`: ข้อเสนอแนะความยาวสองประโยค ตามด้วยสัญญาณบ่งชี้บรรทัดละหนึ่งรายการ ห้ามสร้างข้อเท็จจริงขึ้นเองโดยเด็ดขาด ไม่ใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "brief_md": {
+        "description": "ร่างสรุปย่อแบบ md",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "signposts_csv": {
+        "description": "สัญญาณบ่งชี้แบบ csv",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "recommendation": {
+        "description": "ข้อเสนอแนะ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "review_card": {
+        "description": "การ์ดแสดงการตรวจสอบ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "brief_md",
+       "signposts_csv",
+       "recommendation",
+       "review_card"
+      ]
+     }
+    },
+    {
+     "id": "save_draft",
+     "displayName": "บันทึกฉบับร่างเพื่อรอการตรวจสอบ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "สร้าง Google Doc ชื่อ \"Decision brief draft (${read_state.today})\" ในโฟลเดอร์โครงการ ${setup_project.project_folder_id} จาก Markdown ${draft.brief_md} ตามด้วยหัวข้อ \"Signposts\" ซึ่งแสดงสัญญาณบ่งชี้จาก ${draft.signposts_csv} ในรูปแบบตาราง โดยใช้ create_file_if_absent ส่งคืนรหัสและ URL ของไฟล์ ให้ค้นหาโฟลเดอร์ด้วยชื่อที่ตรงกันทุกประการก่อน ใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างสำเนาซ้ำซ้อน ห้ามดำเนินการเขียนซ้ำในรายการที่ยืนยันแล้ว เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' แสดงว่าการดำเนินการเสร็จสิ้นแล้ว ห้ามสอบถามซ้ำ และห้ามดำเนินการซ้ำ",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "draft_id": {
+        "description": "รหัสฉบับร่าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "draft_url": {
+        "description": "URL ฉบับร่าง",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "draft_id",
+       "draft_url"
+      ]
+     }
+    },
+    {
+     "id": "gate_brief",
+     "displayName": "ตรวจสอบสรุปย่อเพื่อการตัดสินใจ",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "โปรดตรวจสอบร่างสรุปข้อเสนอแนะเพื่อการตัดสินใจก่อนส่งให้ ${read_state.ceo_name}: ${save_draft.draft_url}\n\n${draft.review_card}\n\nการปรับปรุงแก้ไข: สามารถแก้ไขลงในร่างเอกสารได้โดยตรง หรือพิมพ์ข้อความที่ต้องการปรับปรุงในช่องข้อเสนอแนะ แล้วกดยืนยันอนุมัติ หากปฏิเสธ ระบบจะยุติการทำงาน โดยไม่มีการส่งหรือบันทึกข้อมูลใดเพิ่มเติมยกเว้นร่างเอกสารนี้",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "finalize",
+     "displayName": "สรุปย่อหนึ่งหน้าและโครงร่างสไลด์นำเสนอ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "เปิดร่างเอกสาร ${save_draft.draft_id}: เจ้าของโครงการอาจมีการแก้ไขข้อความ ให้ยึดข้อความที่เจ้าของโครงการแก้ไขเป็นหลักเหนือข้อความเดิม และปรับแก้ตามข้อความที่ระบุเพิ่มเติม: \"${gate_brief.approval_feedback}\" (รวมถึงในส่วนสัญญาณบ่งชี้)\nจัดทำข้อมูล: `one_pager` (Markdown ความยาวหนึ่งหน้า: ประเด็นคำถาม ข้อเสนอแนะ ทางเลือกพร้อมหลักฐาน ความเสี่ยง สัญญาณบ่งชี้), `deck_outline` (Markdown โครงร่างการนำเสนอ 6 สไลด์พอดี: '# slide title' ตามด้วยหัวข้อย่อย 3 ถึง 5 ข้อในแต่ละสไลด์), ไฟล์ฉบับสมบูรณ์ `signposts_csv` (หัวตาราง signpost,metric,threshold,current_value,source,last_checked) กำหนด last_checked = ${read_state.today} และ `recommendation` สรุปเป็นหนึ่งประโยค ห้ามสร้างข้อเท็จจริงขึ้นเองโดยเด็ดขาด อ่านข้อมูลเท่านั้น",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "one_pager": {
+        "description": "สรุปย่อหนึ่งหน้า",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "deck_outline": {
+        "description": "โครงร่างสไลด์นำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "signposts_csv": {
+        "description": "สัญญาณบ่งชี้แบบ csv",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "recommendation": {
+        "description": "ข้อเสนอแนะ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "one_pager",
+       "deck_outline",
+       "signposts_csv",
+       "recommendation"
+      ]
+     }
+    },
+    {
+     "id": "save_first",
+     "displayName": "บันทึกสรุปย่อ สัญญาณบ่งชี้ และสไลด์นำเสนอ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "สร้างไฟล์จำนวน 4 ไฟล์พอดีในโฟลเดอร์โครงการ ${setup_project.project_folder_id} โดยใช้ create_file_if_absent และห้ามดำเนินการอื่นใด:\n1. Google Doc \"Decision brief v1 (${read_state.today})\" จาก Markdown ${finalize.one_pager} (text/markdown)\n2. Google Sheet \"Signposts\" จาก ${finalize.signposts_csv} (text/csv)\n3. Google Slides \"Board deck\" จากโครงร่าง ${finalize.deck_outline} (create_presentation_from_outline, 6 สไลด์) ในโฟลเดอร์เดียวกัน\n4. Google Sheet \"Decision history\" (text/csv) โดยมีหัวตาราง check_id,date,kind,stage,goal,signposts_triggered,recommendation,recommendation_changed,brief_url,deck_url,notes และข้อมูลหนึ่งแถว: check_id=\"first-brief\", date=${read_state.today}, kind=\"first brief\", stage=\"sent\", goal=${read_state.goal}, recommendation=${finalize.recommendation}, brief_url และ deck_url (ของไฟล์ลำดับที่ 1 และ 3 หากยังไม่ทราบ URL ให้เว้นว่าง), notes=\"owner approved: ${gate_brief.approval_feedback}\"\nส่งคืนรหัสและ URL ของแต่ละไฟล์ ให้ค้นหาโฟลเดอร์ด้วยชื่อที่ตรงกันทุกประการก่อน ใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างสำเนาซ้ำซ้อน ห้ามดำเนินการเขียนซ้ำในรายการที่ยืนยันแล้ว เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' แสดงว่าการดำเนินการเสร็จสิ้นแล้ว ห้ามสอบถามซ้ำ และห้ามดำเนินการซ้ำ",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{DOCS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SHEETS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "brief_url": {
+        "description": "URL สรุปย่อ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "signposts_url": {
+        "description": "URL สัญญาณบ่งชี้",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "deck_url": {
+        "description": "URL ของเอกสารนำเสนอ",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "brief_url",
+       "signposts_url",
+       "deck_url"
+      ]
+     }
+    },
+    {
+     "id": "mail_first",
+     "displayName": "ส่งอีเมลถึง CEO: สรุปย่อพร้อมแล้ว",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งอีเมลหนึ่งฉบับไปยัง ${read_state.ceo_email} (${read_state.ceo_name}) หัวข้อ: \"Decision brief: ${read_state.goal}\"\nอธิบายสาระสำคัญของข้อเสนอแนะ (${finalize.recommendation}) และแจ้งว่าผู้จัดการฝ่ายยุทธศาสตร์ได้ตรวจสอบเรียบร้อยแล้ว ความยาว 2 ถึง 3 ประโยค ลิงก์ที่เกี่ยวข้อง: เอกสารสรุป ${save_first.brief_url}, สไลด์นำเสนอ ${save_first.deck_url}, สัญญาณบ่งชี้ ${save_first.signposts_url}\nชี้แจงว่านับจากนี้จะมีการตรวจสอบสัญญาณบ่งชี้ในวันที่ 1 ของทุกเดือน โดยจะได้รับบันทึกข้อความสั้น 3 บรรทัดกรณีไม่มีความเปลี่ยนแปลงที่มีนัยสำคัญ หรือได้รับสรุปข้อเสนอแนะฉบับปรับปรุงกรณีมีความเปลี่ยนแปลงเกิดขึ้น ทั้งนี้ ไม่จำเป็นต้องตอบกลับอีเมลดังกล่าว\nใช้สำนวนภาษาที่กระชับ สุภาพ เป็นกันเอง ประโยคชัดเจน ไม่ต้องมีหัวข้อ ไม่ใช้สำนวนภาษาที่ดูเป็นระบบอัตโนมัติ ให้ระบุหนึ่งครั้งว่าเป็นผู้ช่วยจัดทำสรุปข้อเสนอแนะเพื่อการตัดสินใจของผู้จัดการฝ่ายยุทธศาสตร์ เขียนเป็นภาษาอังกฤษ เว้นแต่เอกสาร Setup กำหนดให้ใช้ภาษาไทย\nค้นหาโฟลเดอร์ด้วยชื่อที่ตรงกันทุกประการก่อน ใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างสำเนาซ้ำซ้อน ห้ามดำเนินการเขียนซ้ำในรายการที่ยืนยันแล้ว เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' แสดงว่าการดำเนินการเสร็จสิ้นแล้ว ห้ามสอบถามซ้ำ และห้ามดำเนินการซ้ำ",
+      "outputDisplayEnabled": true,
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ]
+     },
+     "outputSchema": {
+      "properties": {
+       "ส่ง_แล้ว": {
+        "description": "ส่งแล้ว",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "ส่ง_แล้ว"
+      ]
+     }
+    },
+    {
+     "id": "summary_first",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืน `summary`: หนึ่งบรรทัดระบุว่าได้จัดส่งสรุปข้อเสนอแนะเพื่อการตัดสินใจฉบับแรกสำหรับ \"${read_state.project_name}\" ไปยัง ${read_state.ceo_name} แล้ว และกำหนดการตรวจสอบรอบถัดไปคือวันที่ 1 ของเดือนถัดไป ตามด้วย ${read_state.projects_status} และส่งคืน `รายการ_ลิงก์`: brief ${save_first.brief_url}, deck ${save_first.deck_url}, signposts ${save_first.signposts_url} บรรทัดละหนึ่งรายการ ไม่ใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "รายการ_ลิงก์": {
+        "description": "ลิงก์",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "summary",
+       "รายการ_ลิงก์"
+      ]
+     }
+    },
+    {
+     "id": "check_loop",
+     "displayName": "สำหรับแต่ละโครงการ: ตรวจสอบ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "read_state.projects",
+      "currentItemVariable": "p",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "check_loop_start",
+         "displayName": "สำหรับแต่ละโครงการ: ตรวจสอบ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "p": {
+            "description": "โครงการ",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "ชื่อ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "เป้าหมาย",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ชื่อ CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "อีเมล CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "รหัสชีตสัญญาณบ่งชี้",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "URL สรุปย่อล่าสุด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "รหัสสไลด์นำเสนอ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "รหัสประวัติการตัดสินใจ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "p"
+          ]
+         }
+        },
+        {
+         "id": "check",
+         "displayName": "ตรวจสอบสัญญาณบ่งชี้ของโครงการนี้",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "โครงการ \"${check_loop_start.p.name}\": ${check_loop_start.p.goal} เปิดชีต ${check_loop_start.p.signposts_id} (สัญญาณบ่งชี้) และสรุปข้อเสนอแนะล่าสุด ${check_loop_start.p.latest_brief_url}\nใช้ Google Search เพื่อค้นหาตัวเลขหรือประกาศล่าสุดสำหรับแต่ละสัญญาณบ่งชี้: สถิติการจดทะเบียนใหม่ คำวินิจฉัยของหน่วยงานกำกับดูแล ประกาศของคู่แข่ง มาตรการจูงใจใหม่ นำมาเปรียบเทียบกับ threshold และ current_value\nสำหรับแต่ละสัญญาณบ่งชี้ ให้ระบุ: triggered (true/false), ค่า_ใหม่, หลักฐานพร้อมแหล่งที่มาและวันที่ การ_เปลี่ยนแปลง_สำคัญ = true เฉพาะเมื่อมีสัญญาณบ่งชี้อย่างน้อยหนึ่งรายการถูกกระตุ้น `summary`: ข้อความสั้น 2 บรรทัดเกี่ยวกับแนวโน้มในภาพรวม\nหาก การ_เปลี่ยนแปลง_สำคัญ เป็นจริง: ให้จัดทำสรุปข้อเสนอแนะความยาวหนึ่งหน้าฉบับปรับปรุง (Markdown) โดยเริ่มต้นด้วย \"What changed\": ระบุสิ่งที่เปลี่ยนแปลงอย่างชัดเจน สัญญาณบ่งชี้ใดที่ถูกกระตุ้น และควรปรับเปลี่ยนข้อเสนอแนะหรือไม่ เพราะเหตุใด โดยคงโครงสร้างส่วนที่เหลือของเอกสารไว้ตามเดิม `replacements`: ระบุข้อความ \"old text => new text\" บรรทัดละหนึ่งรายการสำหรับสไลด์ที่จำเป็นต้องแก้ไข มิฉะนั้นให้เว้นว่างไว้\nอ่านข้อมูลเท่านั้น ห้ามสร้างข้อมูลขึ้นเอง ตัวเลขใดที่ไม่พบข้อมูลให้ระบุเป็น \"not found\" และถือว่าสัญญาณบ่งชี้นั้นไม่ถูกกระตุ้น",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          },
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "name": {
+            "description": "ชื่อ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "การ_เปลี่ยนแปลง_สำคัญ": {
+            "description": "การเปลี่ยนแปลงที่มีนัยสำคัญ",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "summary": {
+            "description": "สรุปผล",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "triggered": {
+            "description": "เงื่อนไขถูกกระตุ้น",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "รายการ_จุด_สังเกต": {
+            "description": "สัญญาณบ่งชี้",
+            "type": "ARRAY",
+            "items": {
+             "description": "สัญญาณบ่งชี้",
+             "type": "OBJECT",
+             "properties": {
+              "จุด_สังเกต": {
+               "description": "สัญญาณบ่งชี้",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "triggered": {
+               "description": "เงื่อนไขถูกกระตุ้น",
+               "type": "BOOLEAN",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "ค่า_ใหม่": {
+               "description": "ค่าใหม่",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "หลักฐาน": {
+               "description": "หลักฐานประกอบ",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              }
+             },
+             "required": [
+              "จุด_สังเกต",
+              "triggered",
+              "ค่า_ใหม่",
+              "หลักฐาน"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 4
+            }
+           },
+           "brief_md": {
+            "description": "ร่างสรุปย่อแบบ md",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 5
+            }
+           },
+           "replacements": {
+            "description": "รายการทดแทน",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 6
+            }
+           },
+           "recommendation": {
+            "description": "ข้อเสนอแนะ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 7
+            }
+           },
+           "recommendation_changed": {
+            "description": "ข้อเสนอแนะมีการเปลี่ยนแปลง",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 8
+            }
+           }
+          },
+          "required": [
+           "name",
+           "การ_เปลี่ยนแปลง_สำคัญ",
+           "summary",
+           "triggered",
+           "รายการ_จุด_สังเกต",
+           "brief_md",
+           "replacements",
+           "recommendation",
+           "recommendation_changed"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "check_loop_start",
+         "targetNodeId": "check"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "collect",
+     "displayName": "จัดเรียงลำดับโครงการ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "โครงการ: ${read_state.projects} ผลลัพธ์ตามลำดับเดียวกัน: ${check_loop.output[*].check}\nส่งคืน `quiet`: โครงการที่ไม่มีความเปลี่ยนแปลงที่มีนัยสำคัญ โดยแต่ละโครงการประกอบด้วยเขตข้อมูลเดิมรวมทั้ง `summary` ส่งคืน `material`: โครงการที่มีความเปลี่ยนแปลงที่มีนัยสำคัญ โดยแต่ละโครงการประกอบด้วยเขตข้อมูลเดิมรวมทั้ง brief_md, replacements, recommendation, recommendation_changed, triggered กำหนด any_material = material ไม่ว่างเปล่า ไม่ใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "quiet": {
+        "description": "ไม่มีการเปลี่ยนแปลง",
+        "type": "ARRAY",
+        "items": {
+         "description": "ไม่มีการเปลี่ยนแปลง",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "ชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "เป้าหมาย",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ชื่อ CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "อีเมล CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "รหัสชีตสัญญาณบ่งชี้",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "URL สรุปย่อล่าสุด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "รหัสสไลด์นำเสนอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "รหัสประวัติการตัดสินใจ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "summary": {
+           "description": "สรุปผล",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id",
+          "summary"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "material": {
+        "description": "มีนัยสำคัญ",
+        "type": "ARRAY",
+        "items": {
+         "description": "มีนัยสำคัญ",
+         "type": "OBJECT",
+         "properties": {
+          "folder_id": {
+           "description": "รหัสโฟลเดอร์",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "name": {
+           "description": "ชื่อ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "goal": {
+           "description": "เป้าหมาย",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "ceo_name": {
+           "description": "ชื่อ CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "ceo_email": {
+           "description": "อีเมล CEO",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "signposts_id": {
+           "description": "รหัสชีตสัญญาณบ่งชี้",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "latest_brief_url": {
+           "description": "URL สรุปย่อล่าสุด",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "deck_id": {
+           "description": "รหัสสไลด์นำเสนอ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          },
+          "history_id": {
+           "description": "รหัสประวัติการตัดสินใจ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 8
+           }
+          },
+          "brief_md": {
+           "description": "ร่างสรุปย่อแบบ md",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 9
+           }
+          },
+          "replacements": {
+           "description": "รายการทดแทน",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 10
+           }
+          },
+          "recommendation": {
+           "description": "ข้อเสนอแนะ",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 11
+           }
+          },
+          "recommendation_changed": {
+           "description": "ข้อเสนอแนะมีการเปลี่ยนแปลง",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 12
+           }
+          },
+          "triggered": {
+           "description": "เงื่อนไขถูกกระตุ้น",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 13
+           }
+          }
+         },
+         "required": [
+          "folder_id",
+          "name",
+          "goal",
+          "ceo_name",
+          "ceo_email",
+          "signposts_id",
+          "latest_brief_url",
+          "deck_id",
+          "history_id",
+          "brief_md",
+          "replacements",
+          "recommendation",
+          "recommendation_changed",
+          "triggered"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "any_material": {
+        "description": "มีรายการที่มีนัยสำคัญหรือไม่",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "quiet",
+       "material",
+       "any_material"
+      ]
+     }
+    },
+    {
+     "id": "quiet_loop",
+     "displayName": "สำหรับแต่ละโครงการที่ไม่มีการเปลี่ยนแปลง",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.quiet",
+      "currentItemVariable": "q",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "quiet_loop_start",
+         "displayName": "สำหรับแต่ละโครงการที่ไม่มีการเปลี่ยนแปลง",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "q": {
+            "description": "คำถาม",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "ชื่อ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "เป้าหมาย",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ชื่อ CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "อีเมล CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "รหัสชีตสัญญาณบ่งชี้",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "URL สรุปย่อล่าสุด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "รหัสสไลด์นำเสนอ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "รหัสประวัติการตัดสินใจ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "summary": {
+              "description": "สรุปผล",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "summary"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "q"
+          ]
+         }
+        },
+        {
+         "id": "mail_quiet",
+         "displayName": "ส่งอีเมลถึง CEO: บันทึกข้อความสั้น 3 บรรทัด",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ส่งอีเมลเพียงหนึ่งฉบับด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${quiet_loop_start.q.ceo_email} หัวข้อ: Decision watch ${quiet_loop_start.q.name} ${read_state.month_id}: no material change เนื้อความ: ความยาวสามบรรทัดเท่านั้น ได้แก่ \"No material change this month.\" / หนึ่งบรรทัดระบุแนวโน้มจาก ${quiet_loop_start.q.summary} / \"Next check: 1 <ชื่อเดือนถัดไป>\" ห้ามใส่ข้อความอื่นใด และไม่ต้องใส่ข้อความลงท้ายจดหมาย\nเรียกคำสั่งส่งเพียงครั้งเดียวเท่านั้น คำตอบเช่น 'Action Confirmed' หรือ 'Review completed' หมายถึงได้ส่งเรียบร้อยแล้ว ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืนค่า ส่ง_แล้ว=true",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "ส่ง_แล้ว": {
+            "description": "ส่งแล้ว",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "ส่ง_แล้ว"
+          ]
+         }
+        },
+        {
+         "id": "mark_quiet",
+         "displayName": "บันทึก: ไม่มีการเปลี่ยนแปลง",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ในโฟลเดอร์โครงการ ${quiet_loop_start.q.folder_id}: ในชีต \"Decision history\" (${quiet_loop_start.q.history_id}) ให้บันทึกข้อมูลจำนวนหนึ่งแถวที่มี check_id = \"${read_state.month_id}\" โดยหากยังไม่มีแถวที่มี check_id ดังกล่าวให้เพิ่มด้วย append_rows หากมีอยู่แล้วให้อัปเดตด้วย update_rows_by_key (คอลัมน์หลัก check_id) ค่าข้อมูล: date=${read_state.today}, kind=\"monthly check\", stage=\"no change\", signposts_triggered=\"none\", notes=\"${quiet_loop_start.q.summary}\" ห้ามอ่านหรือแก้ไขไฟล์อื่นใดทั้งสิ้น",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "เสร็จ_สิ้น": {
+            "description": "เสร็จสิ้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "เสร็จ_สิ้น"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "quiet_loop_start",
+         "targetNodeId": "mail_quiet"
+        },
+        {
+         "sourceNodeId": "mail_quiet",
+         "targetNodeId": "mark_quiet"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "route_material",
+     "displayName": "มีการเปลี่ยนแปลงที่มีนัยสำคัญหรือไม่",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Material",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "collect.any_material"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Quiet",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "collect.any_material"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "summary_quiet",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืนค่า `summary`: ดำเนินการตรวจสอบประจำเดือน ${read_state.month_id} เสร็จสิ้น ไม่มีการเปลี่ยนแปลงที่มีนัยสำคัญใน ${collect.quiet} ส่งบันทึกข้อความความยาวสามบรรทัดไปยังประธานเจ้าหน้าที่บริหารแต่ละท่านเรียบร้อยแล้ว ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    },
+    {
+     "id": "draft_loop",
+     "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: บันทึกฉบับร่าง",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "d",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "draft_loop_start",
+         "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: บันทึกฉบับร่าง",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "d": {
+            "description": "ฉบับร่าง",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "ชื่อ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "เป้าหมาย",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ชื่อ CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "อีเมล CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "รหัสชีตสัญญาณบ่งชี้",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "URL สรุปย่อล่าสุด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "รหัสสไลด์นำเสนอ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "รหัสประวัติการตัดสินใจ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "ร่างสรุปย่อแบบ md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "รายการทดแทน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "ข้อเสนอแนะ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "ข้อเสนอแนะมีการเปลี่ยนแปลง",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "เงื่อนไขถูกกระตุ้น",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "d"
+          ]
+         }
+        },
+        {
+         "id": "save_update_draft",
+         "displayName": "บันทึกสรุปย่อฉบับปรับปรุงเพื่อรอการตรวจสอบ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ในโฟลเดอร์โครงการ ${draft_loop_start.d.folder_id} ให้สร้าง Google Doc ชื่อ \"Decision brief ${read_state.month_id}\" จาก Markdown ${draft_loop_start.d.brief_md} โดยใช้ create_file_if_absent เวอร์ชันก่อนหน้าจะคงไว้ตามเดิม (ประวัติการตัดสินใจ) ส่งคืนค่าชื่อโครงการ รหัสเอกสาร และ URL ให้ค้นหาชื่อเรื่องที่ตรงกันทั้งหมดในโฟลเดอร์ก่อน และใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างสำเนาเพิ่ม ห้ามดำเนินการเขียนซ้ำในรายการที่ยืนยันแล้วโดยเด็ดขาด เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' แสดงว่าการดำเนินการเสร็จสิ้นแล้ว ห้ามถามซ้ำและห้ามดำเนินการซ้ำ",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "name": {
+            "description": "ชื่อ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "รหัส_สรุป": {
+            "description": "รหัสสรุปย่อ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "brief_url": {
+            "description": "URL สรุปย่อ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 2
+            }
+           }
+          },
+          "required": [
+           "name",
+           "รหัส_สรุป",
+           "brief_url"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "draft_loop_start",
+         "targetNodeId": "save_update_draft"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "review_card",
+     "displayName": "จัดเตรียมการตรวจสอบ",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "โครงการที่มีการเปลี่ยนแปลง: ${collect.material} ฉบับร่างที่บันทึกแล้ว: ${draft_loop.output[*].save_update_draft}\nเขียน `card`: ระบุชื่อโครงการ สัญญาณเตือน (signpost) ที่ตรวจพบ สิ่งที่มีการเปลี่ยนแปลง ข้อเสนอแนะใหม่ (ความยาวไม่เกิน 4 บรรทัด) และลิงก์ฉบับร่าง แยกเป็นรายโครงการ ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "card": {
+        "description": "การ์ด",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "card"
+      ]
+     }
+    },
+    {
+     "id": "gate_update",
+     "displayName": "ตรวจสอบรายการปรับปรุงก่อนส่งถึง CEO",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ตรวจพบสัญญาณเตือน (signpost) ในโครงการเหล่านี้ โปรดตรวจสอบการอัปเดตแต่ละรายการก่อนส่งไปยังประธานเจ้าหน้าที่บริหาร:\n\n${review_card.card}\n\nการปรับปรุง: แก้ไขเอกสารฉบับร่างโดยตรง หรือพิมพ์การเปลี่ยนแปลงในช่องรับฟังความคิดเห็น (ระบุชื่อโครงการ) จากนั้นให้อนุมัติ หากปฏิเสธจะเป็นการระงับทั้งหมดและไม่มีการส่งข้อมูลในเดือนนี้",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "held_loop",
+     "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: บันทึกการระงับ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "h",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "held_loop_start",
+         "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: บันทึกการระงับ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "h": {
+            "description": "รายการระงับ",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "ชื่อ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "เป้าหมาย",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ชื่อ CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "อีเมล CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "รหัสชีตสัญญาณบ่งชี้",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "URL สรุปย่อล่าสุด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "รหัสสไลด์นำเสนอ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "รหัสประวัติการตัดสินใจ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "ร่างสรุปย่อแบบ md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "รายการทดแทน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "ข้อเสนอแนะ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "ข้อเสนอแนะมีการเปลี่ยนแปลง",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "เงื่อนไขถูกกระตุ้น",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "h"
+          ]
+         }
+        },
+        {
+         "id": "mark_held",
+         "displayName": "บันทึก: ระงับการส่งรายการปรับปรุง",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ในโฟลเดอร์โครงการ ${held_loop_start.h.folder_id}: ในชีต \"Decision history\" (${held_loop_start.h.history_id}) ให้บันทึกข้อมูลจำนวนหนึ่งแถวที่มี check_id = \"${read_state.month_id}\" โดยหากยังไม่มีแถวที่มี check_id ดังกล่าวให้เพิ่มด้วย append_rows หากมีอยู่แล้วให้อัปเดตด้วย update_rows_by_key (คอลัมน์หลัก check_id) ค่าข้อมูล: date=${read_state.today}, kind=\"monthly check\", stage=\"held by owner\", signposts_triggered=\"${held_loop_start.h.triggered}\", notes=\"${gate_update.approval_feedback}\" ห้ามอ่านหรือแก้ไขไฟล์อื่นใดทั้งสิ้น",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "เสร็จ_สิ้น": {
+            "description": "เสร็จสิ้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "เสร็จ_สิ้น"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "held_loop_start",
+         "targetNodeId": "mark_held"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "send_loop",
+     "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: ดำเนินการให้เสร็จสิ้นและจัดส่ง",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "collect.material",
+      "currentItemVariable": "u",
+      "subAgentFlow": {
+       "nodes": [
+        {
+         "id": "send_loop_start",
+         "displayName": "สำหรับแต่ละโครงการที่มีการเปลี่ยนแปลง: ดำเนินการให้เสร็จสิ้นและจัดส่ง",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "u": {
+            "description": "รายการปรับปรุง",
+            "type": "OBJECT",
+            "properties": {
+             "folder_id": {
+              "description": "รหัสโฟลเดอร์",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "name": {
+              "description": "ชื่อ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "goal": {
+              "description": "เป้าหมาย",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "ceo_name": {
+              "description": "ชื่อ CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "ceo_email": {
+              "description": "อีเมล CEO",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "signposts_id": {
+              "description": "รหัสชีตสัญญาณบ่งชี้",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "latest_brief_url": {
+              "description": "URL สรุปย่อล่าสุด",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             },
+             "deck_id": {
+              "description": "รหัสสไลด์นำเสนอ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 7
+              }
+             },
+             "history_id": {
+              "description": "รหัสประวัติการตัดสินใจ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 8
+              }
+             },
+             "brief_md": {
+              "description": "ร่างสรุปย่อแบบ md",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 9
+              }
+             },
+             "replacements": {
+              "description": "รายการทดแทน",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 10
+              }
+             },
+             "recommendation": {
+              "description": "ข้อเสนอแนะ",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 11
+              }
+             },
+             "recommendation_changed": {
+              "description": "ข้อเสนอแนะมีการเปลี่ยนแปลง",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 12
+              }
+             },
+             "triggered": {
+              "description": "เงื่อนไขถูกกระตุ้น",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 13
+              }
+             }
+            },
+            "required": [
+             "folder_id",
+             "name",
+             "goal",
+             "ceo_name",
+             "ceo_email",
+             "signposts_id",
+             "latest_brief_url",
+             "deck_id",
+             "history_id",
+             "brief_md",
+             "replacements",
+             "recommendation",
+             "recommendation_changed",
+             "triggered"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "u"
+          ]
+         }
+        },
+        {
+         "id": "save_update",
+         "displayName": "จัดทำสรุปย่อและสไลด์นำเสนอของโครงการนี้ให้เสร็จสมบูรณ์",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "โครงการ \"${send_loop_start.u.name}\" ข้อความปรับปรุงที่ผู้รับผิดชอบพิมพ์ระบุสำหรับทุกโครงการ: \"${gate_update.approval_feedback}\" ให้ปรับใช้เฉพาะส่วนที่เกี่ยวกับโครงการนี้\n1. ค้นหาเอกสาร \"Decision brief ${read_state.month_id}\" ในโฟลเดอร์โครงการ ${send_loop_start.u.folder_id} หากมีรายการปรับปรุงสำหรับโครงการนี้ ให้ดำเนินการปรับใช้ (replace_text หรือ replace_section โดยให้คงการแก้ไขเดิมที่ผู้รับผิดชอบทำไว้ในเอกสาร) หากไม่มี ไม่ต้องแก้ไขสิ่งใด\n2. หากมีไฟล์นำเสนอ ${send_loop_start.u.deck_id} อยู่: ให้ copy_file ไปยัง \"Board deck ${read_state.month_id}\" ในโฟลเดอร์เดียวกัน (ข้ามขั้นตอนนี้หากมีชื่อเรื่องดังกล่าวอยู่แล้ว) จากนั้นเรียกใช้ replace_text_in_presentation บนไฟล์สำเนาเพียงหนึ่งครั้งด้วยค่าที่แทนที่: ${send_loop_start.u.replacements} เพื่อให้ไฟล์นำเสนอมีเนื้อหาตรงกับเอกสารสรุปในปัจจุบัน\n3. อัปเดตชีต ${send_loop_start.u.signposts_id} ด้วย update_rows_by_key (คอลัมน์หลัก signpost ซึ่งมีแถวเหล่านี้อยู่แล้ว): current_value และ last_checked=${read_state.today} จากผลการตรวจสอบของโครงการนี้\nส่งคืนค่า URL ของเอกสารสรุปและไฟล์นำเสนอ ให้ค้นหาชื่อเรื่องที่ตรงกันทั้งหมดในโฟลเดอร์ก่อน และใช้ create_file_if_absent เพื่อไม่ให้การทำงานซ้ำสร้างสำเนาเพิ่ม ห้ามดำเนินการเขียนซ้ำในรายการที่ยืนยันแล้วโดยเด็ดขาด เมื่อผู้ใช้ตอบว่า 'Action Confirmed' หรือ 'Review completed' แสดงว่าการดำเนินการเสร็จสิ้นแล้ว ห้ามถามซ้ำและห้ามดำเนินการซ้ำ",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "brief_url": {
+            "description": "URL สรุปย่อ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "deck_url": {
+            "description": "URL ของเอกสารนำเสนอ",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           }
+          },
+          "required": [
+           "brief_url",
+           "deck_url"
+          ]
+         }
+        },
+        {
+         "id": "mail_update",
+         "displayName": "ส่งอีเมลถึง CEO: รายการปรับปรุง",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ส่งอีเมลเพียงหนึ่งฉบับด้วย Gmail (เครื่องมือ send_email หรือ send_message) แล้วหยุดการทำงาน ถึง: ${send_loop_start.u.ceo_email} หัวข้อ: Decision watch ${send_loop_start.u.name} ${read_state.month_id}: material change เนื้อความ: ข้อความที่สื่อสารอย่างชัดเจน สุภาพ และเข้าใจง่าย ความยาว 3-4 ประโยคถึง ${send_loop_start.u.ceo_name} ระบุสัญญาณเตือนที่ตรวจพบ (${send_loop_start.u.triggered}) สิ่งที่มีการเปลี่ยนแปลง ข้อเสนอแนะมีการเปลี่ยนแปลงหรือไม่ (${send_loop_start.u.recommendation}) และแจ้งว่าผู้จัดการฝ่ายยุทธศาสตร์ได้ตรวจสอบเรียบร้อยแล้ว ลิงก์: เอกสารสรุปฉบับปรับปรุง ${save_update.brief_url} ไฟล์นำเสนอ ${save_update.deck_url} ทั้งนี้ เวอร์ชันก่อนหน้าจะถูกเก็บรักษาไว้ในโฟลเดอร์เดียวกัน\nเรียกคำสั่งส่งเพียงครั้งเดียวเท่านั้น คำตอบเช่น 'Action Confirmed' หรือ 'Review completed' หมายถึงได้ส่งเรียบร้อยแล้ว ห้ามถามซ้ำและห้ามส่งซ้ำ ส่งคืนค่า ส่ง_แล้ว=true",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "ส่ง_แล้ว": {
+            "description": "ส่งแล้ว",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "ส่ง_แล้ว"
+          ]
+         }
+        },
+        {
+         "id": "mark_update_done",
+         "displayName": "บันทึก: ส่งรายการปรับปรุงแล้ว",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ในโฟลเดอร์โครงการ ${send_loop_start.u.folder_id}: ในชีต \"Decision history\" (${send_loop_start.u.history_id}) ให้บันทึกข้อมูลจำนวนหนึ่งแถวที่มี check_id = \"${read_state.month_id}\" โดยหากยังไม่มีแถวที่มี check_id ดังกล่าวให้เพิ่มด้วย append_rows หากมีอยู่แล้วให้อัปเดตด้วย update_rows_by_key (คอลัมน์หลัก check_id) ค่าข้อมูล: date=${read_state.today}, kind=\"monthly check\", stage=\"sent\", signposts_triggered=\"${send_loop_start.u.triggered}\", recommendation=\"${send_loop_start.u.recommendation}\", recommendation_changed=\"${send_loop_start.u.recommendation_changed}\", brief_url=\"${save_update.brief_url}\", deck_url=\"${save_update.deck_url}\", notes=\"owner: ${gate_update.approval_feedback}\" ห้ามอ่านหรือแก้ไขไฟล์อื่นใดทั้งสิ้น",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{DOCS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SHEETS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "เสร็จ_สิ้น": {
+            "description": "เสร็จสิ้น",
+            "type": "BOOLEAN",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "เสร็จ_สิ้น"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "send_loop_start",
+         "targetNodeId": "save_update"
+        },
+        {
+         "sourceNodeId": "save_update",
+         "targetNodeId": "mail_update"
+        },
+        {
+         "sourceNodeId": "mail_update",
+         "targetNodeId": "mark_update_done"
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "summary_check",
+     "displayName": "สรุปผลขั้นสุดท้าย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ส่งคืนค่า `summary`: ดำเนินการตรวจสอบประจำเดือน ${read_state.month_id} เสร็จสิ้น การอัปเดตที่ส่งแล้ว: ${collect.material} (ลิงก์ ${send_loop.output[*].save_update}) ไม่มีการเปลี่ยนแปลงที่มีนัยสำคัญ: ${collect.quiet} กำหนดการตรวจสอบครั้งถัดไป: วันที่ 1 ของเดือนถัดไป ไม่ต้องใช้เครื่องมือ",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "summary": {
+        "description": "สรุปผล",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      },
+      "required": [
+       "summary"
+      ]
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "schedule",
+     "targetNodeId": "read_state"
+    },
+    {
+     "sourceNodeId": "read_state",
+     "targetNodeId": "ready_check"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "stopped",
+     "routeString": "Stop"
+    },
+    {
+     "sourceNodeId": "ready_check",
+     "targetNodeId": "route",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "nothing",
+     "routeString": "Nothing"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "setup_project",
+     "routeString": "First"
+    },
+    {
+     "sourceNodeId": "setup_project",
+     "targetNodeId": "plan"
+    },
+    {
+     "sourceNodeId": "plan",
+     "targetNodeId": "gate_plan"
+    },
+    {
+     "sourceNodeId": "gate_plan",
+     "targetNodeId": "merge",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "merge",
+     "targetNodeId": "research_loop"
+    },
+    {
+     "sourceNodeId": "research_loop",
+     "targetNodeId": "draft"
+    },
+    {
+     "sourceNodeId": "draft",
+     "targetNodeId": "save_draft"
+    },
+    {
+     "sourceNodeId": "save_draft",
+     "targetNodeId": "gate_brief"
+    },
+    {
+     "sourceNodeId": "gate_brief",
+     "targetNodeId": "finalize",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "finalize",
+     "targetNodeId": "save_first"
+    },
+    {
+     "sourceNodeId": "save_first",
+     "targetNodeId": "mail_first"
+    },
+    {
+     "sourceNodeId": "mail_first",
+     "targetNodeId": "summary_first"
+    },
+    {
+     "sourceNodeId": "route",
+     "targetNodeId": "check_loop",
+     "routeString": "Check"
+    },
+    {
+     "sourceNodeId": "check_loop",
+     "targetNodeId": "collect"
+    },
+    {
+     "sourceNodeId": "collect",
+     "targetNodeId": "quiet_loop"
+    },
+    {
+     "sourceNodeId": "quiet_loop",
+     "targetNodeId": "route_material"
+    },
+    {
+     "sourceNodeId": "route_material",
+     "targetNodeId": "summary_quiet",
+     "routeString": "Quiet"
+    },
+    {
+     "sourceNodeId": "route_material",
+     "targetNodeId": "draft_loop",
+     "routeString": "Material"
+    },
+    {
+     "sourceNodeId": "draft_loop",
+     "targetNodeId": "review_card"
+    },
+    {
+     "sourceNodeId": "review_card",
+     "targetNodeId": "gate_update"
+    },
+    {
+     "sourceNodeId": "gate_update",
+     "targetNodeId": "held_loop",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "gate_update",
+     "targetNodeId": "send_loop",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "send_loop",
+     "targetNodeId": "summary_check"
+    }
+   ]
+  }
+ }
+}

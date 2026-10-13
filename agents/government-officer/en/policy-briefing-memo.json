@@ -1,0 +1,1685 @@
+{
+ "id": "GOV-B",
+ "persona": "government-officer",
+ "lang": "en",
+ "display_name": "Policy Briefing Memo",
+ "description": "บันทึกข้อความเสนอผู้บริหาร (Policy briefing memo): from one sentence on any topic, proposes a short research plan for your approval, researches public sources (and your internal documents if you link their folder), shows conflicting figures side by side, writes a 2-page memo for your review and emails the links to the Head. The research takes about 10–25 minutes: you can leave and reopen this chat from Recent. To make a memo from a saved research report, send its link.",
+ "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/gov/build_policy_briefing_memo.py (v2, 12 Oct 2026): research waited for in the chat (#275, #276); report-link restart; short plan card; changed plan shown again; web-only note; Head's email and save folder from the last memo.",
+ "definition": {
+  "agentFlow": {
+   "nodes": [
+    {
+     "id": "start",
+     "displayName": "Start: type the request",
+     "nodeType": "MANUAL_TRIGGER",
+     "manualTrigger": {},
+     "outputSchema": {
+      "properties": {
+       "raw_query": {
+        "description": "The request in one sentence (any topic, Thai or English); may include links",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       }
+      }
+     }
+    },
+    {
+     "id": "get_ready",
+     "displayName": "Read the request",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You prepare this run from the user's message and the user's own earlier memos; nothing has to be set up before. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nThe user's message: \"${start.raw_query}\"\n\n1. request = what to research, exactly as written (Thai or English), without links, email addresses and the words that only say where to save or where the internal documents are (for example บันทึกในโฟลเดอร์ <name>, save to <link>). request_given = true only if it has words.\n2. Report link (restart). A Google Drive link carries the file ID: drive.google.com/drive/folders/<ID>, drive.google.com/file/d/<ID>/..., docs.google.com/document|spreadsheets|presentation/d/<ID>/... Take the ID from the link and check it with get_file_metadata. If the message links a Google Doc whose name starts with 'รายงานการค้นคว้าฉบับเต็ม – ' (a research report this agent saved before), report_doc_id = its ID and from_report = true; otherwise both empty/false.\n3. topic_title = a short Thai title for the request (at most 8 words), for file names; when from_report and there is no request, the words after 'รายงานการค้นคว้าฉบับเต็ม – ' in the report's name.\n4. Folders given in the message (link or name, for example โฟลเดอร์ <name> or folder <name>; find a name with search_files, folders only, including folders shared with the user). A folder the message calls internal documents (เอกสารภายใน, หนังสือเวียน, บันทึกเดิม, internal) is the internal documents folder; any other folder is the save folder. For each: found = exactly one folder the user can see; ambiguous = more than one (list each as name + link); missing = given but not found; none = not given.\ninternal_folder_id = the internal documents folder's ID, or empty.\n5. Save folder. If the message gives one: that folder (save_folder_source = message). Otherwise find the user's last memo: Google Docs whose name starts with 'บันทึกข้อความ – ' (search_files), the most recently modified one; save_folder_id = its parent folder (get_file_metadata), save_folder_source = last memo. If there is none: save_folder_id = root, save_folder_source = My Drive. save_folder_name = the folder's name (or My Drive).\n6. Head's email. If the message has an email address: head_email = it, head_email_source = message. Otherwise search the user's sent mail (search_threads, query in:sent subject:\"บันทึกข้อความ –\") and take the newest email whose subject starts with 'บันทึกข้อความ – ': head_email = its To address (get_thread to read it), head_email_source = last memo email. If none: empty.\n7. ready = true only if (request_given or from_report) and no folder is ambiguous or missing. stop_items = plain data, one line per item that stops the run (item | not found / found more than once | options as name + link); empty if ready.\nUse only names, IDs, links and addresses the tools return; never make one up.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata | Gmail MCP: search_threads, get_thread.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "request": {
+        "description": "The request without links or emails",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "request_given": {
+        "description": "true if the request has words",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "report_doc_id": {
+        "description": "A saved research report linked in the message; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "from_report": {
+        "description": "true if the memo is made from a linked report",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "topic_title": {
+        "description": "Short Thai title for file names",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "save_folder_id": {
+        "description": "Save folder ID, or root",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "save_folder_name": {
+        "description": "Save folder name, or My Drive",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       },
+       "save_folder_source": {
+        "description": "message | last memo | My Drive",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 7
+        }
+       },
+       "internal_folder_id": {
+        "description": "Internal documents folder ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 8
+        }
+       },
+       "head_email": {
+        "description": "Head's email; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 9
+        }
+       },
+       "head_email_source": {
+        "description": "message | last memo email | empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 10
+        }
+       },
+       "ready": {
+        "description": "true if the run can go on",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 11
+        }
+       },
+       "stop_items": {
+        "description": "Data only: what stops the run; empty if nothing",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 12
+        }
+       }
+      },
+      "required": [
+       "request",
+       "request_given",
+       "report_doc_id",
+       "from_report",
+       "topic_title",
+       "save_folder_id",
+       "save_folder_name",
+       "save_folder_source",
+       "internal_folder_id",
+       "head_email",
+       "head_email_source",
+       "ready",
+       "stop_items"
+      ]
+     }
+    },
+    {
+     "id": "is_ready",
+     "displayName": "Ready?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_ready.ready"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_ready.ready"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_ready",
+     "displayName": "Tell what stops the run",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nRequest given: ${get_ready.request_given}. Report link given: ${get_ready.from_report}. Items that stop the run (item | status | options): ${get_ready.stop_items}\nIf neither a request nor a report link was given, say only that no request was received. Otherwise say nothing was researched, list each item with what is wrong (not found, or found more than once) and its options as names and links, and say the request can be sent again with the right folder's link.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "which_path",
+     "displayName": "New research or saved report?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Saved report",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_ready.from_report"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "New research",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "get_ready.from_report"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "propose_plan",
+     "displayName": "Propose the research plan",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call the Research MCP tool deep_research_plan exactly ONCE with question = \"${get_ready.request}\" followed by this context: Context: a briefing for the head of a Thai provincial office, prepared by its policy and planning analyst. Use public sources (prefer official Thai government sources). Where sources give different numbers for the same thing, show them side by side with each source. Cover what the province can do within its own authority. Write in Thai. Write the research plan as a short numbered list of research questions, one line each, in neutral language, with no greeting and no closing.\nsession_id = exactly as the tool returns it. plan_questions = the plan's research topics as a list, in the plan's own order: one short neutral Thai question per topic; keep every topic and add none (the card must show exactly what will be researched). plan_text = those questions as a numbered list, one per line, with nothing else: no greeting, no closing, no 'I' (ผม/ดิฉัน), no ครับ/ค่ะ, no request to reply or to tell the agent to start. plan_ok = true only if the tool returned a session_id and a plan.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_plan.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "session_id": {
+        "description": "Deep Research session",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "plan_text": {
+        "description": "Numbered list of the plan's questions",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "plan_questions": {
+        "description": "Research questions",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 2
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "plan_ok": {
+        "description": "true if a plan came back",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "session_id",
+       "plan_text",
+       "plan_questions",
+       "plan_ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "plan_made",
+     "displayName": "Plan ready?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Plan ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "propose_plan.plan_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No plan",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "propose_plan.plan_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_no_plan",
+     "displayName": "Tell the plan failed",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nDeep Research did not return a plan. Details: ${propose_plan.problems} ${replan.problems}\nSay nothing was researched or sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "plan_approval",
+     "displayName": "Approve the research plan",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "แผนการค้นคว้าที่เสนอ (Proposed research plan):\n${propose_plan.plan_text}\n\nเพิ่มหรือตัดหัวข้อในช่องความคิดเห็น แล้วกด Approve (แผนที่แก้จะแสดงอีกครั้งก่อนค้นคว้า); Reject = หยุด (Add or remove topics in the comment, then Approve: the changed plan is shown again first; Reject stops.)\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด (Recent): การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox (After Approve, a Send card starts the research, about 10–25 min. You can leave and reopen this chat from Recent: the memo card waits here, not in the Inbox.) อนุมัติได้บนเว็บเท่านั้น (Approve on the web only).\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "tell_plan_rejected",
+     "displayName": "Tell the plan was rejected",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe research plan was rejected. Comment: \"${plan_approval.approval_feedback}\"\nSay nothing was researched or sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "check_changes",
+     "displayName": "Any plan changes?",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "instruction": "The analyst approved the plan with this comment: \"${plan_approval.approval_feedback}\". A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty. Return data only; use no tools. has_changes = true only if the comment asks to add, remove or change topics (an empty comment, ok, ตกลง, อนุมัติ or thanks is not a change). changes = the requested changes in one line, or empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "has_changes": {
+        "description": "true if the plan must change",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "changes": {
+        "description": "The changes, or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "has_changes",
+       "changes"
+      ]
+     }
+    },
+    {
+     "id": "changes_asked",
+     "displayName": "Plan changed?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Changed",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_changes.has_changes"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No change",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "check_changes.has_changes"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "replan",
+     "displayName": "Make the changed plan",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call deep_research_plan exactly ONCE with question = \"${get_ready.request}\" + ' ' + this context: Context: a briefing for the head of a Thai provincial office, prepared by its policy and planning analyst. Use public sources (prefer official Thai government sources). Where sources give different numbers for the same thing, show them side by side with each source. Cover what the province can do within its own authority. Write in Thai. Write the research plan as a short numbered list of research questions, one line each, in neutral language, with no greeting and no closing. Plan changes from the analyst: ${check_changes.changes}\nsession_id = exactly as the tool returns it. plan_questions = the plan's research topics as a list, in the plan's own order: one short neutral Thai question per topic; keep every topic and add none (the card must show exactly what will be researched). plan_text = those questions as a numbered list, one per line, with nothing else: no greeting, no closing, no 'I' (ผม/ดิฉัน), no ครับ/ค่ะ, no request to reply or to tell the agent to start. plan_ok = true only if the tool returned a session_id and a plan.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_plan.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "session_id": {
+        "description": "Deep Research session",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "plan_text": {
+        "description": "Numbered list of the plan's questions",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "plan_questions": {
+        "description": "Research questions",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 2
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "plan_ok": {
+        "description": "true if a plan came back",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "session_id",
+       "plan_text",
+       "plan_questions",
+       "plan_ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "replan_made",
+     "displayName": "Changed plan ready?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Plan ready",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "replan.plan_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "No plan",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "replan.plan_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "plan_approval_2",
+     "displayName": "Approve the changed plan",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "แผนที่แก้ตามความเห็นแล้ว (Changed plan):\n${replan.plan_text}\n\nกด Approve เพื่อค้นคว้าตามแผนนี้; กด Reject เพื่อหยุด – ถ้าต้องการแก้อีก ให้ Reject แล้วส่งคำขอใหม่ (Approve to research this plan; Reject stops – for more changes, Reject and send the request again.)\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด (Recent): การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox (After Approve, a Send card starts the research, about 10–25 min. You can leave and reopen this chat from Recent: the memo card waits here, not in the Inbox.) อนุมัติได้บนเว็บเท่านั้น (Approve on the web only).\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "tell_plan2_rejected",
+     "displayName": "Tell the changed plan was rejected",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe changed research plan was rejected. Comment: \"${plan_approval_2.approval_feedback}\"\nSay nothing was researched or sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "deep_research",
+     "displayName": "Start the research",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Start the research for the plan the analyst approved last. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nChanged plan: session ${replan.session_id}; questions ${replan.plan_questions}.\nFirst plan: session ${propose_plan.session_id}; questions ${propose_plan.plan_questions}.\nUse the changed plan if its session has a value, otherwise the first plan.\nCall deep_research_run exactly ONCE with that session_id, folder_id ${get_ready.save_folder_id} and title 'รายงานการค้นคว้าฉบับเต็ม – ${get_ready.topic_title}'. Do not call deep_research_check (later steps wait for it).\nReturn job_id = the jobId the run returned; started = true only if a jobId came back; questions = the questions of the plan used. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_run.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "job_id": {
+        "description": "Deep Research job ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "started": {
+        "description": "true only if a job started",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "questions": {
+        "description": "The approved plan's questions",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 2
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "job_id",
+       "started",
+       "questions",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "research_started",
+     "displayName": "Research started?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "deep_research.started"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not started",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "deep_research.started"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_not_started",
+     "displayName": "Tell the research did not start",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe research could not start. Details: ${deep_research.problems}\nSay no memo was written and nothing was sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "wait_research",
+     "displayName": "Wait for the research",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call the Research MCP tool deep_research_check with jobId = ${deep_research.job_id} and waitSeconds = 240. While the status is running, ALWAYS call it again: never stop while it is running. If a call returns an error, call it again; stop only after 3 errors in a row. At most 15 calls. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. status = the last status returned; calls = how many check calls you made.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "Last status returned",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "calls": {
+        "description": "Check calls made",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       }
+      },
+      "required": [
+       "status",
+       "calls"
+      ]
+     }
+    },
+    {
+     "id": "research_result",
+     "displayName": "Read the research result",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Call the Research MCP tool deep_research_check exactly ONCE with jobId = ${deep_research.job_id} and waitSeconds = 0. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Return exactly what it returned: status, doc_id, link (the docUrl), references (count); research_ok = true only if status is done and doc_id is not empty; problems = the error or 'still running after the wait' if status is running.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "status": {
+        "description": "done / running / failed / not_found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "doc_id": {
+        "description": "Report Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "link": {
+        "description": "Report link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "references": {
+        "description": "References",
+        "type": "NUMBER",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "research_ok": {
+        "description": "true only if done with a report",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       }
+      },
+      "required": [
+       "status",
+       "doc_id",
+       "link",
+       "references",
+       "research_ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "research_made",
+     "displayName": "Research finished?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Finished",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not finished",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "research_result.research_ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_research_failed",
+     "displayName": "Tell the research did not finish",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe research did not finish in this run. Status: ${research_result.status}. Details: ${research_result.problems}. Save folder: ${get_ready.save_folder_name}.\nSay no memo was written and nothing was sent. If the status is running, say the report will be saved by itself in that folder with a name starting 'รายงานการค้นคว้าฉบับเต็ม – ', and that to make the memo from it the user sends @Policy Briefing Memo with the report's link. If it failed or was not found, say the request can be sent again.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "report_ready",
+     "displayName": "Settle the report to use",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "Settle which research report the memo uses. Return data only. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nSaved report from the message: ${get_ready.report_doc_id}. This run's research: Doc ${research_result.doc_id}, link ${research_result.link}; questions ${deep_research.questions}.\nIf the saved report ID has a value: doc_id = it; link = its link (get_file_metadata); read it (read_file_content) and questions = the report's main questions or section topics (4 to 8, short Thai). Otherwise: doc_id, link and questions from this run's research.\nok = true only if doc_id has a value and the file can be read.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: get_file_metadata, read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+     },
+     "outputSchema": {
+      "properties": {
+       "doc_id": {
+        "description": "Report Doc ID",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "link": {
+        "description": "Report link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "questions": {
+        "description": "Questions the memo answers",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 2
+        },
+        "items": {
+         "type": "STRING"
+        }
+       },
+       "ok": {
+        "description": "true if the report can be used",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "doc_id",
+       "link",
+       "questions",
+       "ok",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "report_ok",
+     "displayName": "Report usable?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Usable",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "report_ready.ok"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not usable",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "report_ready.ok"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_no_report",
+     "displayName": "Tell the report could not be used",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe research report could not be used. Details: ${report_ready.problems}\nSay no memo was written and nothing was sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "read_research",
+     "displayName": "Read the report and internal documents",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       }
+      ],
+      "instruction": "You only read; you change nothing. Return data only.\n1. Read the FULL research report (Doc ID ${report_ready.doc_id}) with read_file_content.\n2. Internal documents folder: ${get_ready.internal_folder_id}. If it is empty, read NOTHING else: no search, no other file; internal_used = false; skip to 3. Otherwise read the documents directly in that folder and use only those about the request \"${get_ready.request}\"; internal_used = true if at least one was used; unrelated_documents = the titles of the others (never use their facts or numbers).\nThe report in step 1 is THIS memo's research: always use it as the main source. Never use any OTHER file that is this agent's own earlier output, wherever it is: files whose names start with 'รายงานการค้นคว้าฉบับเต็ม – ' or 'บันทึกข้อความ – ' (other than Doc ${report_ready.doc_id}).\n3. For each question in ${report_ready.questions} give a short Thai answer with its sources (exact URL from the report, or the internal document's title). Never invent a URL or a number.\n4. conflicts: only about the request's topic: whenever two of the sources used above give different numbers for the same thing, one row with both values and both sources. Do not pick one. Empty if there are none.\n5. not_found = what could not be found. memo_format = the heading structure of a past memo in the internal folder (not one of this agent's own outputs), or empty when there is no internal folder. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, read_file_text, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     },
+     "outputSchema": {
+      "properties": {
+       "answers": {
+        "description": "One per question",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 0
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "question": {
+           "description": "Question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "answer": {
+           "description": "Short Thai answer",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "sources": {
+           "description": "URLs or document titles",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          }
+         },
+         "required": [
+          "question",
+          "answer",
+          "sources"
+         ]
+        }
+       },
+       "conflicts": {
+        "description": "Different numbers for the same thing",
+        "type": "ARRAY",
+        "additionalProperties": {
+         "display_order": 1
+        },
+        "items": {
+         "type": "OBJECT",
+         "properties": {
+          "item": {
+           "description": "What is measured",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "value_a": {
+           "description": "Value",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "source_a": {
+           "description": "Source",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "value_b": {
+           "description": "Other value",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "source_b": {
+           "description": "Other source",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "item",
+          "value_a",
+          "source_a",
+          "value_b",
+          "source_b"
+         ]
+        }
+       },
+       "internal_used": {
+        "description": "true if internal documents were used",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "not_found": {
+        "description": "What could not be found",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "unrelated_documents": {
+        "description": "Internal documents not about the request",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       },
+       "memo_format": {
+        "description": "Past memo structure, or empty",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 5
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 6
+        }
+       }
+      },
+      "required": [
+       "answers",
+       "conflicts",
+       "internal_used",
+       "not_found",
+       "unrelated_documents",
+       "memo_format",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "write_memo",
+     "displayName": "Write the memo (บันทึกข้อความ)",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{DRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Write ONE Google Doc: an internal memo (บันทึกข้อความ) of about 2 pages for the head of the office.\nRequest: \"${get_ready.request}\" (topic ${get_ready.topic_title}). Research answers: ${read_research.answers}. Conflicting figures: ${read_research.conflicts}. Not found: ${read_research.not_found}. Past memo structure (follow it if given): ${read_research.memo_format}. Full research report link: ${report_ready.link}\nHeadings exactly: 1. ความเป็นมา 2. ข้อเท็จจริง 3. ข้อกฎหมาย/ระเบียบที่เกี่ยวข้อง 4. ข้อพิจารณา 5. ข้อเสนอ. Recommendations only within the province's own authority. Every fact links to its source (hyperlink) when the answers give one. Include a small table of the conflicting figures with both sources (or say there were none). Link the full research report. Internal documents used: ${read_research.internal_used}; if false, add one line under the headings: ที่มาของข้อมูล: แหล่งข้อมูลสาธารณะเท่านั้น ไม่ได้ใช้เอกสารภายใน (Sources: public sources only; no internal documents were used).\nTitle: look directly in folder ${get_ready.save_folder_id} for Docs whose name starts with 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง'. If none, the title is 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง)'; otherwise add the next number, for example (ร่าง 2).\nHOW: call create_file ONCE with that title, parentId ${get_ready.save_folder_id}, contentMimeType 'text/html', textContent = the whole HTML (no other content field). Create nothing else; do not share, move, update or trash anything. memo_file_id = the ID the tool returns; memo_link = its link; created = true only if the tool returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "memo_file_id": {
+        "description": "Memo Doc ID; empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "memo_link": {
+        "description": "Memo link",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "memo_title": {
+        "description": "Title used",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "created": {
+        "description": "true only if the tool returned an ID",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 4
+        }
+       }
+      },
+      "required": [
+       "memo_file_id",
+       "memo_link",
+       "memo_title",
+       "created",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "memo_made",
+     "displayName": "Memo created?",
+     "nodeType": "CONDITION_NODE",
+     "conditionNode": {
+      "ruleBasedRouting": {
+       "rules": [
+        {
+         "branch": "Created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "write_memo.created"
+               },
+               "conditionOperator": "IS_TRUE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        },
+        {
+         "branch": "Not created",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "write_memo.created"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    },
+    {
+     "id": "tell_memo_not_created",
+     "displayName": "Tell the memo was not made",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe memo was not created. Details: ${write_memo.problems}. The full research report is here: ${report_ready.link}\nSay the email was not sent.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "review_memo",
+     "displayName": "Review the memo",
+     "nodeType": "APPROVAL_NODE",
+     "approvalNode": {
+      "message": "ตรวจทานบันทึกข้อความ (Review the memo), แก้ไขในเอกสารได้โดยตรง แล้วกด Approve (edit the Doc directly, then click Approve): ${write_memo.memo_link}\nรายงานฉบับเต็ม (Full report): ${report_ready.link}\nขั้นต่อไป: อีเมลถึงหัวหน้า ผู้รับ: ${get_ready.head_email} (${get_ready.head_email_source}) – แก้หรือใส่อีเมลในการ์ดส่งอีเมลได้ (Next: the email to the Head, to the address above, taken from your message or your last memo email; type or change it on the Send Email card.)\nกด Reject เพื่อหยุดโดยไม่ส่งอีเมล (Reject stops without emailing the Head). อนุมัติได้บนเว็บเท่านั้น (Approve on the web app only).\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "approvalBranch": "Approved",
+      "rejectionBranch": "Rejected"
+     }
+    },
+    {
+     "id": "tell_memo_rejected",
+     "displayName": "Tell the memo was rejected",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nThe memo was rejected. Comment: \"${review_memo.approval_feedback}\". Memo: ${write_memo.memo_link} Full report: ${report_ready.link}\nSay nothing was sent to the Head and where the two documents are.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    },
+    {
+     "id": "email_head",
+     "displayName": "Email the Head",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "dataStoreSpecs": {
+       "specs": [
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        }
+       ]
+      },
+      "connectorToolSelections": [
+       {
+        "dataConnector": {
+         "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       }
+      ],
+      "instruction": "Call send_email exactly ONCE. to = ${get_ready.head_email} (from the user's message or the user's last memo email); if that is empty, to = an empty string: the user types the Head's email on the confirm card. Never invent or guess an address. No CC/BCC.\nSubject: บันทึกข้อความ – ${get_ready.topic_title}\nBody in polite, formal Thai (เรียน หัวหน้าสำนักงาน…): the memo and the full research report are ready; memo ${write_memo.memo_link} ; full report ${report_ready.link} ; the official version will be submitted through e-Saraban by the analyst. Links, not attachments: never write แนบ. Gender-neutral (no ครับ or ค่ะ); close with จึงเรียนมาเพื่อโปรดทราบ. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_email.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nWrite tools ask the user to confirm. After the user confirms, call the SAME tool again with EXACTLY the same arguments (never change them) and never ask for confirmation in text. If the write still does not go through, stop and return your output fields with the success field false and the reason in problems."
+     },
+     "outputSchema": {
+      "properties": {
+       "sent": {
+        "description": "true only if the tool returned a message ID",
+        "type": "BOOLEAN",
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "to": {
+        "description": "Recipient as the tool result shows it",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "problems": {
+        "description": "Empty if none",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       }
+      },
+      "required": [
+       "sent",
+       "to",
+       "problems"
+      ]
+     }
+    },
+    {
+     "id": "tell_done",
+     "displayName": "Tell it is done",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.1-pro-preview",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user: Thai first, then the same in English. Use no tools. It is the last message of this run: do not ask the user a question, do not suggest how to word a request, and do not wait for an answer.\nMemo: ${write_memo.memo_link} (${write_memo.memo_title}). Full report: ${report_ready.link}. Saved in: ${get_ready.save_folder_name} (chosen from: ${get_ready.save_folder_source}). Email to the Head: sent = ${email_head.sent}, to ${email_head.to}. Problems: ${email_head.problems}\nList the two links, where they were saved and why there, and whether the Head was emailed and at which address.\nWrite only what the data above says. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+     }
+    }
+   ],
+   "edges": [
+    {
+     "sourceNodeId": "start",
+     "targetNodeId": "get_ready"
+    },
+    {
+     "sourceNodeId": "get_ready",
+     "targetNodeId": "is_ready"
+    },
+    {
+     "sourceNodeId": "is_ready",
+     "targetNodeId": "tell_not_ready",
+     "routeString": "Not ready"
+    },
+    {
+     "sourceNodeId": "is_ready",
+     "targetNodeId": "which_path",
+     "routeString": "Ready"
+    },
+    {
+     "sourceNodeId": "which_path",
+     "targetNodeId": "report_ready",
+     "routeString": "Saved report"
+    },
+    {
+     "sourceNodeId": "which_path",
+     "targetNodeId": "propose_plan",
+     "routeString": "New research"
+    },
+    {
+     "sourceNodeId": "propose_plan",
+     "targetNodeId": "plan_made"
+    },
+    {
+     "sourceNodeId": "plan_made",
+     "targetNodeId": "tell_no_plan",
+     "routeString": "No plan"
+    },
+    {
+     "sourceNodeId": "plan_made",
+     "targetNodeId": "plan_approval",
+     "routeString": "Plan ready"
+    },
+    {
+     "sourceNodeId": "plan_approval",
+     "targetNodeId": "tell_plan_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "plan_approval",
+     "targetNodeId": "check_changes",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "check_changes",
+     "targetNodeId": "changes_asked"
+    },
+    {
+     "sourceNodeId": "changes_asked",
+     "targetNodeId": "replan",
+     "routeString": "Changed"
+    },
+    {
+     "sourceNodeId": "changes_asked",
+     "targetNodeId": "deep_research",
+     "routeString": "No change"
+    },
+    {
+     "sourceNodeId": "replan",
+     "targetNodeId": "replan_made"
+    },
+    {
+     "sourceNodeId": "replan_made",
+     "targetNodeId": "tell_no_plan",
+     "routeString": "No plan"
+    },
+    {
+     "sourceNodeId": "replan_made",
+     "targetNodeId": "plan_approval_2",
+     "routeString": "Plan ready"
+    },
+    {
+     "sourceNodeId": "plan_approval_2",
+     "targetNodeId": "tell_plan2_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "plan_approval_2",
+     "targetNodeId": "deep_research",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "deep_research",
+     "targetNodeId": "research_started"
+    },
+    {
+     "sourceNodeId": "research_started",
+     "targetNodeId": "wait_research",
+     "routeString": "Started"
+    },
+    {
+     "sourceNodeId": "research_started",
+     "targetNodeId": "tell_not_started",
+     "routeString": "Not started"
+    },
+    {
+     "sourceNodeId": "wait_research",
+     "targetNodeId": "research_result"
+    },
+    {
+     "sourceNodeId": "research_result",
+     "targetNodeId": "research_made"
+    },
+    {
+     "sourceNodeId": "research_made",
+     "targetNodeId": "tell_research_failed",
+     "routeString": "Not finished"
+    },
+    {
+     "sourceNodeId": "research_made",
+     "targetNodeId": "report_ready",
+     "routeString": "Finished"
+    },
+    {
+     "sourceNodeId": "report_ready",
+     "targetNodeId": "report_ok"
+    },
+    {
+     "sourceNodeId": "report_ok",
+     "targetNodeId": "tell_no_report",
+     "routeString": "Not usable"
+    },
+    {
+     "sourceNodeId": "report_ok",
+     "targetNodeId": "read_research",
+     "routeString": "Usable"
+    },
+    {
+     "sourceNodeId": "read_research",
+     "targetNodeId": "write_memo"
+    },
+    {
+     "sourceNodeId": "write_memo",
+     "targetNodeId": "memo_made"
+    },
+    {
+     "sourceNodeId": "memo_made",
+     "targetNodeId": "tell_memo_not_created",
+     "routeString": "Not created"
+    },
+    {
+     "sourceNodeId": "memo_made",
+     "targetNodeId": "review_memo",
+     "routeString": "Created"
+    },
+    {
+     "sourceNodeId": "review_memo",
+     "targetNodeId": "tell_memo_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "review_memo",
+     "targetNodeId": "email_head",
+     "routeString": "Approved"
+    },
+    {
+     "sourceNodeId": "email_head",
+     "targetNodeId": "tell_done"
+    }
+   ]
+  }
+ }
+}
