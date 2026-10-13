@@ -1,0 +1,21 @@
+{
+ "id": "gov-c-th-table-empty",
+ "agent": "GOV-C",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-c table-empty   (afterwards: python3 tests/fixtures/government-officer.py gov-c table-ok)",
+ "why": "Failure path (Vishal gc-run-setup-empty): the routing table has no units and no Section Head email -> nothing read or sent; a Thai message says how to fill the table; no card. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจหนังสือเข้าใหม่",
+ "default_card": "cancel",
+ "max_cards": 2,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "final_contains": [
+   "ตารางมอบหมายงาน"
+  ],
+  "thai_final": true
+ }
+}

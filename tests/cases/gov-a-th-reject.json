@@ -1,0 +1,42 @@
+{
+ "id": "gov-a-th-reject",
+ "agent": "GOV-A",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a full",
+ "why": "Failure path (Vishal mor-reject-no-comment): the Head rejects the draft with no comment -> the run stops; no deck, no work note, no email; the draft stays. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
+ "cards": [
+  {
+   "when": {
+    "node": "review_report"
+   },
+   "do": "reject",
+   "feedback": ""
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 5,
+ "max_minutes": 35,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "review_report"
+  ],
+  "cards_not_seen": [
+   "create_presentation",
+   "send_email",
+   "review_report_2"
+  ],
+  "files": [
+   {
+    "name": "^รายงานผลการดำเนินงาน ก\\.ย\\. 69 \\(ร่าง",
+    "mime": "document"
+   }
+  ],
+  "no_files": [
+   "^บันทึกการทำงาน",
+   "^สรุปผลการดำเนินงาน"
+  ],
+  "thai_final": true
+ }
+}

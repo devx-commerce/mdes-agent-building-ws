@@ -1,0 +1,59 @@
+{
+ "id": "res-b-en-full",
+ "agent": "RES-B",
+ "lang": "en",
+ "why": "Happy path (use case RES-B; Vishal rb-first-version / rb-copy-v*): new data file saved in this half hour -> data check finds the 3 planted issues -> researcher types rules -> analysis -> chapter 4 + chart + slides + log row + email. EN: runs after the TH case, with the analysis plan changed (H4 added) -> v2 copied from the previous chapter.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-en-full.json",
+ "start": "Run the scheduled check now.",
+ "cards": [
+  {
+   "when": {
+    "node": "handling_rules"
+   },
+   "do": "approve",
+   "feedback": "9 = don't know: treat as missing; South = ภาคใต้; keep respondents who skipped income, but leave them out of the income analysis"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 16,
+ "max_minutes": 50,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "handling_rules",
+   "create_file",
+   "create_chart",
+   "insert_sheets_chart",
+   "create_presentation",
+   "append_rows",
+   "send_email",
+   "copy_file",
+   "replace_section"
+  ],
+  "files": [
+   {
+    "name": "^บทที่ 4 ผลการวิจัย – v\\d",
+    "mime": "document",
+    "contains": [
+     "0.453",
+     "22.67"
+    ],
+    "thai": true
+   },
+   {
+    "name": "^สไลด์ผลการวิจัย – v\\d",
+    "mime": "presentation",
+    "thai": true
+   },
+   {
+    "name": "^ข้อมูลกราฟ – v\\d",
+    "mime": "spreadsheet",
+    "contains": [
+     "ภาคใต้"
+    ]
+   }
+  ],
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
+  "thai_final": false
+ }
+}

@@ -1,0 +1,30 @@
+{
+ "id": "gov-a-th-remind",
+ "agent": "GOV-A",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a remind-1",
+ "why": "Reminder path (Vishal mor-reminders): อำเภอพาน has not sent and its deadline (5 Oct) is past -> exactly one หนังสือติดตาม email to navya.agarwal+district-phan; no report. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
+ "default_card": "approve",
+ "max_cards": 5,
+ "max_minutes": 25,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "create_file",
+   "review_report",
+   "create_presentation"
+  ],
+  "emails_to": "^navya\\.agarwal\\+district-phan@devxlabs\\.ai$",
+  "no_files": [
+   "^รายงานผลการดำเนินงาน ก\\.ย\\. 69"
+  ],
+  "final_regex": [
+   "2\\D{1,40}3"
+  ],
+  "thai_final": true
+ }
+}

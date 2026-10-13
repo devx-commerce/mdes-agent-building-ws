@@ -1,0 +1,17 @@
+{
+ "id": "gov-b-th-full",
+ "agent": "GOV-B", "lang": "th",
+ "why": "Happy path (use case GOV-B; Vishal pbm-haze-thai): one Thai sentence with save folder link and the Head's email -> plan card approved -> Deep Research started (Send) and waited for -> memo (บันทึกข้อความ, 5 headings) created in the given folder -> memo approved -> one email to the Head (navya.agarwal+head) with both links.",
+ "start": "สรุปสถานการณ์ฝุ่นละออง PM2.5 ในจังหวัดเชียงรายและมาตรการที่จังหวัดดำเนินการได้เอง บันทึกในโฟลเดอร์ https://drive.google.com/drive/folders/17WZ51JJzWi5mUTSjxzzYXpPphdRPHB6i ส่งถึง navya.agarwal+head@devxlabs.ai",
+ "cards": [{"when": {"node": "plan_approval"}, "do": "approve", "feedback": ""}],
+ "default_card": "approve",
+ "max_cards": 10, "max_minutes": 75,
+ "expect": {"status": "end",
+            "cards_seen": ["plan_approval", "deep_research_run", "create_file", "review_memo", "send_email"],
+            "files": [{"name": "^บันทึกข้อความ – .*\\(ร่าง", "mime": "document", "thai": true,
+                       "contains": ["ความเป็นมา", "ข้อเท็จจริง", "ข้อพิจารณา", "ข้อเสนอ"]},
+                      {"name": "^รายงานการค้นคว้าฉบับเต็ม – ", "mime": "document"}],
+            "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
+            "final_contains": ["navya.agarwal+head@devxlabs.ai"],
+            "thai_final": true}
+}

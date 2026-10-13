@@ -61,7 +61,10 @@ def render(cfg, t, a):
         values[k + "_STORE"] = v + "_mcp_data" if v else ""
     values.update(a.get("vars", {}))
     values.update(a.get("vars_" + t["lang"], {}))  # e.g. vars_th: a different test folder for the Thai copy
-    s = json.dumps(t["definition"], ensure_ascii=False)
+    definition = t["definition"]
+    if cfg.get("drop_missing_connectors"):  # target without these connectors yet (e.g. non-prod): deploy the steps without them
+        definition = drop_connectors(definition, {k for k, v in cfg["connectors"].items() if not v})
+    s = json.dumps(definition, ensure_ascii=False)
     missing = sorted({m for m in re.findall(r"\{\{(\w+)\}\}", s) if not values.get(m)})
     if missing:
         return None, missing
@@ -76,6 +79,29 @@ def render(cfg, t, a):
         if cfg.get("timezone"):
             sch["timeZone"] = cfg["timezone"]
     return d, []
+
+
+def drop_connectors(definition, empty):
+    """Remove each step's data store spec and tool selection that points at a connector with no ID in the config."""
+    d = json.loads(json.dumps(definition))
+    bad = lambda o: any("{{" + k + "}}" in json.dumps(o) or "{{" + k + "_STORE}}" in json.dumps(o) for k in empty)
+
+    def walk(flow):
+        for n in flow.get("nodes", []):
+            a = n.get("agentNode")
+            if a:
+                if a.get("dataStoreSpecs"):
+                    a["dataStoreSpecs"]["specs"] = [x for x in a["dataStoreSpecs"]["specs"] if not bad(x)]
+                    if not a["dataStoreSpecs"]["specs"]:
+                        a.pop("dataStoreSpecs")
+                if a.get("connectorToolSelections") is not None:
+                    a["connectorToolSelections"] = [x for x in a["connectorToolSelections"] if not bad(x)]
+                    if not a["connectorToolSelections"]:
+                        a.pop("connectorToolSelections")
+            if n.get("forLoopNode"):
+                walk(n["forLoopNode"].get("subAgentFlow", {}))
+    walk(d["agentFlow"])
+    return d
 
 
 def display_name(t, a):
@@ -123,7 +149,7 @@ class Api:
 
 def ensure_app(api, cfg, app, dry):
     """The app must exist; create it (copying the shape of the MDES apps, 13 Oct 2026) when create_app is true."""
-    stores = [v + "_mcp_data" for v in cfg["connectors"].values() if v]
+    stores = [v + "_mcp_data" for v in cfg["connectors"].values() if v]  # empty IDs: connector not in this project yet
     eng = api.call("GET", api.engine(app), ok404=True)
     if eng is None:
         if not cfg.get("create_app"):

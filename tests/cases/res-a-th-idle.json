@@ -1,0 +1,23 @@
+{
+ "id": "res-a-th-idle",
+ "agent": "RES-A",
+ "lang": "th",
+ "why": "Quiet stop: the Setup Doc was last edited 3 hours ago (outside this run's hour slot) -> 'nothing this hour', no cards, nothing written.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-a-th-idle.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [],
+ "default_card": "cancel",
+ "max_cards": 2,
+ "max_minutes": 10,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "no_files": [
+   "^ตารางเปรียบเทียบหลักฐาน",
+   "^บันทึกการเปลี่ยนแปลง"
+  ],
+  "thai_final": true
+ }
+}

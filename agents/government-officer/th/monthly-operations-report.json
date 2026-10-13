@@ -1966,7 +1966,7 @@
      "displayName": "ตรวจทานรายงาน",
      "nodeType": "APPROVAL_NODE",
      "approvalNode": {
-      "message": "กรุณาตรวจทานร่างรายงาน: https://docs.google.com/document/d/${create_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ: ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nถ้าต้องการให้แก้ ให้กด Reject และเขียนสิ่งที่ต้องแก้ (To have it redone, click Reject and write what to change.)\nแชร์กับอำเภอ: ${check_submissions.shared_with_districts}: if true, the districts can see the folder where this draft is saved.",
+      "message": "กรุณาตรวจทานร่างรายงาน: https://docs.google.com/document/d/${create_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve\nข้อมูลที่ต้องตรวจสอบ: ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้\nถ้าต้องการให้แก้ ให้กด Reject และเขียนสิ่งที่ต้องแก้\nอำเภอเห็นโฟลเดอร์ที่บันทึกร่างนี้หรือไม่ (true = เห็น): ${check_submissions.shared_with_districts}",
       "approvalBranch": "Approved",
       "rejectionBranch": "Rejected"
      }
@@ -2180,7 +2180,7 @@
      "displayName": "ตรวจทานรายงานฉบับแก้ไข",
      "nodeType": "APPROVAL_NODE",
      "approvalNode": {
-      "message": "กรุณาตรวจทานร่างรายงาน: https://docs.google.com/document/d/${rebuild_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve (Edit the Doc directly, add context the numbers cannot show, then click Approve).\nข้อมูลที่ต้องตรวจสอบ: ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้ (Approve on the web app; approving on the phone does not work yet).\nครั้งนี้ถ้ากด Reject งานจะหยุด และบันทึกความเห็นไว้ (This time Reject stops the run; your comment is kept in the final message.)",
+      "message": "กรุณาตรวจทานร่างรายงาน: https://docs.google.com/document/d/${rebuild_report.file_id}/edit\nแก้ไขข้อความและเพิ่มบริบทในเอกสารได้โดยตรง แล้วกด Approve\nข้อมูลที่ต้องตรวจสอบ: ${read_and_table.problems} ${compare_months.problems}\nอนุมัติได้บนเว็บเท่านั้น ยังอนุมัติบนมือถือไม่ได้\nครั้งนี้ถ้ากด Reject งานจะหยุด และบันทึกความเห็นไว้",
       "approvalBranch": "Approved",
       "rejectionBranch": "Rejected"
      }

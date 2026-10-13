@@ -1,0 +1,24 @@
+{
+ "id": "res-b-en-nothing-new",
+ "agent": "RES-B",
+ "lang": "en",
+ "why": "Quiet stop (Vishal rb-nothing-new): data file and plan are the versions already logged / not saved this half hour -> 'nothing new', no cards, nothing written.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-en-nothing-new.json",
+ "start": "Run the scheduled check now.",
+ "cards": [],
+ "default_card": "cancel",
+ "max_cards": 2,
+ "max_minutes": 12,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "no_files": [
+   "^บทที่ 4",
+   "^สไลด์ผลการวิจัย",
+   "^ข้อมูลกราฟ"
+  ],
+  "thai_final": false
+ }
+}

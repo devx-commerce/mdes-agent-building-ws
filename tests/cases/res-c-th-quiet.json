@@ -1,0 +1,19 @@
+{
+ "id": "res-c-th-quiet",
+ "agent": "RES-C",
+ "lang": "th",
+ "why": "Quiet stop: not Monday and the calls log was not edited since yesterday 07:00 -> short summary, no cards, nothing written.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-c-th-quiet.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [],
+ "default_card": "cancel",
+ "max_cards": 2,
+ "max_minutes": 10,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "thai_final": true
+ }
+}

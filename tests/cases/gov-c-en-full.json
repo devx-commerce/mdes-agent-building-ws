@@ -1,0 +1,32 @@
+{
+ "id": "gov-c-en-full",
+ "agent": "GOV-C",
+ "lang": "en",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-c letter-2",
+ "why": "Happy path, EN build: a second new scan (budget report request from the provincial treasury, ปกติ, due 30 Oct) -> routed to งานการเงินและบัญชี -> draft reply -> register row -> routing note to the Section Head (navya.agarwal+sectionhead). The first letter (already in the register) is not handled again. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "Check new incoming letters",
+ "default_card": "approve",
+ "max_cards": 20,
+ "max_minutes": 45,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email",
+   "append_rows",
+   "create_file"
+  ],
+  "files": [
+   {
+    "name": "^ร่างหนังสือตอบ – .*(เบิกจ่าย|งบประมาณ)",
+    "mime": "document",
+    "contains": [
+     "ชร 0023"
+    ]
+   }
+  ],
+  "no_files": [
+   "^ร่างหนังสือตอบ – .*(น้ำท่วม|อุทกภัย|ผู้ประสบภัย)"
+  ],
+  "emails_to": "^navya\\.agarwal(\\+sectionhead)?@devxlabs\\.ai$"
+ }
+}

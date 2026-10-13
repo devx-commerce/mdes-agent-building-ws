@@ -1,0 +1,15 @@
+{
+ "id": "gov-b-en-full",
+ "agent": "GOV-B", "lang": "en",
+ "why": "Happy path, English request (Vishal pbm-flood-english): plan approved -> research -> Thai memo in the given folder -> approved -> one email to the Head (navya.agarwal+head) with both links.",
+ "start": "Brief the governor on flood early-warning measures a Thai province can take within its own authority. Save in folder https://drive.google.com/drive/folders/17WZ51JJzWi5mUTSjxzzYXpPphdRPHB6i and send to navya.agarwal+head@devxlabs.ai",
+ "cards": [{"when": {"node": "plan_approval"}, "do": "approve", "feedback": ""}],
+ "default_card": "approve",
+ "max_cards": 10, "max_minutes": 75,
+ "expect": {"status": "end",
+            "cards_seen": ["plan_approval", "deep_research_run", "create_file", "review_memo", "send_email"],
+            "files": [{"name": "^บันทึกข้อความ – .*\\(ร่าง", "mime": "document", "contains": ["ความเป็นมา", "ข้อเสนอ"]},
+                      {"name": "^รายงานการค้นคว้าฉบับเต็ม – ", "mime": "document"}],
+            "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
+            "final_contains": ["navya.agarwal+head@devxlabs.ai"]}
+}

@@ -1,0 +1,51 @@
+{
+ "id": "gov-a-en-full",
+ "agent": "GOV-A",
+ "lang": "en",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a full",
+ "why": "Happy path, EN build: same as gov-a-th-full. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "Run the monthly operations report check",
+ "default_card": "approve",
+ "max_cards": 12,
+ "max_minutes": 45,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "review_report",
+   "create_presentation",
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "review_report_2"
+  ],
+  "files": [
+   {
+    "name": "^รายงานผลการดำเนินงาน ก\\.ย\\. 69 \\(ร่าง",
+    "mime": "document",
+    "thai": true,
+    "contains": [
+     "41.0",
+     "58.0",
+     "14.50",
+     "50.9",
+     "สำนักงานจังหวัดเชียงราย"
+    ]
+   },
+   {
+    "name": "^สรุปผลการดำเนินงาน ก\\.ย\\. 69",
+    "mime": "presentation"
+   },
+   {
+    "name": "^บันทึกการทำงาน ก\\.ย\\. 69",
+    "mime": "document",
+    "contains": [
+     "docs.google.com/document/d/"
+    ]
+   }
+  ],
+  "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
+  "final_contains": [
+   "navya.agarwal+head@devxlabs.ai"
+  ]
+ }
+}

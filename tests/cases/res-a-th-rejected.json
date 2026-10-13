@@ -1,0 +1,36 @@
+{
+ "id": "res-a-th-rejected",
+ "agent": "RES-A",
+ "lang": "th",
+ "why": "Failure path (Vishal ra1-plan-rejected): she rejects the plan -> a 'plan rejected' row in the change record, nothing researched or saved.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-a-th-rejected.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [
+  {
+   "when": {
+    "node": "plan_approval"
+   },
+   "do": "reject",
+   "feedback": "ยังไม่ต้องทำเรื่องนี้"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 5,
+ "max_minutes": 20,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "plan_approval"
+  ],
+  "cards_not_seen": [
+   "deep_research_run",
+   "follow_up"
+  ],
+  "no_files": [
+   "^ตารางเปรียบเทียบหลักฐาน",
+   "^บทสรุปพร้อมแหล่งอ้างอิง",
+   "^รายงานการค้นคว้า"
+  ],
+  "thai_final": true
+ }
+}

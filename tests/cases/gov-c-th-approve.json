@@ -1,0 +1,20 @@
+{
+ "id": "gov-c-th-approve",
+ "agent": "GOV-C",
+ "lang": "th",
+ "fixture": "after gov-c-th-full: reply อนุมัติ in the [เกษียณหนังสือ] thread (scratchpad reply step; see FINDINGS)",
+ "why": "Section Head decision path (use case GOV-C 'acts on the reply'): the routing note got the reply อนุมัติ -> one Calendar event on the deadline for the officer (navya.agarwal+officer-disaster) with the draft linked -> register row set to รอดำเนินการ. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจหนังสือเข้าใหม่",
+ "default_card": "approve",
+ "max_cards": 12,
+ "max_minutes": 40,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "create_event",
+   "update_row"
+  ],
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
+  "thai_final": true
+ }
+}

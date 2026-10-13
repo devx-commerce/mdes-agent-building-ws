@@ -1,0 +1,63 @@
+{
+ "id": "res-a-th-full",
+ "agent": "RES-A",
+ "lang": "th",
+ "why": "Happy path (Vishal ra1-full): Setup Doc with goal + library link edited in this run's hour slot -> plan card (she adds a question) -> changed plan shown again -> Deep Research -> evidence table with the planted conflicts -> she asks a question -> sourced briefing -> change-record row.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-a-th-full.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [
+  {
+   "when": {
+    "node": "^plan_approval$"
+   },
+   "do": "approve",
+   "feedback": "เพิ่มคำถาม: ยอดขายรถยนต์ไฟฟ้าเปลี่ยนไปอย่างไรหลังเงื่อนไขเงินอุดหนุนเปลี่ยนเป็น EV 3.5"
+  },
+  {
+   "when": {
+    "node": "plan_approval_2"
+   },
+   "do": "approve",
+   "feedback": ""
+  },
+  {
+   "when": {
+    "node": "follow_up"
+   },
+   "do": "approve",
+   "feedback": "ลูกค้าควรใช้ตัวเลขใดในการวางแผนกำลังการผลิต และเพราะอะไร"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 14,
+ "max_minutes": 95,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "plan_approval",
+   "plan_approval_2",
+   "deep_research_run",
+   "follow_up",
+   "append_rows"
+  ],
+  "files": [
+   {
+    "name": "^ตารางเปรียบเทียบหลักฐาน – ",
+    "mime": "spreadsheet",
+    "contains": [
+     "359,000",
+     "41,800"
+    ]
+   },
+   {
+    "name": "^บทสรุปพร้อมแหล่งอ้างอิง – ",
+    "mime": "document",
+    "contains": [
+     "725,000"
+    ],
+    "thai": true
+   }
+  ],
+  "thai_final": true
+ }
+}

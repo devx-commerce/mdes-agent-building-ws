@@ -1,0 +1,20 @@
+{
+ "id": "gov-c-en-table-empty",
+ "agent": "GOV-C",
+ "lang": "en",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-c table-empty   (afterwards: python3 tests/fixtures/government-officer.py gov-c table-ok)",
+ "why": "Failure path, EN build: routing table not filled -> nothing read or sent, message says how to fill it; no card. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "Check new incoming letters",
+ "default_card": "cancel",
+ "max_cards": 2,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "final_contains": [
+   "ตารางมอบหมายงาน"
+  ]
+ }
+}

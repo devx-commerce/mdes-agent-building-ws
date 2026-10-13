@@ -1,0 +1,25 @@
+{
+ "id": "res-c-en-missing",
+ "agent": "RES-C",
+ "lang": "en",
+ "why": "Missing input (Vishal rc1-profile-missing): the researcher profile is not found (renamed '(old) …' for the run) -> ONE 'cannot start' email to the owner naming only the profile.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-c-en-missing.json",
+ "start": "Run the scheduled check now.",
+ "cards": [],
+ "default_card": "approve",
+ "max_cards": 3,
+ "max_minutes": 12,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "create_file",
+   "deep_research",
+   "append_to_doc"
+  ],
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
+  "thai_final": false
+ }
+}

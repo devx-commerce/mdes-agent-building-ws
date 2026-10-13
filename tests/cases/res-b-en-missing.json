@@ -1,0 +1,24 @@
+{
+ "id": "res-b-en-missing",
+ "agent": "RES-B",
+ "lang": "en",
+ "why": "Missing input: the codebook is not found (renamed '(old) …' for the run) -> ONE 'cannot start' email to the owner naming only the codebook; nothing else.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-en-missing.json",
+ "start": "Run the scheduled check now.",
+ "cards": [],
+ "default_card": "approve",
+ "max_cards": 3,
+ "max_minutes": 12,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "create_file",
+   "handling_rules"
+  ],
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
+  "thai_final": false
+ }
+}

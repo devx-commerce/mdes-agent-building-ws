@@ -1,0 +1,31 @@
+{
+ "id": "gov-c-th-full",
+ "agent": "GOV-C",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-c letter-1",
+ "why": "Happy path (use case GOV-C; Vishal gc-run): a new scanned ด่วนมาก letter (flood household data, due 20 Oct) in หนังสือเข้า -> register created -> read (OCR) -> routed to งานป้องกันและบรรเทาสาธารณภัย -> draft reply Doc with blanks -> register row -> routing note [เกษียณหนังสือ][ด่วนมาก] to the Section Head (navya.agarwal+sectionhead). Real inbox items since today are skipped or handled as letters. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจหนังสือเข้าใหม่",
+ "default_card": "approve",
+ "max_cards": 20,
+ "max_minutes": 45,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email",
+   "append_rows",
+   "create_file"
+  ],
+  "files": [
+   {
+    "name": "^ร่างหนังสือตอบ – .*(น้ำท่วม|อุทกภัย|ผู้ประสบภัย)",
+    "mime": "document",
+    "thai": true,
+    "contains": [
+     "ชร 0017"
+    ]
+   }
+  ],
+  "emails_to": "^navya\\.agarwal(\\+sectionhead)?@devxlabs\\.ai$",
+  "thai_final": true
+ }
+}

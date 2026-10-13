@@ -1,0 +1,57 @@
+{
+ "id": "res-b-th-full",
+ "agent": "RES-B",
+ "lang": "th",
+ "why": "Happy path (use case RES-B; Vishal rb-first-version / rb-copy-v*): new data file saved in this half hour -> data check finds the 3 planted issues -> researcher types rules -> analysis -> chapter 4 + chart + slides + log row + email. TH: first version (no log yet).",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-th-full.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [
+  {
+   "when": {
+    "node": "handling_rules"
+   },
+   "do": "approve",
+   "feedback": "9 = ไม่ทราบ ให้ถือเป็นค่าว่าง; South = ภาคใต้; คนที่ไม่ตอบรายได้ ให้เก็บไว้แต่ไม่ใช้ในการวิเคราะห์รายได้"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 16,
+ "max_minutes": 50,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "handling_rules",
+   "create_file",
+   "create_chart",
+   "insert_sheets_chart",
+   "create_presentation",
+   "append_rows",
+   "send_email"
+  ],
+  "files": [
+   {
+    "name": "^บทที่ 4 ผลการวิจัย – v\\d",
+    "mime": "document",
+    "contains": [
+     "0.453",
+     "22.67"
+    ],
+    "thai": true
+   },
+   {
+    "name": "^สไลด์ผลการวิจัย – v\\d",
+    "mime": "presentation",
+    "thai": true
+   },
+   {
+    "name": "^ข้อมูลกราฟ – v\\d",
+    "mime": "spreadsheet",
+    "contains": [
+     "ภาคใต้"
+    ]
+   }
+  ],
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
+  "thai_final": true
+ }
+}

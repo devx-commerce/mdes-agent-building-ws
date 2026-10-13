@@ -1,0 +1,24 @@
+{
+ "id": "res-c-th-results",
+ "agent": "RES-C",
+ "lang": "th",
+ "why": "Happy path for a non-Monday run (today 14 Oct 2026 is a Wednesday, so search_day is false by the template): the calls log was edited in the slot [yesterday 07:00, today 07:00) with one funded result -> append_to_doc adds them to the profile under 'ผลการพิจารณาทุน' -> tell_day. Profile content checked after the run (harness only checks new files).",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-c-th-results.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [],
+ "default_card": "approve",
+ "max_cards": 3,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "append_to_doc"
+  ],
+  "cards_not_seen": [
+   "deep_research",
+   "send_email",
+   "create_event"
+  ],
+  "thai_final": true
+ }
+}

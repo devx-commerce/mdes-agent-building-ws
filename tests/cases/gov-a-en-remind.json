@@ -1,0 +1,26 @@
+{
+ "id": "gov-a-en-remind",
+ "agent": "GOV-A",
+ "lang": "en",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a remind-2",
+ "why": "Reminder path, EN build: อำเภอเชียงแสน has not sent (พาน may already have been reminded today) -> one email to navya.agarwal+district-chiangsaen; no report. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "Run the monthly operations report check",
+ "default_card": "approve",
+ "max_cards": 5,
+ "max_minutes": 25,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "create_file",
+   "review_report",
+   "create_presentation"
+  ],
+  "emails_to": "^navya\\.agarwal\\+district-chiangsaen@devxlabs\\.ai$",
+  "no_files": [
+   "^รายงานผลการดำเนินงาน ก\\.ย\\. 69"
+  ]
+ }
+}

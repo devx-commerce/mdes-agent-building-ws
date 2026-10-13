@@ -1,0 +1,39 @@
+{
+ "id": "res-b-th-rejected",
+ "agent": "RES-B",
+ "lang": "th",
+ "why": "Failure path: the researcher rejects the data-issues card -> the run stops; nothing analysed, written or sent.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-th-rejected.json",
+ "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
+ "cards": [
+  {
+   "when": {
+    "node": "handling_rules"
+   },
+   "do": "reject",
+   "feedback": "ยังไม่วิเคราะห์ รอข้อมูลชุดถัดไป"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 4,
+ "max_minutes": 20,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "handling_rules"
+  ],
+  "cards_not_seen": [
+   "create_chart",
+   "create_presentation",
+   "send_email",
+   "append_rows",
+   "copy_file"
+  ],
+  "no_files": [
+   "^บทที่ 4",
+   "^สไลด์ผลการวิจัย",
+   "^ข้อมูลกราฟ"
+  ],
+  "thai_final": true
+ }
+}

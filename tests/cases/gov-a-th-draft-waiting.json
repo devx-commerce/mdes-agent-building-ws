@@ -1,0 +1,24 @@
+{
+ "id": "gov-a-th-draft-waiting",
+ "agent": "GOV-A",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a keep",
+ "why": "Nothing to do (run right after gov-a-th-reject): a draft (ร่าง) for ก.ย. 69 is waiting -> quiet stop, no card, nothing created. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
+ "default_card": "cancel",
+ "max_cards": 1,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "no_files": [
+   "ก\\.ย\\. 69"
+  ],
+  "final_contains": [
+   "ร่าง"
+  ],
+  "thai_final": true
+ }
+}

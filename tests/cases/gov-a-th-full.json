@@ -1,0 +1,52 @@
+{
+ "id": "gov-a-th-full",
+ "agent": "GOV-A",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a full",
+ "why": "Happy path (use case GOV-A; Vishal mor-full-report): all 3 districts sent (PDF, XLSX in บาท with a blank status, Doc with a missing value) -> draft report (compared with ส.ค. 69) -> approved -> 8-slide deck -> work note -> one email to the Head from the district list (navya.agarwal+head). Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
+ "default_card": "approve",
+ "max_cards": 12,
+ "max_minutes": 45,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "review_report",
+   "create_presentation",
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "review_report_2"
+  ],
+  "files": [
+   {
+    "name": "^รายงานผลการดำเนินงาน ก\\.ย\\. 69 \\(ร่าง",
+    "mime": "document",
+    "thai": true,
+    "contains": [
+     "41.0",
+     "58.0",
+     "14.50",
+     "50.9",
+     "สำนักงานจังหวัดเชียงราย"
+    ]
+   },
+   {
+    "name": "^สรุปผลการดำเนินงาน ก\\.ย\\. 69",
+    "mime": "presentation"
+   },
+   {
+    "name": "^บันทึกการทำงาน ก\\.ย\\. 69",
+    "mime": "document",
+    "contains": [
+     "docs.google.com/document/d/"
+    ]
+   }
+  ],
+  "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
+  "final_contains": [
+   "navya.agarwal+head@devxlabs.ai"
+  ],
+  "thai_final": true
+ }
+}

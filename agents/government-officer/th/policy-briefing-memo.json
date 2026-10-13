@@ -425,7 +425,7 @@
      "displayName": "เห็นชอบแผนการค้นคว้า",
      "nodeType": "APPROVAL_NODE",
      "approvalNode": {
-      "message": "แผนการค้นคว้าที่เสนอ:\n${propose_plan.plan_text}\n\nเพิ่มหรือตัดหัวข้อในช่องความคิดเห็น แล้วกด Approve (แผนที่แก้จะแสดงอีกครั้งก่อนค้นคว้า); Reject = หยุด (Add or remove topics in the comment, then Approve: the changed plan is shown again first; Reject stops.)\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด: การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox (After Approve, a Send card starts the research, about 10–25 min. You can leave and reopen this chat from Recent: the memo card waits here, not in the Inbox.) อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "message": "แผนการค้นคว้าที่เสนอ:\n${propose_plan.plan_text}\n\nเพิ่มหรือตัดหัวข้อในช่องความคิดเห็น แล้วกด Approve (แผนที่แก้จะแสดงอีกครั้งก่อนค้นคว้า); กด Reject เพื่อหยุด\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด: การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด",
       "approvalBranch": "Approved",
       "rejectionBranch": "Rejected"
      }
@@ -653,7 +653,7 @@
      "displayName": "อนุมัติแผนที่ปรับแก้",
      "nodeType": "APPROVAL_NODE",
      "approvalNode": {
-      "message": "แผนที่แก้ตามความเห็นแล้ว:\n${replan.plan_text}\n\nกด Approve เพื่อค้นคว้าตามแผนนี้; กด Reject เพื่อหยุด – ถ้าต้องการแก้อีก ให้ Reject แล้วส่งคำขอใหม่ (Approve to research this plan; Reject stops – for more changes, Reject and send the request again.)\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด: การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox (After Approve, a Send card starts the research, about 10–25 min. You can leave and reopen this chat from Recent: the memo card waits here, not in the Inbox.) อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "message": "แผนที่แก้ตามความเห็นแล้ว:\n${replan.plan_text}\n\nกด Approve เพื่อค้นคว้าตามแผนนี้; กด Reject เพื่อหยุด – ถ้าต้องการแก้อีก ให้ Reject แล้วส่งคำขอใหม่\n\nหลังกด Approve จะมีการ์ด Send เริ่มค้นคว้า (ประมาณ 10–25 นาที) ออกไปได้ แล้วเปิดแชทนี้อีกครั้งจากเมนู ล่าสุด: การ์ดบันทึกข้อความจะรออยู่ที่นี่ ไม่แสดงใน Inbox อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด",
       "approvalBranch": "Approved",
       "rejectionBranch": "Rejected"
      }
@@ -1427,7 +1427,7 @@
      "displayName": "ตรวจทานบันทึกข้อความ",
      "nodeType": "APPROVAL_NODE",
      "approvalNode": {
-      "message": "ตรวจทานบันทึกข้อความ, แก้ไขในเอกสารได้โดยตรง แล้วกด Approve (edit the Doc directly, then click Approve): ${write_memo.memo_link}\nรายงานฉบับเต็ม: ${report_ready.link}\nขั้นต่อไป: อีเมลถึงหัวหน้า ผู้รับ: ${get_ready.head_email} (${get_ready.head_email_source}) – แก้หรือใส่อีเมลในการ์ดส่งอีเมลได้ (Next: the email to the Head, to the address above, taken from your message or your last memo email; type or change it on the Send Email card.)\nกด Reject เพื่อหยุดโดยไม่ส่งอีเมล. อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด (If you left or reopened this chat, type @Policy Briefing Memo in the chat box – don't send – before pressing a card button.)",
+      "message": "ตรวจทานบันทึกข้อความ แก้ไขในเอกสารได้โดยตรง แล้วกด Approve: ${write_memo.memo_link}\nรายงานฉบับเต็ม: ${report_ready.link}\nขั้นต่อไป: อีเมลถึงหัวหน้า ผู้รับ: ${get_ready.head_email} (${get_ready.head_email_source}) – แก้หรือใส่อีเมลในการ์ดส่งอีเมลได้\nกด Reject เพื่อหยุดโดยไม่ส่งอีเมล. อนุมัติได้บนเว็บเท่านั้น.\n\nถ้าออกจากหน้านี้หรือเปิดแชทนี้ใหม่ ให้พิมพ์ @Policy Briefing Memo ในช่องแชท (ไม่ต้องส่ง) ก่อนกดปุ่มบนการ์ด",
       "approvalBranch": "Approved",
       "rejectionBranch": "Rejected"
      }
