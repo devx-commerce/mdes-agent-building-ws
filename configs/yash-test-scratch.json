@@ -1,0 +1,74 @@
+{
+ "_note": "Proof that deploy.py builds an app from scratch (14 Oct): new app in yash-test with all connectors, then agents.",
+ "user": "navya.agarwal@devxlabs.ai",
+ "project": "yash-test-495112",
+ "project_number": "632653045864",
+ "location": "global",
+ "app": "mdes-ws4-scratch-app",
+ "app_display_name": "MDES WS4 scratch app (deploy test)",
+ "create_app": true,
+ "langs": [
+  "en",
+  "th"
+ ],
+ "timezone": "Asia/Bangkok",
+ "publish": false,
+ "share": "PRIVATE",
+ "connectors": {
+  "DRIVE_MCP": "drive_1791016920540",
+  "GMAIL_MCP": "gmail_1791016781061",
+  "CALENDAR_MCP": "calender_1791017020839",
+  "DOCS_MCP": "docs_1791202443308",
+  "SHEETS_MCP": "sheets_1791202229741",
+  "SLIDES_MCP": "slides_1791202597555",
+  "RESEARCH_MCP": "research_1791202778609",
+  "ANALYSIS_MCP": "analysis_1791202937992"
+ },
+ "agents": {
+  "GOV-A": {
+   "enabled": true
+  },
+  "GOV-B": {
+   "enabled": true
+  },
+  "GOV-C": {
+   "enabled": true
+  },
+  "RES-A": {
+   "enabled": true
+  },
+  "RES-B": {
+   "enabled": true
+  },
+  "RES-C": {
+   "enabled": true
+  },
+  "EXE-A": {
+   "enabled": true,
+   "vars_en": {
+    "EXE_A_FOLDER_ID": "1ukwfXVW_YTMd2dEqU6TwuEdG3MrpNsM3"
+   },
+   "vars_th": {
+    "EXE_A_FOLDER_ID": "1lTs-lBJ0PeGYMCyHzZ-cRrv4sttdzJg2"
+   }
+  },
+  "EXE-B": {
+   "enabled": true,
+   "vars_en": {
+    "EXE_B_FOLDER_ID": "1MLOROaoMm3GdV6tpupJFBlCqcqqQJxSB"
+   },
+   "vars_th": {
+    "EXE_B_FOLDER_ID": "1EDpprFiz3Gc6UD_kgTKSh7SYchY-Ei09"
+   }
+  },
+  "EXE-C": {
+   "enabled": true,
+   "vars_en": {
+    "EXE_C_FOLDER_ID": "1o_dhsjLJCyez0ob9OCbxnRLHvZUI0Dz1"
+   },
+   "vars_th": {
+    "EXE_C_FOLDER_ID": "1y0YqDUHgYBBuqZua5PG_OdPZWIeJpLxe"
+   }
+  }
+ }
+}
