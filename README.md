@@ -14,6 +14,7 @@ tests/harness.py                        run a case through the API, answer cards
 tests/cases/*.json                      test cases (happy path + basic failure paths per agent and language)
 tests/fixtures/<persona>.py             builds the synthetic test data in the tester's Google Drive
 tests/FINDINGS-<persona>.md             latest test results with evidence
+docs/AGENT-BUILDING-GUIDE.md            what we learned: read before building a new agent
 ```
 
 ## Agents
