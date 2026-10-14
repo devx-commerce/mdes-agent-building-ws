@@ -16,7 +16,7 @@
   ],
   "cards_not_seen": [
    "deep_research",
-   "send_email",
+   "send_(email|message)",
    "create_event"
   ],
   "thai_final": false

@@ -23,7 +23,7 @@
    "deep_research_run",
    "create_file",
    "review_memo",
-   "send_email"
+   "send_(email|message)"
   ],
   "files": [
    {

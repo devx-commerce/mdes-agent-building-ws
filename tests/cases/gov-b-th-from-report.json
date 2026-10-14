@@ -12,7 +12,7 @@
   "cards_seen": [
    "create_file",
    "review_memo",
-   "send_email"
+   "send_(email|message)"
   ],
   "cards_not_seen": [
    "plan_approval",

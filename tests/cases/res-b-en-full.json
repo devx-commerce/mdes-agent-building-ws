@@ -23,10 +23,10 @@
    "handling_rules",
    "create_file",
    "create_chart",
-   "insert_sheets_chart",
+   "append_to_doc",
    "create_presentation",
    "append_rows",
-   "send_email",
+   "send_(email|message)",
    "copy_file",
    "replace_section"
   ],

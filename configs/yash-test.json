@@ -1,5 +1,5 @@
 {
- "_note": "yash-test (EAP: cards answerable through the API). Our app mdes-executive-app. Connectors = Kenil's MCP connectors in yash-test (never change them).",
+ "_note": "yash-test (EAP: cards answerable through the API). Our app mdes-executive-app. Connectors = Kenil's MCP connectors in yash-test (never change them). Connectors switched to Kenil's mdesx-* (13 Oct) on 14 Oct; research/analysis have no new versions yet.",
  "user": "navya.agarwal@devxlabs.ai",
  "project": "yash-test-495112",
  "project_number": "632653045864",
@@ -15,12 +15,12 @@
  "publish": false,
  "share": "PRIVATE",
  "connectors": {
-  "DRIVE_MCP": "drive_1791016920540",
-  "GMAIL_MCP": "gmail_1791016781061",
-  "CALENDAR_MCP": "calender_1791017020839",
-  "DOCS_MCP": "docs_1791202443308",
-  "SHEETS_MCP": "sheets_1791202229741",
-  "SLIDES_MCP": "slides_1791202597555",
+  "DRIVE_MCP": "mdesx-drive",
+  "GMAIL_MCP": "mdesx-gmail",
+  "CALENDAR_MCP": "mdesx-calendar",
+  "DOCS_MCP": "mdesx-docs",
+  "SHEETS_MCP": "mdesx-sheets",
+  "SLIDES_MCP": "mdesx-slides",
   "RESEARCH_MCP": "research_1791202778609",
   "ANALYSIS_MCP": "analysis_1791202937992"
  },

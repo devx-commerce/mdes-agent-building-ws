@@ -11,7 +11,7 @@
  "expect": {
   "status": "end",
   "cards_seen": [
-   "send_email"
+   "send_(email|message)"
   ],
   "cards_not_seen": [
    "create_file",

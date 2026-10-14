@@ -19,7 +19,7 @@
  "expect": {
   "status": "end",
   "cards_not_seen": [
-   "send_email",
+   "send_(email|message)",
    "create_file",
    "deep_research_run"
   ],

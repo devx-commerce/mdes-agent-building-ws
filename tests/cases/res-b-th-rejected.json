@@ -25,7 +25,7 @@
   "cards_not_seen": [
    "create_chart",
    "create_presentation",
-   "send_email",
+   "send_(email|message)",
    "append_rows",
    "copy_file"
   ],

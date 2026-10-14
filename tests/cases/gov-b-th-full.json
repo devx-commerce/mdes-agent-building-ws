@@ -7,7 +7,7 @@
  "default_card": "approve",
  "max_cards": 10, "max_minutes": 75,
  "expect": {"status": "end",
-            "cards_seen": ["plan_approval", "deep_research_run", "create_file", "review_memo", "send_email"],
+            "cards_seen": ["plan_approval", "deep_research_run", "create_file", "review_memo", "send_(email|message)"],
             "files": [{"name": "^บันทึกข้อความ – .*\\(ร่าง", "mime": "document", "thai": true,
                        "contains": ["ความเป็นมา", "ข้อเท็จจริง", "ข้อพิจารณา", "ข้อเสนอ"]},
                       {"name": "^รายงานการค้นคว้าฉบับเต็ม – ", "mime": "document"}],

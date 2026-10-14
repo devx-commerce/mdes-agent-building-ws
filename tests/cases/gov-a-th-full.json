@@ -13,7 +13,7 @@
   "cards_seen": [
    "review_report",
    "create_presentation",
-   "send_email"
+   "send_(email|message)"
   ],
   "cards_not_seen": [
    "review_report_2"

@@ -6,6 +6,6 @@
  "cards": [{"when": {"title": "."}, "do": "reject", "feedback": "ยังไม่ต้องทำเรื่องนี้"}],
  "default_card": "reject",
  "max_cards": 3, "max_minutes": 20,
- "expect": {"status": "end", "cards_not_seen": ["send_email", "create_file", "deep_research_run"],
+ "expect": {"status": "end", "cards_not_seen": ["send_(email|message)", "create_file", "deep_research_run"],
             "no_files": ["บันทึกข้อความ"], "thai_final": true}
 }

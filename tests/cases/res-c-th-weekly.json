@@ -22,7 +22,7 @@
   "cards_not_seen": [
    "deep_research",
    "create_event",
-   "send_email"
+   "send_(email|message)"
   ],
   "thai_final": true,
   "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$"

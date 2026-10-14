@@ -24,7 +24,7 @@
   ],
   "cards_not_seen": [
    "create_presentation",
-   "send_email",
+   "send_(email|message)",
    "review_report_2"
   ],
   "files": [
