@@ -25,22 +25,40 @@
  },
  "agents": {
   "GOV-A": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Monthly Operations Report"
+   }
   },
   "GOV-B": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Policy Briefing Memo"
+   }
   },
   "GOV-C": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Incoming Letters"
+   }
   },
   "RES-A": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Evidence Review"
+   }
   },
   "RES-B": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Survey Analysis"
+   }
   },
   "RES-C": {
-   "enabled": true
+   "enabled": true,
+   "display_name": {
+    "th": "Funding Calls"
+   }
   },
   "EXE-A": {
    "enabled": true,
@@ -49,6 +67,9 @@
    },
    "vars_th": {
     "EXE_A_FOLDER_ID": "1lTs-lBJ0PeGYMCyHzZ-cRrv4sttdzJg2"
+   },
+   "display_name": {
+    "th": "Peer Benchmark Pack"
    }
   },
   "EXE-B": {
@@ -58,6 +79,9 @@
    },
    "vars_th": {
     "EXE_B_FOLDER_ID": "1EDpprFiz3Gc6UD_kgTKSh7SYchY-Ei09"
+   },
+   "display_name": {
+    "th": "Decision Brief Tracker"
    }
   },
   "EXE-C": {
@@ -67,6 +91,9 @@
    },
    "vars_th": {
     "EXE_C_FOLDER_ID": "1y0YqDUHgYBBuqZua5PG_OdPZWIeJpLxe"
+   },
+   "display_name": {
+    "th": "Meeting Prep & Actions"
    }
   }
  },
