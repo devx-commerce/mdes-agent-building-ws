@@ -3,7 +3,7 @@
  "agent": "GOV-A",
  "lang": "th",
  "fixture": "python3 tests/fixtures/government-officer.py gov-a full",
- "why": "Happy path (use case GOV-A; Vishal mor-full-report): all 3 districts sent (PDF, XLSX in บาท with a blank status, Doc with a missing value) -> draft report (compared with ส.ค. 69) -> approved -> 8-slide deck -> work note -> one email to the Head from the district list (navya.agarwal+head). Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z). LOOSENED: the deck file is not required because the Slides connector is not connected for Navya in yash-test (proof: session 13578801035938876716, tool error 'No Google Slides account is connected for this user'); the deck card must still be shown and the run must go on to the work note and the Head's email.",
+ "why": "Happy path (use case GOV-A; Vishal mor-full-report): all 3 districts sent (PDF, XLSX in บาท with a blank status, Doc with a missing value) -> draft report (compared with ส.ค. 69) -> approved -> 8-slide deck -> work note -> one email to the Head from the district list (navya.agarwal+head). Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z). LOOSENED: the deck file is not required because the Slides connector is not connected for Navya in yash-test (proof: session 13578801035938876716, tool error 'No Google Slides account is connected for this user'); the deck card must still be shown and the run must go on to the work note and the Head's email. Deck required again after Slides was authorised (14 Oct 10:30).",
  "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
  "default_card": "approve",
  "max_cards": 12,
@@ -37,6 +37,11 @@
     "contains": [
      "docs.google.com/document/d/"
     ]
+   },
+   {
+    "name": "ก\\.ย\\. 69",
+    "mime": "presentation",
+    "thai": true
    }
   ],
   "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
