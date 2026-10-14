@@ -72,6 +72,10 @@ def render(cfg, t, a):
         s = s.replace("{{" + k + "}}", v)
     d = json.loads(s)
     trig = d["agentFlow"]["nodes"][0]
+    if cfg.get("manual_triggers") and trig.get("nodeType") == "SCHEDULE_TRIGGER":  # visible, but nothing runs by itself
+        d["agentFlow"]["nodes"][0] = {"id": trig["id"], "displayName": "เริ่มด้วยตนเอง" if t["lang"] == "th" else "Manual start",
+                                      "nodeType": "MANUAL_TRIGGER", "manualTrigger": {}}
+        return d, []
     sch = trig.get("scheduleTrigger", {}).get("schedule")
     if sch is not None:
         if a.get("cron"):
@@ -278,6 +282,10 @@ def main():
             api.call("POST", f"{base}/{aid}:publish", {})
             what += ", published"
         if share != "PRIVATE":
+            # share, ask for review (with sharing-without-approval on, this makes it ENABLED), then share again:
+            # requestAgentReview resets the scope to RESTRICTED (mdes-agent LIMITATIONS #144)
+            api.call("PATCH", f"{base}/{aid}?updateMask=sharingConfig", {"sharingConfig": {"scope": share}})
+            api.call("POST", f"{base}/{aid}:requestAgentReview", {})
             api.call("PATCH", f"{base}/{aid}?updateMask=sharingConfig", {"sharingConfig": {"scope": share}})
             what += f", shared {share}"
         print(f"{label} {what}  id={aid}")

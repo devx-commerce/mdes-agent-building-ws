@@ -1,5 +1,5 @@
 {
- "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed.",
+ "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed. 14 Oct: published and shared with ALL_USERS with manual triggers (no schedules) until MCPs are connected; then set manual_triggers false and redeploy.",
  "user": "navya.agarwal@devxlabs.ai",
  "project": "aip-nprd-ge",
  "project_number": "651811839369",
@@ -11,8 +11,8 @@
   "th"
  ],
  "timezone": "Asia/Bangkok",
- "publish": false,
- "share": "PRIVATE",
+ "publish": true,
+ "share": "ALL_USERS",
  "connectors": {
   "DRIVE_MCP": "",
   "GMAIL_MCP": "",
@@ -97,5 +97,6 @@
    }
   }
  },
- "drop_missing_connectors": true
+ "drop_missing_connectors": true,
+ "manual_triggers": true
 }
