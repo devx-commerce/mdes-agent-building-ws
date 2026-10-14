@@ -46,7 +46,7 @@ class Api:
         self._tok, self._t = None, 0
 
     def token(self):
-        if not self._tok or time.time() - self._t > 1800:
+        if not self._tok or time.time() - self._t > 900:
             self._tok = subprocess.check_output(["gcloud", "auth", "print-access-token", self.cfg["user"]], text=True).strip()
             self._t = time.time()
         return self._tok
@@ -62,6 +62,9 @@ class Api:
                     return json.loads(r.read() or b"{}")
             except urllib.error.HTTPError as e:
                 msg = e.read().decode()[:1500]
+                if e.code == 401 and i < 3:  # cached token went stale mid-run (ACCESS_TOKEN_TYPE_UNSUPPORTED, 14 Oct): refresh, retry
+                    self._tok = None
+                    continue
                 if e.code in (429, 500, 502, 503) and i < 3:
                     time.sleep(20 * (i + 1))
                     continue
