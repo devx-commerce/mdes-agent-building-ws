@@ -326,7 +326,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "List the CEO's calendar events (calendar ID ${read_state.ceo_calendar_id}, shared with me) starting between ${read_state.window_start} and ${read_state.window_end} (Asia/Bangkok), skipping declined events, all-day events and private blocks with no attendees.\nFor each: title, start time, attendees, description, and Drive links in it. Match a meeting to a meeting folder under {{EXE_C_FOLDER_ID}} ONLY if the meeting's title contains that folder's name (for example a meeting \"ExCom (ประชุมคณะกรรมการบริหาร)\" and the folder \"ExCom\"); then return the folder ID and the ID of its \"Action tracker\" sheet. Every other meeting gets a blank folder ID and tracker ID: never guess a folder. Return an empty list if there are none. Read only.",
+      "instruction": "List the CEO's calendar events (calendar ID ${read_state.ceo_calendar_id}, shared with me) starting between ${read_state.window_start} and ${read_state.window_end} (Asia/Bangkok), skipping declined events, all-day events and private blocks with no attendees.\nFor each: title, start time, attendees, description, and Drive links in it. Match a meeting to a meeting folder under {{EXE_C_FOLDER_ID}} ONLY if the meeting's title contains that folder's name (for example a meeting \"ExCom (ประชุมคณะกรรมการบริหาร)\" and the folder \"ExCom\"); then return the folder ID and the ID of its \"Action tracker\" sheet. The meeting folders are ONLY the direct subfolders of {{EXE_C_FOLDER_ID}}: list them by name first. A title that does not contain one of those names word for word (for example \"Team Sync\" or \"Daily Sync - MDES\" against the folder \"ExCom\") gets a blank folder ID and tracker ID, even if a folder with a similar name exists elsewhere in Drive: never guess a folder. Return an empty list if there are none. Read only.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -548,7 +548,7 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "Meeting: ${each_meeting_start.m.title} at ${each_meeting_start.m.time}; attendees ${each_meeting_start.m.attendees}; invite notes ${each_meeting_start.m.description}; meeting folder ${each_meeting_start.m.folder_id}; tracker ${each_meeting_start.m.tracker_id}.\nGather: the agenda and attachments (Gmail: messages mentioning this meeting's title in the last 7 days, their attachments, and Drive files linked in them; Drive files linked in the invite), the previous minutes in the meeting folder, open rows of the action tracker, and actions just extracted from new minutes of this meeting's folder (${extract.actions}; show them as \"pending approval\").\nWrite a one-page pre-read (Markdown): purpose and who attends; items for decision (เรื่องเพื่อพิจารณา) separated from items for information (เรื่องเพื่อทราบ); key numbers from the documents; what changed since the last meeting on this topic; open actions from last time and whether each is done (from the tracker's status); three suggested questions.\nIf materials have not arrived, say so plainly at the top, for example \"No documents received for the 14:00 customer meeting. Agenda only.\" Read only. Never invent numbers.",
+          "instruction": "Meeting: ${each_meeting_start.m.title} at ${each_meeting_start.m.time}; attendees ${each_meeting_start.m.attendees}; invite notes ${each_meeting_start.m.description}; meeting folder ${each_meeting_start.m.folder_id}; tracker ${each_meeting_start.m.tracker_id}.\nGather: the agenda and attachments (Gmail: messages mentioning this meeting's title in the last 7 days, their attachments, and Drive files linked in them; Drive files linked in the invite), the previous minutes in the meeting folder, open rows of the action tracker, and actions just extracted from new minutes of this meeting's folder (${extract.actions}; show them as \"pending approval\").\nWrite a one-page pre-read (Markdown): purpose and who attends; items for decision (เรื่องเพื่อพิจารณา) separated from items for information (เรื่องเพื่อทราบ); key numbers from the documents; what changed since the last meeting on this topic; open actions from last time and whether each is done (from the tracker's status); three suggested questions.\nIf materials have not arrived, say so plainly at the top, for example \"No documents received for the 14:00 meeting. Agenda only.\" Read only. Never invent numbers. Write in English. Return folder_id exactly as given above (${each_meeting_start.m.folder_id}, which may be blank); never look for or return any other folder.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
@@ -678,7 +678,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Pre-reads: ${each_meeting.output[*].preread}.\nFor each pre-read whose folder_id is not blank, create the Google Doc \"Pre-read <meeting date> <time> <title>\" (Markdown) in that meeting folder with create_file_if_absent. Meetings with no folder are only in the email. If there is nothing to save, write nothing.\nReturn how many were saved. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "instruction": "Pre-reads: ${each_meeting.output[*].preread}.\nSave a pre-read only for a meeting that has a folder_id in this list from the calendar step: ${meetings.meetings}. Use that folder_id, never a folder ID found anywhere else, and never write outside the subfolders of {{EXE_C_FOLDER_ID}}. For each such meeting, create the Google Doc \"Pre-read <meeting date> <time> <title>\" (Markdown) in that meeting folder with create_file_if_absent. Meetings with no folder are only in the email. If there is nothing to save, write nothing.\nReturn how many were saved. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -849,22 +849,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -2190,22 +2176,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`, short: pre-reads for the next 24 hours emailed to the CEO; new minutes processed: ${read_state.new_minutes}; invites created: ${inv.output[*].invite}; held for clarification: ${final.held}; still waiting for the CEO: ${read_state.ceo_threads}. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: pre-reads for the next 24 hours emailed to the CEO; new minutes processed: ${read_state.new_minutes}; invites created: ${inv.output[*].invite}; held for clarification: ${final.held}; still waiting for the CEO: ${read_state.ceo_threads}.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -2214,22 +2186,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: pre-reads for the next 24 hours emailed to the CEO; Khun Nok rejected today's action items (\"${gate.approval_feedback}\"); nothing was sent. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: pre-reads for the next 24 hours emailed to the CEO; Khun Nok rejected today's action items (\"${gate.approval_feedback}\"); nothing was sent.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -2238,22 +2196,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: pre-reads for the next 24 hours emailed to the CEO; no action items to send today; still waiting for the CEO: ${read_state.ceo_threads}. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: pre-reads for the next 24 hours emailed to the CEO; no action items to send today; still waiting for the CEO: ${read_state.ceo_threads}.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     }
    ],

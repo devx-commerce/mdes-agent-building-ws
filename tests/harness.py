@@ -310,6 +310,7 @@ def file_text(api, f):
 
 
 def thai_ok(text):
+    text = re.sub(r"https?://\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+", " ", text)  # links and addresses are not language
     letters = LETTER.findall(text)
     share = sum(1 for c in letters if THAI.match(c)) / max(1, len(letters))
     parts = PARTICLES.findall(text)

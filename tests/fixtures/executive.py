@@ -361,7 +361,8 @@ def reset_a(lang, mode="full"):
     # current cycle (Q2): keep the bank folders, Bank list, Metric definitions; archive outputs
     keep = {"Bank list", "Metric definitions", "Setup", "KBANK", "SCB"} | ({"BBL"} if mode == "missing" else set())
     archive_except(cur, keep)
-    banks = "Bank,Size group,Folder\nKBANK,Large,KBANK\nSCB,Large,SCB\n" + ("BBL,Large,BBL\n" if mode == "missing" else "")
+    sz = "ใหญ่" if lang == "th" else "Large"
+    banks = f"Bank,Size group,Folder\nKBANK,{sz},KBANK\nSCB,{sz},SCB\n" + (f"BBL,{sz},BBL\n" if mode == "missing" else "")
     bl = put(cur, "Bank list", "sheet", banks)
     defs = put(cur, "Metric definitions", "doc", A_DEFS_TH) if lang == "th" else child(cur, "Metric definitions", "document")["id"]
     if mode == "missing":
@@ -495,7 +496,7 @@ def c_minutes(lang, which):
                     "1. อนุมัติกรอบงบลงทุนไตรมาส 4 จำนวน 120 ล้านบาท\n2. เลื่อนการเป็นพันธมิตรกับเจ้าของที่ดินรายหนึ่งจนกว่าการตรวจสอบทางกฎหมายจะแล้วเสร็จ\n"
                     "รายการที่ต้องดำเนินการ:\n- ผู้อำนวยการฝ่ายการเงินเวียนงบประมาณไตรมาส 4 ฉบับปรับปรุง ภายใน 2 ตุลาคม 2569\n"
                     "- หัวหน้าฝ่ายกลยุทธ์จัดทำบันทึกประกอบการตัดสินใจเรื่องสถานีชาร์จรถยนต์ไฟฟ้า ภายใน 15 ตุลาคม 2569\n")
-        return ("รายงานการประชุมคณะกรรมการบริหาร (ExCom) - 13 ตุลาคม 2569\n" + att + "\nมติที่ประชุม:\n"
+        return ("รายงานการประชุมคณะกรรมการบริหาร (ExCom) - 12 ตุลาคม 2569\n" + att + "\nมติที่ประชุม:\n"
                 "1. อนุมัติงบ 18 ล้านบาทสำหรับโครงการนำร่องสถานีชาร์จที่คลังสินค้าระยอง\n"
                 "2. เลื่อนการตัดสินใจต่อสัญญาเช่าสำนักงานไปเดือนพฤศจิกายน\n"
                 "รายการที่ต้องดำเนินการ:\n"
@@ -521,11 +522,13 @@ def c_minutes(lang, which):
 def reset_c(lang):
     root, ex = FOLDERS[("c", lang)], C_EXCOM[lang]
     m1_name = "ExCom minutes 2026-09-24" if lang == "en" else "รายงานการประชุม ExCom 2026-09-24"
-    m2_name = "ExCom minutes 2026-10-13" if lang == "en" else "รายงานการประชุม ExCom 2026-10-13"
+    # TH minutes are dated 12 Oct so its action IDs (and calendar invites "[2026-10-12-excom-N]") differ from EN's:
+    # both builds write to Navya's one calendar, and the invite step skips an action whose ID is already there.
+    m2_name = "ExCom minutes 2026-10-13" if lang == "en" else "รายงานการประชุม ExCom 2026-10-12"
     for f in ls(root):
         if f["id"] != ex and f["name"] != "Setup":
             archive(f["id"], f["name"])
-    archive_except(ex, {m1_name, m2_name, "Action tracker"})
+    archive_except(ex, {m1_name, m2_name, "Action tracker"} - ({"รายงานการประชุม ExCom 2026-10-13"} if lang == "th" else set()))
     m1 = put(ex, m1_name, "doc", c_minutes(lang, "0924"))
     put(ex, m2_name, "doc", c_minutes(lang, "1013"))
     if lang == "th":

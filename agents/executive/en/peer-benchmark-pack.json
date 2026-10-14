@@ -308,22 +308,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -439,22 +425,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: \"Nothing to do today for ${read_state.cycle_name}.\" then the reason in one line (outside the window: it opens on quarter-end + 21 days and closes on the board date ${read_state.board_date}; or waiting for the analysts' reply; or the pack was already sent). Never write any deliverable yourself. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: \"Nothing to do today for ${read_state.cycle_name}.\" then the reason in one line (outside the window: it opens on quarter-end + 21 days and closes on the board date ${read_state.board_date}; or waiting for the analysts' reply; or the pack was already sent). Never write any deliverable yourself.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -1033,7 +1005,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${banks.output[*].extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources in one line. Round to 2 decimals.\nNever guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${banks.output[*].extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources (file plus sheet and row, or note number) in one line. The bank column is the bank code exactly as in the Bank list (for example KBANK), nothing added: it is the key for later corrections. Round to 2 decimals.\nNever guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1406,7 +1378,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${go_banks.output[*].go_extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources in one line. Round to 2 decimals.\nThe Head approved going ahead without the missing banks (${check_files.missing}): add one row each with every metric \"not received\" and flag \"excluded by Head of Strategy: ${gate_go.approval_feedback}\". Never guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "instruction": "Read doc ${read_state.definitions_id}. From the extracted items ${go_banks.output[*].go_extract} compute per bank: nim_proxy, npl, cost_to_income, loan_growth_ytd exactly as defined. Raise the flags the definitions list. In basis give the inputs and sources (file plus sheet and row, or note number) in one line. The bank column is the bank code exactly as in the Bank list (for example KBANK), nothing added: it is the key for later corrections. Round to 2 decimals.\nThe Head approved going ahead without the missing banks (${check_files.missing}): add one row each with every metric \"not received\" and flag \"excluded by Head of Strategy: ${gate_go.approval_feedback}\". Never guess.\nCreate the Google Sheet \"Comparison table\" in folder ${read_state.cycle_folder_id} from the CSV (header bank,nim_proxy,npl,cost_to_income,loan_growth_ytd,flags,basis; contentMimeType text/csv) with create_file_if_absent. Return its URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1655,6 +1627,34 @@
            }
           }
          }
+        },
+        {
+         "branch": "NoReply",
+         "rule": {
+          "rootExpression": {
+           "logicalGroup": {
+            "logicalOperator": "AND",
+            "expressions": [
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.approved"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             },
+             {
+              "condition": {
+               "left": {
+                "variablePath": "read_analyst.needs_reply"
+               },
+               "conditionOperator": "IS_FALSE"
+              }
+             }
+            ]
+           }
+          }
+         }
         }
        ]
       }
@@ -1794,7 +1794,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "1. If \"Board deck\" exists in ${read_state.cycle_folder_id} use it; otherwise copy_file the prior cycle's \"Board deck\" (in ${read_state.prior_cycle_folder_id}) into ${read_state.cycle_folder_id} as \"Board deck\".\n2. Read it (read_presentation): every slide's text and tables, the old quarter label and every old number.\n3. Read the \"Comparison table\" in ${read_state.cycle_folder_id}, the prior table, and the notable moves: \"${report.moves}\".\n4. Call replace_text_in_presentation ONCE with all replacements, in two passes in the same list (old value -> unique token like \"[[R1]]\", then token -> new text), scoped by pageIds where a number appears on several slides. Keep the tables; change only their text.\nReturn the deck URL. Never invent numbers. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
+      "instruction": "1. If \"Board deck\" exists in ${read_state.cycle_folder_id} use it; otherwise copy_file the prior cycle's \"Board deck\" (in ${read_state.prior_cycle_folder_id}) into ${read_state.cycle_folder_id} as \"Board deck\".\n2. Read it (read_presentation): every slide's text and tables, the old quarter label and every old number.\n3. Read the \"Comparison table\" in ${read_state.cycle_folder_id}, the prior table, and the notable moves: \"${report.moves}\".\n4. Call replace_text_in_presentation ONCE with all replacements, in two passes in the same list (old value -> unique token like \"[[R1]]\", then token -> new text), scoped by pageIds where a number appears on several slides. Keep the tables; change only their text.\nReturn the deck URL. If read_presentation or replace_text_in_presentation fails, the copy still shows last quarter's numbers: then return deck_url as its URL followed by \" (NOT UPDATED: it still shows last quarter's numbers; Slides tool error: <the error>)\". Never invent numbers. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -2034,30 +2034,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. `links`: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url}, Work note ${finish.work_note_url}; and changes not made: ${finish.could_not}. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. Then list the links: Board report ${finish.report_url}, Board deck ${finish.deck_url}, Comparison table ${finish.table_url}, Work note ${finish.work_note_url}; and changes not made: ${finish.could_not}.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       },
-       "links": {
-        "description": "links",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 1
-        }
-       }
-      },
-      "required": [
-       "summary",
-       "links"
-      ]
      }
     },
     {
@@ -2310,30 +2288,88 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. `links`: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url}, Work note ${h_finish.work_note_url}; and changes not made: ${h_finish.could_not}. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: the board pack for ${read_state.cycle_name} was sent to the Company Secretary. Then list the links: Board report ${h_finish.report_url}, Board deck ${h_finish.deck_url}, Comparison table ${h_finish.table_url}, Work note ${h_finish.work_note_url}; and changes not made: ${h_finish.could_not}.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       },
-       "links": {
-        "description": "links",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 1
-        }
-       }
-      },
-      "required": [
-       "summary",
-       "links"
-      ]
+     }
+    },
+    {
+     "id": "tell_checking",
+     "displayName": "Tell: table saved, analysts asked",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the comparison table for ${read_state.cycle_name} is saved (${write_table.table_url}, ${write_table.flagged} flagged cells) and the analysts were asked by email to check it. The next weekday run reads their reply; nothing else happens before that."
+     }
+    },
+    {
+     "id": "tell_checking_go",
+     "displayName": "Tell: table saved, analysts asked",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the Head of Strategy approved going ahead without ${check_files.missing}, the comparison table for ${read_state.cycle_name} is saved (${go_write_table.table_url}, ${go_write_table.flagged} flagged cells) and the analysts were asked by email to check it. The next weekday run reads their reply."
+     }
+    },
+    {
+     "id": "tell_reminded",
+     "displayName": "Tell: analysts reminded",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the bank reports for ${read_state.cycle_name} are not complete (${check_files.missing_card}) and the analysts were reminded by email. The next check is in two days; from 7 days before the board date (${read_state.board_date}) the Head of Strategy is asked whether to go ahead without them."
+     }
+    },
+    {
+     "id": "tell_waiting_banks",
+     "displayName": "Tell: still waiting for banks",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the Head of Strategy chose to keep waiting for ${check_files.missing}. Nothing was built or sent today; the analysts keep getting reminders and he is asked again tomorrow."
+     }
+    },
+    {
+     "id": "tell_clarify",
+     "displayName": "Tell: question sent to the analysts",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the analysts' reply on ${read_state.cycle_name} was not a clear go-ahead, so they were asked: ${read_analyst.reply_text}. Nothing else was done today."
+     }
+    },
+    {
+     "id": "tell_no_reply",
+     "displayName": "Tell: no reply yet",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the analysts have not yet replied about the comparison table for ${read_state.cycle_name}. Nothing was done today; the next weekday run checks again."
+     }
+    },
+    {
+     "id": "tell_head_rejected",
+     "displayName": "Tell: pack not sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the Head of Strategy did not approve the ${read_state.cycle_name} pack today (${gate_head.approval_feedback}). Nothing was sent; the drafts stay in the cycle folder and he is asked again tomorrow."
+     }
+    },
+    {
+     "id": "tell_head2_rejected",
+     "displayName": "Tell: pack not sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the Head of Strategy did not approve the ${read_state.cycle_name} pack today (${gate_head2.approval_feedback}). Nothing was sent; the drafts stay in the cycle folder and he is asked again tomorrow."
      }
     }
    ],
@@ -2467,6 +2503,42 @@
     {
      "sourceNodeId": "h_mail_secretary",
      "targetNodeId": "h_summary"
+    },
+    {
+     "sourceNodeId": "mail_check",
+     "targetNodeId": "tell_checking"
+    },
+    {
+     "sourceNodeId": "go_mail_check",
+     "targetNodeId": "tell_checking_go"
+    },
+    {
+     "sourceNodeId": "mail_reminder",
+     "targetNodeId": "tell_reminded"
+    },
+    {
+     "sourceNodeId": "gate_go",
+     "targetNodeId": "tell_waiting_banks",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "mail_clarify",
+     "targetNodeId": "tell_clarify"
+    },
+    {
+     "sourceNodeId": "route_analyst",
+     "targetNodeId": "tell_no_reply",
+     "routeString": "NoReply"
+    },
+    {
+     "sourceNodeId": "gate_head",
+     "targetNodeId": "tell_head_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "gate_head2",
+     "targetNodeId": "tell_head2_rejected",
+     "routeString": "Rejected"
     }
    ]
   }

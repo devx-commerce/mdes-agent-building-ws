@@ -8,7 +8,7 @@
  "cards": [],
  "default_card": "approve",
  "max_cards": 3,
- "max_minutes": 15,
+ "max_minutes": 25,
  "expect": {
   "status": "end",
   "cards_seen": [

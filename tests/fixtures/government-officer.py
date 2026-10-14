@@ -6,6 +6,7 @@
         full      all 3 districts have sent; no outputs for ก.ย. 69 (drafts, deck, work note are trashed)
         remind-1  อำเภอพาน has not sent (its file is moved out); outputs trashed
         remind-2  อำเภอเชียงแสน has not sent (for the second language: a reminder to พาน was already sent today)
+        remind-3  อำเภอแม่สาย has not sent (re-run after a template fix on the same day)
         keep      change nothing (for 'draft waiting' / 'already done' after another case)
   python3 tests/fixtures/government-officer.py gov-c <state>
         letter-1  one new scanned letter in หนังสือเข้า (flood data request, ด่วนมาก)
@@ -277,7 +278,7 @@ def gov_a(state, ids):
         return
     # outputs of an earlier run for ก.ย. 69 (only inside the GOV-A folder)
     trash_matching(a, r"^(รายงานผลการดำเนินงาน ก\.ย\. 69|บันทึกการทำงาน ก\.ย\. 69|สรุปผลการดำเนินงาน ก\.ย\. 69)")
-    want_out = {"full": None, "remind-1": "อำเภอพาน", "remind-2": "อำเภอเชียงแสน"}[state]
+    want_out = {"full": None, "remind-1": "อำเภอพาน", "remind-2": "อำเภอเชียงแสน", "remind-3": "อำเภอแม่สาย"}[state]
     for f in children(hold):  # bring every district file back
         move(f["id"], hold, sep)
     if want_out:

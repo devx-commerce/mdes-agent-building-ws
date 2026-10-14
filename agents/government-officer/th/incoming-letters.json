@@ -759,7 +759,7 @@
     },
     {
      "id": "is_approved",
-     "displayName": "อนุมัติหรือไม่ (Approved?)",
+     "displayName": "อนุมัติหรือไม่",
      "nodeType": "CONDITION_NODE",
      "conditionNode": {
       "ruleBasedRouting": {

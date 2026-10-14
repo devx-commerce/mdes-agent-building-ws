@@ -28,7 +28,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Agent folder ID {{EXE_B_FOLDER_ID}}. Today's date is today.\n0. The message that started this run: if it is empty or starts with \"[scheduled run]\", this is a scheduled run (a manual start may add words after the marker). Otherwise Khun Ton typed it: it is a request.\n1. Open the \"Agent setup\" doc in the agent folder: the project folders to watch (links or IDs, one per line), the CEO's name and email, the strategy manager's email, language.\n2. For EACH listed project folder read its sheet \"Decision history\" if it exists: goal (on the \"first-brief\" row), has_brief = a \"first-brief\" row exists, checked_this_month = a \"monthly check\" row exists this calendar month.\n3. A request: do_first = true. goal = the decision question in Khun Ton's words. Find its project folder: a folder link in the request, else a subfolder of the agent folder whose name matches the request's topic, else none (new_folder = true, and project_name = a short name for the decision, e.g. \"EV Charging Decision\"). If that project already has a brief, do_first = false and say so in projects_status.\n   A scheduled run: `projects` = every listed project that has_brief and is not checked_this_month (a re-run the same month skips the ones done). do_check = projects is not empty.\n   Otherwise both are false.\n4. For each project in `projects` return: folder ID, name, goal, CEO name and email (from Agent setup), the \"Signposts\" sheet ID, the latest brief URL, the \"Board deck\" ID, the \"Decision history\" file ID. month_id = \"check-<YYYY-MM>\".\n   For a request, return for its project: folder ID (blank if new_folder) and name, listed = it is already listed in Agent setup, the internal documents in it (not files this agent made) as file IDs comma separated with last-modified dates, the \"Decision history\" file ID (blank if none), check_id (\"first-brief\" or \"check-<YYYY-MM>\"), the latest brief URL, the \"Signposts\" sheet ID, the \"Board deck\" ID.\n5. `projects_status`: one line per project: name, and whether this month's check is done, plus this run's request if any.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
+      "instruction": "Agent folder ID {{EXE_B_FOLDER_ID}}. Today's date is today in Asia/Bangkok (not UTC).\n0. The message that started this run: if it is empty or starts with \"[scheduled run]\", this is a scheduled run (a manual start may add words after the marker). Otherwise Khun Ton typed it: it is a request.\n1. Open the \"Agent setup\" doc in the agent folder: the project folders to watch (links or IDs, one per line), the CEO's name and email, the strategy manager's email, language.\n2. For EACH listed project folder read its sheet \"Decision history\" if it exists: goal (on the \"first-brief\" row), has_brief = a \"first-brief\" row exists, checked_this_month = a \"monthly check\" row exists this calendar month.\n3. A request: do_first = true. goal = the decision question in Khun Ton's words. Find its project folder: a folder link in the request, else a subfolder of the agent folder whose name matches the request's topic, else none (new_folder = true, and project_name = a short name for the decision, e.g. \"EV Charging Decision\"). If that project already has a brief, do_first = false and say so in projects_status.\n   A scheduled run: `projects` = every listed project that has_brief and is not checked_this_month (a re-run the same month skips the ones done). do_check = projects is not empty.\n   Otherwise both are false.\n4. For each project in `projects` return: folder ID, name, goal, CEO name and email (from Agent setup), the \"Signposts\" sheet ID, the latest brief URL, the \"Board deck\" ID, the \"Decision history\" file ID. month_id = \"check-<YYYY-MM>\".\n   For a request, return for its project: folder ID (blank if new_folder) and name, listed = it is already listed in Agent setup, the internal documents in it (not files this agent made) as file IDs comma separated with last-modified dates, the \"Decision history\" file ID (blank if none), check_id (\"first-brief\" or \"check-<YYYY-MM>\"), the latest brief URL, the \"Signposts\" sheet ID, the \"Board deck\" ID.\n5. `projects_status`: one line per project: name, and whether this month's check is done, plus this run's request if any.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -425,22 +425,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary` exactly: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: \"Stopped before doing anything: ${read_state.stop_reason} Nothing was produced or sent.\" Whoever reads this must not write the deliverable themselves.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -528,22 +514,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: \"Nothing to do this run.\" then why, from ${read_state.projects_status}. If no project has a brief yet: \"To start a decision brief, open this agent and type your decision question.\" Never write a brief or any other deliverable yourself. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: \"Nothing to do this run.\" then why, from ${read_state.projects_status}. If no project has a brief yet: \"To start a decision brief, open this agent and type your decision question.\" Never write a brief or any other deliverable yourself.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -1132,7 +1104,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "In the project folder ${setup_project.project_folder_id} create exactly four files with create_file_if_absent, nothing else:\n1. Google Doc \"Decision brief v1 (${read_state.today})\" from Markdown ${finalize.one_pager} (text/markdown).\n2. Google Sheet \"Signposts\" from ${finalize.signposts_csv} (text/csv).\n3. Google Slides \"Board deck\" from the outline ${finalize.deck_outline} (create_presentation_from_outline, 6 slides), in the same folder.\n4. Google Sheet \"Decision history\" (text/csv) with the header check_id,date,kind,stage,goal,signposts_triggered,recommendation,recommendation_changed,brief_url,deck_url,notes and one row: check_id=\"first-brief\", date=${read_state.today}, kind=\"first brief\", stage=\"sent\", goal=${read_state.goal}, recommendation=${finalize.recommendation}, brief_url and deck_url (of files 1 and 3; if a URL is not known yet, leave it blank), notes=\"owner approved: ${gate_brief.approval_feedback}\".\nReturn each file's ID and URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "instruction": "In the project folder ${setup_project.project_folder_id} create exactly four files with create_file_if_absent, nothing else:\n1. Google Doc \"Decision brief v1 (${read_state.today})\" from Markdown ${finalize.one_pager} (text/markdown).\n2. Google Sheet \"Signposts\" from ${finalize.signposts_csv} (text/csv).\n3. Google Slides \"Board deck\" from the outline ${finalize.deck_outline} (create_presentation_from_outline, 6 slides), in the same folder. If that tool fails, do not make an empty or placeholder presentation by any other means: leave deck_url blank.\n4. Google Sheet \"Decision history\" (text/csv) with the header check_id,date,kind,stage,goal,signposts_triggered,recommendation,recommendation_changed,brief_url,deck_url,notes and one row: check_id=\"first-brief\", date=${read_state.today}, kind=\"first brief\", stage=\"sent\", goal=${read_state.goal}, recommendation=${finalize.recommendation}, brief_url and deck_url (of files 1 and 3; if a URL is not known yet, leave it blank), notes=\"owner approved: ${gate_brief.approval_feedback}\".\nReturn each file's ID and URL. Search the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1226,7 +1198,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Send one email to ${read_state.ceo_email} (${read_state.ceo_name}). Subject: \"Decision brief: ${read_state.goal}\".\nSay in two or three sentences what the recommendation is (${finalize.recommendation}) and that the strategy manager has reviewed it. Links: brief ${save_first.brief_url}, board deck ${save_first.deck_url}, signposts ${save_first.signposts_url}.\nExplain that from now on the signposts are checked on the 1st of every month, and she will get a three-line note when nothing material has changed, or an updated brief when something has. She does not need to reply.\nWrite like a thoughtful colleague: warm, plain sentences, no headings, no robotic phrases. You are the decision-brief assistant working for the strategy manager; say so once. Write in English unless the Setup doc says Thai.\nSearch the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
+      "instruction": "Send one email to ${read_state.ceo_email} (${read_state.ceo_name}). Subject: \"Decision brief: ${read_state.goal}\".\nSay in two or three sentences what the recommendation is (${finalize.recommendation}) and that the strategy manager has reviewed it. Links: brief ${save_first.brief_url}, board deck ${save_first.deck_url} (if this link is blank, say plainly that the deck could not be made this time and will follow), signposts ${save_first.signposts_url}.\nExplain that from now on the signposts are checked on the 1st of every month, and she will get a three-line note when nothing material has changed, or an updated brief when something has. She does not need to reply.\nWrite like a thoughtful colleague: warm, plain sentences, no headings, no robotic phrases. You are the decision-brief assistant working for the strategy manager; say so once. Write in English unless the Setup doc says Thai.\nSearch the folder for the exact title first; use create_file_if_absent so a second run never makes a second copy. Never retry a write that was confirmed. When the user answers 'Action Confirmed' or 'Review completed' the action HAS been done: never ask again, never repeat it.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1268,30 +1240,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: one line saying the first decision brief for \"${read_state.project_name}\" was sent to ${read_state.ceo_name}, and the next check is on the 1st of next month; then ${read_state.projects_status}. `links`: brief ${save_first.brief_url}, deck ${save_first.deck_url}, signposts ${save_first.signposts_url}, one per line. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: one line saying the first decision brief for \"${read_state.project_name}\" was sent to ${read_state.ceo_name}, and the next check is on the 1st of next month; then ${read_state.projects_status}. Then list the links: brief ${save_first.brief_url}, deck ${save_first.deck_url}, signposts ${save_first.signposts_url}, one per line.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       },
-       "links": {
-        "description": "links",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 1
-        }
-       }
-      },
-      "required": [
-       "summary",
-       "links"
-      ]
      }
     },
     {
@@ -2146,22 +2096,8 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: monthly check ${read_state.month_id} done; no material change in ${collect.quiet}; a three-line note went to each CEO. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: monthly check ${read_state.month_id} done; no material change in ${collect.quiet}; a three-line note went to each CEO.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
      }
     },
     {
@@ -3055,22 +2991,28 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Return `summary`: monthly check ${read_state.month_id} done. Updates sent: ${collect.material} (links ${send_loop.output[*].save_update}); no material change: ${collect.quiet}. Next check: the 1st of next month. No tools.",
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay: monthly check ${read_state.month_id} done. Updates sent: ${collect.material} (links ${send_loop.output[*].save_update}); no material change: ${collect.quiet}. Next check: the 1st of next month.",
       "outputDisplayEnabled": true
-     },
-     "outputSchema": {
-      "properties": {
-       "summary": {
-        "description": "summary",
-        "type": "STRING",
-        "additionalProperties": {
-         "display_order": 0
-        }
-       }
-      },
-      "required": [
-       "summary"
-      ]
+     }
+    },
+    {
+     "id": "tell_plan_rejected",
+     "displayName": "Tell: plan rejected",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the research plan for \"${read_state.goal}\" was rejected (${gate_plan.approval_feedback}), so nothing was researched, saved or sent. To get a new plan, start the agent again with the request reworded."
+     }
+    },
+    {
+     "id": "tell_brief_rejected",
+     "displayName": "Tell: brief not sent",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "outputDisplayEnabled": true,
+      "instruction": "Write a short, plain message for the user in English. Use no tools. It is the last message of this run: do not ask the user a question and do not wait for an answer.\nSay that the draft brief was not approved (${gate_brief.approval_feedback}). Nothing was sent to ${read_state.ceo_name}; the draft stays at ${save_draft.draft_url}. Start the agent again with the request to make a new one."
      }
     }
    ],
@@ -3197,6 +3139,16 @@
     {
      "sourceNodeId": "send_loop",
      "targetNodeId": "summary_check"
+    },
+    {
+     "sourceNodeId": "gate_plan",
+     "targetNodeId": "tell_plan_rejected",
+     "routeString": "Rejected"
+    },
+    {
+     "sourceNodeId": "gate_brief",
+     "targetNodeId": "tell_brief_rejected",
+     "routeString": "Rejected"
     }
    ]
   }

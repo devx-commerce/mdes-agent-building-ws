@@ -1,0 +1,35 @@
+{
+ "id": "gov-a-th-remind-2",
+ "agent": "GOV-A",
+ "lang": "th",
+ "fixture": "python3 tests/fixtures/government-officer.py gov-a remind-3",
+ "why": "Re-run of the reminder path after the reminder-wording fix (overdue deadline as a Thai date): อำเภอแม่สาย has not sent -> one email to navya.agarwal+district-maesai that says the deadline (5 ตุลาคม 2569) has passed.",
+ "start": "ตรวจสอบรายงานผลการดำเนินงานประจำเดือน",
+ "default_card": "approve",
+ "max_cards": 5,
+ "max_minutes": 25,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "create_file",
+   "review_report",
+   "create_presentation"
+  ],
+  "emails_to": "^navya\\.agarwal\\+district-maesai@devxlabs\\.ai$",
+  "no_files": [
+   "^รายงานผลการดำเนินงาน ก\\.ย\\. 69"
+  ],
+  "thai_final": true
+ },
+ "cards": [
+  {
+   "when": {
+    "args": "2026-10-05"
+   },
+   "do": "cancel"
+  }
+ ]
+}

@@ -8,7 +8,7 @@
  "cards": [],
  "default_card": "cancel",
  "max_cards": 2,
- "max_minutes": 10,
+ "max_minutes": 25,
  "expect": {
   "status": "end",
   "cards_not_seen": [

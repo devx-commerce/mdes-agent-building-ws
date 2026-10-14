@@ -1,0 +1,44 @@
+{
+ "id": "gov-b-th-from-report",
+ "agent": "GOV-B",
+ "lang": "th",
+ "why": "Happy path, second half (use case: 'to make a memo from a saved research report, send its link'): the research report saved by gov-b-th-full (Doc 1qJiFTEerUlaBvvDXzdpAmGzkoxn9G39Z6bKJFLHN0Xo, 25 refs) is linked -> no new research -> memo with the 5 headings in the given folder -> approved -> one email to the Head (navya.agarwal+head) with both links. The report link is checked in the create_file card args (FINDINGS), not in the Doc text: the plain-text export drops hyperlink URLs.",
+ "start": "ทำบันทึกข้อความเสนอผู้บริหารจากรายงานนี้ https://docs.google.com/document/d/1qJiFTEerUlaBvvDXzdpAmGzkoxn9G39Z6bKJFLHN0Xo/edit บันทึกในโฟลเดอร์ https://drive.google.com/drive/folders/17WZ51JJzWi5mUTSjxzzYXpPphdRPHB6i ส่งถึง navya.agarwal+head@devxlabs.ai",
+ "default_card": "approve",
+ "max_cards": 6,
+ "max_minutes": 40,
+ "expect": {
+  "status": "end",
+  "cards_seen": [
+   "create_file",
+   "review_memo",
+   "send_email"
+  ],
+  "cards_not_seen": [
+   "plan_approval",
+   "deep_research_run"
+  ],
+  "files": [
+   {
+    "name": "^บันทึกข้อความ – .*(ฝุ่น|PM).*\\(ร่าง",
+    "mime": "document",
+    "thai": true,
+    "contains": [
+     "ความเป็นมา",
+     "ข้อเท็จจริง",
+     "ข้อพิจารณา",
+     "ข้อเสนอ"
+    ],
+    "not_contains": []
+   }
+  ],
+  "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
+  "final_contains": [
+   "navya.agarwal+head@devxlabs.ai"
+  ],
+  "thai_final": true,
+  "final_not_contains": [
+   "Sources:"
+  ]
+ }
+}

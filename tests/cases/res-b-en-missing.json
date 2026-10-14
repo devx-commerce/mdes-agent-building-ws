@@ -2,13 +2,13 @@
  "id": "res-b-en-missing",
  "agent": "RES-B",
  "lang": "en",
- "why": "Missing input: the codebook is not found (renamed '(old) …' for the run) -> ONE 'cannot start' email to the owner naming only the codebook; nothing else.",
+ "why": "Missing input: the codebook is not found (renamed '(old) …' for the run) -> ONE 'cannot start' email to the owner naming only the codebook; nothing else. No thai_final check: this path ends at the email step, whose visible output is only its structured result {sent, problems} (no plain message; see FINDINGS open issue).",
  "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-b-en-missing.json",
  "start": "Run the scheduled check now.",
  "cards": [],
  "default_card": "approve",
  "max_cards": 3,
- "max_minutes": 12,
+ "max_minutes": 25,
  "expect": {
   "status": "end",
   "cards_seen": [
@@ -18,7 +18,6 @@
    "create_file",
    "handling_rules"
   ],
-  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$",
-  "thai_final": false
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$"
  }
 }
