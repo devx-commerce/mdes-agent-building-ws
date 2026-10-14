@@ -114,7 +114,11 @@ def soffice(html_or_csv, name, out_ext, filt=None):
     d = pathlib.Path(tempfile.mkdtemp())
     src = d / name
     src.write_text(html_or_csv, encoding="utf-8")
-    subprocess.run(["soffice", "--headless", "--convert-to", filt or out_ext, "--outdir", str(d), str(src)], check=True, capture_output=True)
+    step = "pdf" if out_ext == "png" else (filt or out_ext)
+    subprocess.run(["soffice", "--headless", "--convert-to", step, "--outdir", str(d), str(src)], check=True, capture_output=True)
+    if out_ext == "png":  # a 'scan': first page rendered to an image (macOS Quick Look, ~145 dpi), no text layer
+        subprocess.run(["qlmanage", "-t", "-s", "1700", "-o", str(d), str(d / (src.stem + ".pdf"))], check=True, capture_output=True)
+        return (d / (src.stem + ".pdf.png")).read_bytes()
     return (d / (src.stem + "." + out_ext)).read_bytes()
 
 

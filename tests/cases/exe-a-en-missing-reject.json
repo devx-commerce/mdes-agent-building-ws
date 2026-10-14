@@ -1,0 +1,10 @@
+{
+ "id": "exe-a-en-missing-reject", "agent": "EXE-A", "lang": "en",
+ "why": "Failure path (EXE_FLOWS A.1, Q3): BBL's statements are missing and the board meets in 5 days -> card 'go ahead without them?' -> the Head rejects -> nothing is built or sent this run. Before: python3 tests/fixtures/executive.py reset a en missing.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "cards": [{"when": {"node": "gate_go"}, "do": "reject", "feedback": "Wait for BBL"}],
+ "default_card": "reject",
+ "max_cards": 3, "max_minutes": 25,
+ "expect": {"cards_seen": ["gate_go"], "cards_not_seen": ["create_file", "send"],
+            "no_files": ["Comparison table"]}
+}

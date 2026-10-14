@@ -336,7 +336,9 @@ def grade(api, case, run, sess):
     for x in e.get("cards_not_seen", []):
         check(f"no card /{x}/", not any(re.search(x, c["action"] + " " + c["title"] + " " + c["node"], re.I) for c in run.cards))
     if e.get("thai_final") and final.strip():
-        share, parts = thai_ok(final)
+        # the platform also streams each data-only step's output as a ```json block: judge only the messages
+        shown = re.sub(r"```\s*json.*?```", " ", final, flags=re.S)
+        share, parts = thai_ok(shown)
         check("final answer is Thai", share >= 0.5, f"Thai share {share:.0%}")
         check("no gendered particles in final", not parts, str(parts[:3]))
     if e.get("emails_to"):

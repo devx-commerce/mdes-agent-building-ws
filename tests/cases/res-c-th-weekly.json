@@ -1,0 +1,30 @@
+{
+ "id": "res-c-th-weekly",
+ "agent": "RES-C",
+ "lang": "th",
+ "why": "Probe of the Monday path on a Wednesday: the run is started by hand with a typed request for the weekly search. The template sets search_day only on Mondays, so the expected (template-correct) result is the 'not today' summary with no search; this case records what the first step does with the typed request.",
+ "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-c-th-weekly.json",
+ "start": "ค้นหาประกาศทุนประจำสัปดาห์ตอนนี้",
+ "cards": [
+  {
+   "when": {
+    "node": "go_skip"
+   },
+   "do": "approve",
+   "feedback": "skip: ทั้งหมด"
+  }
+ ],
+ "default_card": "approve",
+ "max_cards": 20,
+ "max_minutes": 60,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "deep_research",
+   "create_event",
+   "send_email"
+  ],
+  "thai_final": true,
+  "emails_to": "^navya\\.agarwal(\\+[\\w-]+)?@devxlabs\\.ai$"
+ }
+}

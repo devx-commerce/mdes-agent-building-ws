@@ -1,0 +1,20 @@
+{
+ "id": "gov-b-en-missing-folder",
+ "agent": "GOV-B",
+ "lang": "en",
+ "why": "Failure path: the request names a save folder that does not exist -> the agent stops before the plan and says the folder was not found; no card.",
+ "start": "Summarise rice farmers' drought support measures for Chiang Rai and save it in folder กลุ่มงานนโยบายเกษตร 2569 ชุดสอง",
+ "default_card": "cancel",
+ "max_cards": 1,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "no_files": [
+   "บันทึกข้อความ",
+   "รายงานการค้นคว้าฉบับเต็ม"
+  ]
+ }
+}

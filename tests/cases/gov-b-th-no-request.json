@@ -1,0 +1,21 @@
+{
+ "id": "gov-b-th-no-request",
+ "agent": "GOV-B",
+ "lang": "th",
+ "why": "Failure path (Vishal pbm-request-only, reversed): the message only says where to save, with no topic -> the agent says no request was received; no card, nothing researched or created.",
+ "start": "ช่วยบันทึกในโฟลเดอร์ https://drive.google.com/drive/folders/17WZ51JJzWi5mUTSjxzzYXpPphdRPHB6i",
+ "default_card": "cancel",
+ "max_cards": 1,
+ "max_minutes": 15,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "."
+  ],
+  "no_files": [
+   "บันทึกข้อความ",
+   "รายงานการค้นคว้าฉบับเต็ม"
+  ],
+  "thai_final": true
+ }
+}

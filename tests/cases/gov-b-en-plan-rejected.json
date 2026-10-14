@@ -1,0 +1,31 @@
+{
+ "id": "gov-b-en-plan-rejected",
+ "agent": "GOV-B",
+ "lang": "en",
+ "why": "Failure path, EN build (Vishal pbm-plan-rejected): the officer rejects the research plan -> the agent stops; nothing is researched, written or sent.",
+ "start": "Summarise community-based tourism promotion measures used by other Thai provinces",
+ "cards": [
+  {
+   "when": {
+    "title": "."
+   },
+   "do": "reject",
+   "feedback": "Not needed yet"
+  }
+ ],
+ "default_card": "reject",
+ "max_cards": 3,
+ "max_minutes": 20,
+ "expect": {
+  "status": "end",
+  "cards_not_seen": [
+   "send_email",
+   "create_file",
+   "deep_research_run"
+  ],
+  "no_files": [
+   "บันทึกข้อความ",
+   "รายงานการค้นคว้าฉบับเต็ม"
+  ]
+ }
+}

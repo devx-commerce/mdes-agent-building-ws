@@ -1,0 +1,10 @@
+{
+ "id": "exe-b-th-plan-rejected", "agent": "EXE-B", "lang": "th",
+ "why": "Failure path (EXE_FLOWS B step 2): Khun Ton rejects the research plan -> the run stops; nothing is researched, saved or sent. Before: python3 tests/fixtures/executive.py reset b th.",
+ "start": "ช่วยจัดทำบันทึกประกอบการตัดสินใจว่าบริษัทควรเข้าสู่ธุรกิจสถานีชาร์จรถยนต์ไฟฟ้าในเขตพัฒนาพิเศษภาคตะวันออก (EEC) หรือไม่",
+ "cards": [{"when": {"node": "gate_plan"}, "do": "reject", "feedback": "ยังไม่ต้องทำเรื่องนี้ตอนนี้"}],
+ "default_card": "approve",
+ "max_cards": 4, "max_minutes": 25,
+ "expect": {"cards_seen": ["gate_plan"], "cards_not_seen": ["send", "gate_brief"],
+            "no_files": ["บันทึกประกอบการตัดสินใจ", "สัญญาณบ่งชี้", "สไลด์นำเสนอ"], "thai_final": true}
+}

@@ -1,0 +1,11 @@
+{
+ "id": "exe-a-th-full-table", "agent": "EXE-A", "lang": "th",
+ "why": "Happy path, run 1 of 2 (EXE_FLOWS A.1): every bank's files are there, inside the window (Q2 ended 2026-06-30, board 2026-10-28) -> extract each bank -> Comparison table saved -> one email to the analysts asking them to check it. Before: python3 tests/fixtures/executive.py reset a th full.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "default_card": "approve",
+ "max_cards": 8, "max_minutes": 40,
+ "expect": {"cards_seen": ["create_file", "send"], "cards_not_seen": ["Go ahead|ดำเนินการต่อโดยไม่มี"],
+            "files": [{"name": "^ตารางเปรียบเทียบ$", "mime": "spreadsheet", "contains": ["KBANK", "SCB", "2.75", "38.52", "2.97"]}],
+            "no_files": ["รายงานต่อคณะกรรมการ", "สไลด์นำเสนอคณะกรรมการ"],
+            "emails_to": "^navya\\.agarwal\\+analyst@devxlabs\\.ai$", "thai_final": true}
+}

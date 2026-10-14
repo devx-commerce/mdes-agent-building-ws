@@ -278,7 +278,9 @@ def prep(case_id):
                    html("แผนการวิเคราะห์ข้อมูล (Analysis plan)", PLAN_LINES + [PLAN_H4]), "text/html", DOC)
             print("  plan", set_modified(ids["res_b_plan"], slot_time(30)))
         elif "nothing-new" in case_id:
-            print("  no touch (data and plan stay as logged)")
+            # nothing saved in this run's half hour: data and plan last saved 2 h ago
+            print("  data", set_modified(ids["res_b_data"], dt.datetime.now(BKK) - dt.timedelta(hours=2)))
+            print("  plan", set_modified(ids["res_b_plan"], dt.datetime.now(BKK) - dt.timedelta(hours=2, minutes=5)))
         elif "missing" in case_id:
             rename(ids["res_b_codebook"], "(old) คู่มือลงรหัสข้อมูล – แบบสอบถาม EV")
             print("  codebook renamed away")

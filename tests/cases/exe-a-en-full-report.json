@@ -1,0 +1,13 @@
+{
+ "id": "exe-a-en-full-report", "agent": "EXE-A", "lang": "en",
+ "why": "Happy path, run 2 of 2 (EXE_FLOWS A.2-A.3): the analyst replied 'SCB NPL should be 3.70 per note 7.2, otherwise fine' -> table corrected -> Board report and Board deck copied from last quarter's -> Head's card approved with a typed change -> Work note -> email to the Company Secretary (cc Head). Before: exe-a-en-full-table passed and the analyst reply was sent in its thread.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "cards": [{"when": {"node": "gate_head"}, "do": "approve", "feedback": "Under For discussion, add: should we review our own provisioning policy?"}],
+ "default_card": "approve",
+ "max_cards": 14, "max_minutes": 45,
+ "expect": {"cards_seen": ["gate_head", "send"],
+            "files": [{"name": "^Board report$", "mime": "document", "contains": ["KBANK", "SCB", "3.70"]},
+                      {"name": "^Board deck$", "mime": "presentation", "contains": ["2.75"]},
+                      {"name": "^Work note$", "mime": "document"}],
+            "emails_to": "^navya\\.agarwal\\+(secretary|head)@devxlabs\\.ai$"}
+}

@@ -1,0 +1,10 @@
+{
+ "id": "exe-c-th-full", "agent": "EXE-C", "lang": "th",
+ "why": "Happy path (EXE_FLOWS C): 06:00-style run -> pre-reads for the CEO's meetings in the next 24 h (ExCom 17:00 has a folder) -> one email to the CEO -> new ExCom minutes 2026-10-13: 3 clear actions + 1 vague -> ONE card for Khun Nok, approved -> one calendar invite per clear action (+cfo, +sales, +coo), vague one held -> tracker written once. Before: python3 tests/fixtures/executive.py reset c th; calendar event 'ExCom (ประชุมคณะกรรมการบริหาร)' 14 Oct 17:00.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "default_card": "approve",
+ "max_cards": 20, "max_minutes": 50,
+ "expect": {"cards_seen": ["send", "gate|อนุมัติ", "create_event|event"],
+            "files": [{"name": "^เอกสารอ่านล่วงหน้า .*ExCom", "mime": "document", "thai": true}],
+            "emails_to": "^navya\\.agarwal\\+(ceo|cfo|coo|sales|strategy)@devxlabs\\.ai$", "thai_final": true}
+}

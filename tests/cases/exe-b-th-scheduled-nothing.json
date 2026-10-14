@@ -1,0 +1,8 @@
+{
+ "id": "exe-b-th-scheduled-nothing", "agent": "EXE-B", "lang": "th",
+ "why": "Quiet stop (EXE_FLOWS B monthly check): a scheduled run when no project has a brief yet -> nothing to check; a short Thai note saying how to start; no cards. Before: python3 tests/fixtures/executive.py reset b th.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "default_card": "reject",
+ "max_cards": 2, "max_minutes": 15,
+ "expect": {"cards_not_seen": ["."], "no_files": ["บันทึกประกอบการตัดสินใจ", "ประวัติการตัดสินใจ"], "thai_final": true}
+}

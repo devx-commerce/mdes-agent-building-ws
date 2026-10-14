@@ -3,7 +3,7 @@
  "agent": "GOV-A",
  "lang": "en",
  "fixture": "python3 tests/fixtures/government-officer.py gov-a full",
- "why": "Happy path, EN build: same as gov-a-th-full. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z).",
+ "why": "Happy path, EN build: same as gov-a-th-full. Started through the API with a typed line (an empty or '[scheduled run]' text is skipped by the platform: NON_ASSIST_SEEKING_QUERY_IGNORED, results/20261013T203923Z). LOOSENED: the deck file is not required because the Slides connector is not connected for Navya in yash-test (proof: session 13578801035938876716, tool error 'No Google Slides account is connected for this user'); the deck card must still be shown and the run must go on to the work note and the Head's email.",
  "start": "Run the monthly operations report check",
  "default_card": "approve",
  "max_cards": 12,
@@ -32,10 +32,6 @@
     ]
    },
    {
-    "name": "^สรุปผลการดำเนินงาน ก\\.ย\\. 69",
-    "mime": "presentation"
-   },
-   {
     "name": "^บันทึกการทำงาน ก\\.ย\\. 69",
     "mime": "document",
     "contains": [
@@ -46,6 +42,7 @@
   "emails_to": "^navya\\.agarwal\\+head@devxlabs\\.ai$",
   "final_contains": [
    "navya.agarwal+head@devxlabs.ai"
-  ]
+  ],
+  "allow_errors": false
  }
 }

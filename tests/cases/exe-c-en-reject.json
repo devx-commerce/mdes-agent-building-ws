@@ -1,0 +1,10 @@
+{
+ "id": "exe-c-en-reject", "agent": "EXE-C", "lang": "en",
+ "why": "Failure path (EXE_FLOWS C step 4): Khun Nok rejects today's action items -> no invite is created; the tracker marks them rejected; pre-reads still go to the CEO. Before: python3 tests/fixtures/executive.py reset c en.",
+ "start": "[scheduled run] Please carry out today's scheduled run.",
+ "cards": [{"when": {"node": "^gate$"}, "do": "reject", "feedback": "Hold these, I need to check with the CFO first"}],
+ "default_card": "approve",
+ "max_cards": 16, "max_minutes": 50,
+ "expect": {"cards_seen": ["gate"], "cards_not_seen": ["create_event"],
+            "emails_to": "^navya\\.agarwal\\+(ceo)@devxlabs\\.ai$"}
+}

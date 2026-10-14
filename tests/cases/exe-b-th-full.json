@@ -1,0 +1,15 @@
+{
+ "id": "exe-b-th-full", "agent": "EXE-B", "lang": "th",
+ "why": "Happy path, Part 1 (EXE_FLOWS B, B1-B9): Khun Ton types his decision question -> plan card approved with one extra sub-question -> research -> draft saved -> brief card approved -> one-page brief, Signposts, 6-slide deck, Decision history -> email to the CEO (Thai). Before: python3 tests/fixtures/executive.py reset b th.",
+ "start": "ช่วยจัดทำบันทึกประกอบการตัดสินใจว่าบริษัทควรเข้าสู่ธุรกิจสถานีชาร์จรถยนต์ไฟฟ้าในเขตพัฒนาพิเศษภาคตะวันออก (EEC) หรือไม่",
+ "cards": [{"when": {"node": "gate_plan"}, "do": "approve", "feedback": "เพิ่มคำถาม: อัตราการใช้งานหัวชาร์จจริงของคู่แข่งใน EEC อยู่ที่เท่าไร"},
+           {"when": {"node": "gate_brief"}, "do": "approve", "feedback": ""}],
+ "default_card": "approve",
+ "max_cards": 14, "max_minutes": 45,
+ "expect": {"cards_seen": ["gate_plan", "gate_brief", "send"],
+            "files": [{"name": "^บันทึกประกอบการตัดสินใจ ฉบับที่ 1", "mime": "document", "thai": true},
+                      {"name": "^สัญญาณบ่งชี้$", "mime": "spreadsheet"},
+                      {"name": "^สไลด์นำเสนอคณะกรรมการ$", "mime": "presentation", "thai": true},
+                      {"name": "^ประวัติการตัดสินใจ$", "mime": "spreadsheet", "contains": ["first-brief"]}],
+            "emails_to": "^navya\\.agarwal\\+ceo@devxlabs\\.ai$", "thai_final": true}
+}
