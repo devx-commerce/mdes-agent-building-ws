@@ -285,7 +285,8 @@ def main():
             # share, ask for review (with sharing-without-approval on, this makes it ENABLED), then share again:
             # requestAgentReview resets the scope to RESTRICTED (mdes-agent LIMITATIONS #144)
             api.call("PATCH", f"{base}/{aid}?updateMask=sharingConfig", {"sharingConfig": {"scope": share}})
-            api.call("POST", f"{base}/{aid}:requestAgentReview", {})
+            if api.call("GET", f"{base}/{aid}").get("state") == "PRIVATE":  # only a private agent can be put up for review
+                api.call("POST", f"{base}/{aid}:requestAgentReview", {})
             api.call("PATCH", f"{base}/{aid}?updateMask=sharingConfig", {"sharingConfig": {"scope": share}})
             what += f", shared {share}"
         print(f"{label} {what}  id={aid}")
