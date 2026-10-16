@@ -14,7 +14,9 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 MAP = {"GMAIL_MCP": ["OUTLOOK_MAIL_MCP", "OUTLOOK_CONTACTS_MCP"], "CALENDAR_MCP": ["OUTLOOK_CALENDAR_MCP"],
        "DRIVE_MCP": ["ONEDRIVE_MCP"], "DOCS_MCP": ["ONEDRIVE_MCP"], "SHEETS_MCP": ["EXCEL_MCP"]}
 MARK = "GOOGLE OR MICROSOFT:"
-RULE = """GOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other."""
+RULE = """GOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and this step is given tools for both. Many tools exist twice with the same name (for example search_files): read each tool's description to tell them apart. The Microsoft ones mention OneDrive, Outlook, Excel or Microsoft; the Google ones mention Drive, Docs, Sheets, Gmail or Google Calendar (Google Drive's search_files takes a structured query such as name contains '...').
+Always use the Google tool first. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) only when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user.
+Never conclude that a file, folder, email or event is missing until you have searched for it with the Google tool and then with the Microsoft tool. Keep each file in the place it came from: never copy a user's file from one to the other."""
 
 
 def steps(flow):
