@@ -266,7 +266,10 @@ def prep(case_id):
         lib = True
         if "no-library" in case_id:
             lib = "คลังเอกสาร EV ฉบับเก่า" if lang == "th" else "EV library (old)"
-        upsert("ตั้งค่า – ทบทวนหลักฐาน", ids["res_a_folder"], setup_html(goal, lang, lib), "text/html", DOC)
+        html_ = setup_html(goal, lang, lib)
+        if "full" in case_id:  # a goal reviewed by an earlier test run is skipped unless the Setup Doc asks for a new review (16 Oct)
+            html_ = html_.replace("</body>", "<p>ทบทวนใหม่</p></body>") if "</body>" in html_ else html_ + "<p>ทบทวนใหม่</p>"
+        upsert("ตั้งค่า – ทบทวนหลักฐาน", ids["res_a_folder"], html_, "text/html", DOC)
         if "idle" in case_id:  # edited well before this hour's slot
             r = set_modified(a_setup, dt.datetime.now(BKK) - dt.timedelta(hours=3))
         else:

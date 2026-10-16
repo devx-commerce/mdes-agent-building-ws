@@ -2,7 +2,7 @@
  "id": "gov-b-en-full",
  "agent": "GOV-B",
  "lang": "en",
- "why": "Happy path, English request (Vishal pbm-flood-english): plan approved -> research -> Thai memo in the given folder -> approved -> one email to the Head (navya.agarwal+head) with both links.",
+ "why": "Happy path, English request (Vishal pbm-flood-english): plan approved -> research -> Thai memo in the given folder -> approved -> one email to the Head (navya.agarwal+head) with both links. | 16 Oct: Deep Research replaced by our research subgraph (report saved by step r_save).",
  "start": "Brief the governor on flood early-warning measures a Thai province can take within its own authority. Save in folder https://drive.google.com/drive/folders/17WZ51JJzWi5mUTSjxzzYXpPphdRPHB6i and send to navya.agarwal+head@devxlabs.ai",
  "cards": [
   {
@@ -20,7 +20,7 @@
   "status": "end",
   "cards_seen": [
    "plan_approval",
-   "deep_research_run",
+   "r_save",
    "create_file",
    "review_memo",
    "send_(email|message)"

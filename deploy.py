@@ -172,8 +172,11 @@ def ensure_app(api, cfg, app, dry):
     have = set(eng.get("dataStoreIds", []))
     add = [s for s in stores if s not in have]
     if add and not dry:
-        api.call("PATCH", api.engine(app) + "?updateMask=dataStoreIds", {"dataStoreIds": sorted(have) + add})
-        print(f"attached connectors to '{app}':", ", ".join(add))
+        try:
+            api.call("PATCH", api.engine(app) + "?updateMask=dataStoreIds", {"dataStoreIds": sorted(have) + add})
+            print(f"attached connectors to '{app}':", ", ".join(add))
+        except SystemExit as e:  # an app created with one data store refuses more through the API (aip-nprd-ge, 16 Oct): warn, deploy the agents anyway
+            print(f"WARNING: could not attach {', '.join(add)} to '{app}': {str(e).splitlines()[-1][:200] if str(e) else e}")
 
 
 # ---------- compare ----------

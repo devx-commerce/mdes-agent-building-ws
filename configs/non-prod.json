@@ -1,5 +1,5 @@
 {
- "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed. 14 Oct: published and shared with ALL_USERS with manual triggers (no schedules) until MCPs are connected; then set manual_triggers false and redeploy.",
+ "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed. 14 Oct: published and shared with ALL_USERS with manual triggers (no schedules) until MCPs are connected; then set manual_triggers false and redeploy. 16 Oct: Drive/Gmail/Slides connectors filled (Kenil's servers, registered by Vishal). Calendar/Docs/Sheets not registered yet (OAuth app in testing; Navya not a test user). Research MCP no longer used (research subgraph). Only Drive is attached to the app; the API refuses to add more stores to a single-store app.",
  "user": "navya.agarwal@devxlabs.ai",
  "project": "aip-nprd-ge",
  "project_number": "651811839369",
@@ -14,12 +14,12 @@
  "publish": true,
  "share": "ALL_USERS",
  "connectors": {
-  "DRIVE_MCP": "",
-  "GMAIL_MCP": "",
+  "DRIVE_MCP": "drive_1792071638404",
+  "GMAIL_MCP": "nprd-gmail",
   "CALENDAR_MCP": "",
   "DOCS_MCP": "",
   "SHEETS_MCP": "",
-  "SLIDES_MCP": "",
+  "SLIDES_MCP": "nprd-slides",
   "RESEARCH_MCP": "",
   "ANALYSIS_MCP": ""
  },

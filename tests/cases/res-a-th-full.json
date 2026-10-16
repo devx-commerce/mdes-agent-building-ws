@@ -2,7 +2,7 @@
  "id": "res-a-th-full",
  "agent": "RES-A",
  "lang": "th",
- "why": "Happy path (Vishal ra1-full): Setup Doc with goal + library link edited in this run's hour slot -> plan card (she adds a question) -> changed plan shown again -> Deep Research -> evidence table with the planted conflicts -> she asks a question -> sourced briefing -> change-record row.",
+ "why": "Happy path (Vishal ra1-full): Setup Doc with goal + library link edited in this run's hour slot -> plan card (she adds a question) -> changed plan shown again -> Deep Research -> evidence table with the planted conflicts -> she asks a question -> sourced briefing -> change-record row. | 16 Oct: Deep Research replaced by our research subgraph (report saved by step r_save).",
  "run_with": "python3 tests/fixtures/researcher.py run tests/cases/res-a-th-full.json",
  "start": "เริ่มการทำงานรอบตามกำหนดเวลาตอนนี้",
  "cards": [
@@ -36,7 +36,7 @@
   "cards_seen": [
    "plan_approval",
    "plan_approval_2",
-   "deep_research_run",
+   "r_save",
    "follow_up",
    "append_rows"
   ],

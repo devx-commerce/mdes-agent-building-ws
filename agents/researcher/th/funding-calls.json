@@ -4,7 +4,7 @@
  "lang": "th",
  "display_name": "Funding Calls (TH)",
  "description": "ติดตามประกาศทุน: ทุกวันจันทร์เวลา 07:00 น. จะค้นหาประกาศทุนใหม่จากรายชื่อแหล่งทุนของคุณและเว็บไซต์ ประเมินความสอดคล้องกับประวัตินักวิจัยของคุณ จัดเตรียมชุดเริ่มต้นและกำหนดส่งในปฏิทินสำหรับประกาศที่มีความเหมาะสมสูง ส่งสรุปประจำสัปดาห์ทางอีเมล และหลังจากที่คุณเลือก go / skip (Inbox) จะจัดตั้งโฟลเดอร์ข้อเสนอโครงการและแจ้งเตือนรายการที่ยังขาดก่อนถึงกำหนดส่ง ทุกเช้าจะนำผลการพิจารณาทุนที่คุณบันทึกไว้ในบันทึกประกาศทุน (ได้รับทุน / ไม่ได้รับทุน ใน สถานะ) เพิ่มลงในประวัตินักวิจัยของคุณ",
- "_built_from": "tools/translate.py from en/funding-calls.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
+ "_built_from": "tools/research_subgraph.py (16 Oct: Deep Research MCP replaced by our research subgraph). tools/translate.py from en/funding-calls.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
  "definition": {
   "agentFlow": {
    "nodes": [
@@ -572,57 +572,124 @@
     },
     {
      "id": "search_calls",
-     "displayName": "ค้นหาประกาศทุนใหม่",
+     "displayName": "วางแผนการวิจัย",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "1. เรียกใช้ deep_research_plan หนึ่งครั้ง โดยระบุ sources = web และ question: 'Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.'\n2. เรียกใช้ deep_research_run หนึ่งครั้ง ด้วย session_id, folder_id ${find_setup.output_folder_id} ดังกล่าว และ title 'ประกาศทุนใหม่ – ${find_setup.today}' ห้ามเรียกใช้ deep_research_check (ขั้นตอนหลังจากนี้จะรอการทำงานดังกล่าว)\njob_id = jobId ที่ได้รับกลับมา; started = true ก็ต่อเมื่อได้รับ jobId กลับมา ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีข้อความดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_plan, deep_research_run\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลัก ท่านมีหน้าที่วางแผนการวิจัย ไม่ใช่เป็นผู้ดำเนินการวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nการวิจัย request: \"Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.\"\nบริบท: การสืบค้นประกาศรับข้อเสนอโครงการวิจัยประจำสัปดาห์สำหรับนักวิจัยของมหาวิทยาลัยไทย: แต่ละประกาศประกอบด้วยชื่อโครงการ ผู้ให้ทุน ลิงก์ประกาศ กำหนดเวลาที่แน่นอน วงเงินงบประมาณ ระยะเวลา คุณสมบัติ และเอกสารที่จำเป็น\n\n1. ระบุคำขอใหม่ให้เป็นคำถามการวิจัยที่ชัดเจนและแม่นยำ 1 ข้อ พร้อมระบุการตัดสินใจหรือผลลัพธ์ที่คำถามนี้รองรับ รวมถึงผู้ที่จะอ่านผลลัพธ์ดังกล่าว\n   ระบุประเทศ ภาคส่วน ช่วงเวลา และข้อจำกัดใด ๆ ตามที่คำขอกำหนดไว้ หากไม่มีการระบุประเทศ ให้ถือว่าเป็นประเทศไทย\n2. แบ่งคำถามออกเป็น 4 ถึง 7 คำถามย่อยที่สามารถตอบคำถามหลักได้อย่างครบถ้วนและไม่ซ้ำซ้อนกัน ครอบคลุมประเด็นที่เกี่ยวข้อง ได้แก่: ข้อเท็จจริงและตัวเลขในปัจจุบัน สิ่งที่ผู้อื่น (ประเทศอื่น จังหวัดอื่น หน่วยงานระดับเดียวกัน) ได้ดำเนินการและได้ผลลัพธ์ที่ดี สาเหตุและปัจจัยขับเคลื่อน ทางเลือก ค่าใช้จ่าย ความเสี่ยง และข้อจำกัด (ทางกฎหมาย งบประมาณ อำนาจหน้าที่) ความคืบหน้าล่าสุด (ในช่วง 12 เดือนที่ผ่านมา)\n3. แต่ละคำถามย่อยจะได้รับการวิจัยโดยนักวิจัยคนละคน ซึ่งจะเห็นเฉพาะรายการนั้นเพียงรายการเดียวเท่านั้น: ไม่เห็นคำขอหลัก และไม่เห็นคำถามย่อยอื่น ๆ ดังนั้นโปรดทำให้แต่ละรายการมีความสมบูรณ์ในตัวเอง:\n   - `question`: คำถามเฉพาะเจาะจง 1 ข้อที่เป็นภาษาไทยและสามารถตอบได้ โดยระบุประเทศ ภาคส่วน สถานที่ และช่วงเวลาอย่างชัดเจน (ห้ามเป็น \"the province\", \"this\", \"the above\")\n   - `brief`: บริบทความยาว 2 ถึง 4 ประโยค: ระบุภาพรวมของคำขอในหนึ่งบรรทัด วัตถุประสงค์ของการนำคำตอบไปใช้ สิ่งที่อยู่นอกขอบเขต และช่วงเวลา\n   - `why_it_matters`: คำตอบนี้จะสนับสนุนผลลัพธ์สุดท้ายอย่างไร\n   - `search_terms`: คำค้นหาเว็บ 3 ถึง 6 คำ ทั้งภาษาไทยและภาษาอังกฤษ\n   - `source_types`: ประเภทของแหล่งข้อมูลที่มีความสำคัญที่สุด\n   - `check_internal_docs`: เป็น false เสมอ (การวิจัยนี้ใช้เฉพาะแหล่งข้อมูลสาธารณะเท่านั้น)\n   - `id`: Q1, Q2, ...\n4. ห้ามตอบคำถามใด ๆ ด้วยตนเอง ไม่ใช้เครื่องมือใด ๆ\nนอกจากนี้ให้ส่งคืน: questions = ข้อความ `question` ของคำถามย่อยตามลำดับ; started = true เฉพาะเมื่อมีคำถามย่อย 4 ถึง 7 ข้อ; job_id = 'workflow-research'; problems = สิ่งที่ผิดพลาด หรือเป็นค่าว่าง\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความที่เขียนทุกประเภท (ข้อความ อีเมล เอกสาร สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "job_id": {
-        "description": "Job ID",
+        "description": "job id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "started": {
-        "description": "true ก็ต่อเมื่อ started เท่านั้น",
+        "description": "started",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 1
         }
        },
-       "problems": {
-        "description": "ว่างหากไม่มี",
-        "type": "STRING",
+       "questions": {
+        "description": "questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "problems",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 4
         }
        }
       },
       "required": [
        "job_id",
        "started",
-       "problems"
+       "questions",
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -688,117 +755,530 @@
      }
     },
     {
-     "id": "wait_research",
-     "displayName": "รอผลการสืบค้นข้อมูล",
-     "nodeType": "AGENT_NODE",
-     "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
+     "id": "s_loop",
+     "displayName": "วิจัยคำถามย่อยแต่ละข้อ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "search_calls.sub_questions",
+      "currentItemVariable": "sq",
+      "subAgentFlow": {
+       "nodes": [
         {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+         "id": "s_loop_start",
+         "displayName": "คำถามย่อยแต่ละข้อ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "sq": {
+            "description": "sq",
+            "type": "OBJECT",
+            "properties": {
+             "id": {
+              "description": "id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "question": {
+              "description": "question",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "brief": {
+              "description": "brief",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "why_it_matters": {
+              "description": "why it matters",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "search_terms": {
+              "description": "search terms",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "source_types": {
+              "description": "source types",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "check_internal_docs": {
+              "description": "check internal docs",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "id",
+             "question",
+             "brief",
+             "why_it_matters",
+             "search_terms",
+             "source_types",
+             "check_internal_docs"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sq"
+          ]
+         }
+        },
+        {
+         "id": "s_web",
+         "displayName": "วิจัยคำถามย่อยหนึ่งข้อบนเว็บ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ท่านคือผู้ตรวจสอบการวิจัย ท่านปฏิบัติงานในคำถามย่อย (sub-question) เพียง 1 ข้อตามที่ระบุไว้ด้านล่าง และท่านไม่ทราบข้อมูลอื่นใดเกี่ยวกับโครงการในภาพรวม ห้ามคาดเดาเกี่ยวกับโครงการในภาพรวม ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\n\nคำถามย่อย ${s_loop_start.sq.id}: ${s_loop_start.sq.question}\nบริบท: ${s_loop_start.sq.brief}\nเหตุผลที่ matters: ${s_loop_start.sq.why_it_matters}\nsearches ที่แนะนำ: ${s_loop_start.sq.search_terms}\nsources ที่ต้องการ: ${s_loop_start.sq.source_types}\n\nวิธีการ work:\n1. ค้นหาบนเว็บด้วย Google Search เท่านั้น: ดำเนินการค้นหาตามคำค้นหาที่แนะนำ จากนั้นค้นหาเพิ่มเติมตามที่ท่านได้รับข้อมูล (อย่างน้อย 5 ครั้ง และไม่เกิน 12 ครั้ง) ให้ความสำคัญกับแหล่งข้อมูลปฐมภูมิและแหล่งข้อมูลทางการเป็นลำดับแรก ใช้ข่าวสารเฉพาะสำหรับเหตุการณ์ปัจจุบันเท่านั้น ห้ามค้นหาใน Drive: เอกสารภายในจะได้รับการวิจัยแยกต่างหาก\n2. บันทึกข้อเท็จจริงที่เป็นประโยชน์แต่ละรายการเป็นข้อค้นพบ: `id` (id ของคำถามย่อย, \"-W\" และหมายเลขลำดับ: เช่น Q2-W1, Q2-W2, ...), `claim` (หนึ่งประโยค), `evidence` (ตัวเลขที่แน่นอน ข้อความอ้างอิง หรือรายละเอียดที่สนับสนุนข้อกล่าวอ้าง), `source_title` (ชื่อเรื่องของหน้าเว็บนั้นเอง หรือชื่อผู้เผยแพร่พร้อมคำอธิบายสั้น ๆ ไม่ใช่เพียงชื่อเว็บไซต์เท่านั้น),\n   `source_url`: ลิงก์ตรงตามที่เครื่องมือค้นหาให้มาสำหรับผลลัพธ์นั้นทุกประการ โดยคัดลอกมาแบบตัวอักษรต่อตัวอักษร Google Search จะให้ลิงก์ขนาดยาวที่ขึ้นต้นด้วย https://vertexaisearch.cloud.google.com/grounding-api-redirect/ : ให้คัดลอกลิงก์ทั้งหมด ห้ามย่อลิงก์ให้เหลือเพียงชื่อเว็บไซต์ และห้ามสร้าง URL ขึ้นเองโดยเด็ดขาด `source_type` (government / academic / international org / industry / news), `published` (วันที่หรือปี, \"unknown\" หากไม่ปรากฏ), `confidence` (high = แหล่งข้อมูลปฐมภูมิหรือมีหลายแหล่งข้อมูลที่สอดคล้องกัน; medium = แหล่งข้อมูลที่น่าเชื่อถือ 1 แหล่ง; low = มีน้ำหนักน้อยหรือไม่ใช่ข้อมูลโดยตรง)\n   ข้อค้นพบ 15 ถึง 25 รายการจากหน้าเว็บที่แตกต่างกันอย่างน้อย 12 หน้า: กระจายหลักฐานไปยังแหล่งข้อมูลต่าง ๆ และค้นหาเพิ่มเติมเมื่อหน้าเว็บแสดงข้อมูลซ้ำกับที่มีอยู่แล้ว บันทึกเฉพาะข้อเท็จจริงที่พบจริงในแหล่งข้อมูลเท่านั้น ห้ามสร้างแหล่งข้อมูล, URL, ตัวเลข หรือวันที่ขึ้นเองโดยเด็ดขาด หากแหล่งข้อมูลมีความเห็นไม่ตรงกัน ให้บันทึกทั้งสองข้อมูล\n3. `answer`: คำตอบโดยตรงสำหรับคำถามย่อย ความยาว 3 ถึง 6 ประโยค โดยอ้างอิงข้อค้นพบตามชื่อแหล่งข้อมูล\n4. `open_gaps`: สิ่งที่ไม่สามารถค้นหาหรือยืนยันได้ และระบุเหตุผล ให้ระบุ \"none\" หากไม่มี\n5. `searches_run`: จำนวนครั้งที่ดำเนินการค้นหา\nNO SEARCH, NO FINDINGS: ข้อค้นพบทุกรายการต้องมาจากผลลัพธ์ของ Google Search ที่ได้รับในขั้นตอนนี้เท่านั้น หากไม่มีเครื่องมือ Google Search ในขั้นตอนนี้ ห้ามเขียนข้อค้นพบใด ๆ ทั้งสิ้น: ให้ส่งคืน findings เป็นรายการว่าง, answer เป็น 'WEB SEARCH NOT AVAILABLE', open_gaps เป็น 'WEB SEARCH NOT AVAILABLE' และ searches_run เป็น 0 ห้ามเขียนข้อค้นพบ ชื่อเรื่อง หรือลิงก์จากความทรงจำโดยเด็ดขาด ลิงก์ Google Search ที่แท้จริงจะลงท้ายด้วยรหัสสุ่มขนาดยาว และไม่ลงท้ายด้วยคำที่อ่านออกได้\nRead only: ห้ามสร้าง เปลี่ยนแปลง หรือส่งสิ่งใด ๆ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          }
+         },
+         "outputSchema": {
+          "properties": {
+           "sub_question_id": {
+            "description": "sub question id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "answer": {
+            "description": "answer",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "ARRAY",
+            "items": {
+             "description": "findings",
+             "type": "OBJECT",
+             "properties": {
+              "id": {
+               "description": "id",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "claim": {
+               "description": "claim",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "source_title": {
+               "description": "source title",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              },
+              "source_url": {
+               "description": "source url",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 4
+               }
+              },
+              "source_type": {
+               "description": "source type",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 5
+               }
+              },
+              "published": {
+               "description": "published",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 6
+               }
+              },
+              "confidence": {
+               "description": "confidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 7
+               }
+              }
+             },
+             "required": [
+              "id",
+              "claim",
+              "evidence",
+              "source_title",
+              "source_url",
+              "source_type",
+              "published",
+              "confidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "open_gaps": {
+            "description": "open gaps",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "searches_run": {
+            "description": "searches run",
+            "type": "NUMBER",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "sub_question_id",
+           "answer",
+           "findings",
+           "open_gaps",
+           "searches_run"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "s_loop_start",
+         "targetNodeId": "s_web"
         }
        ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check โดยกำหนด jobId = ${search_calls.job_id} และ waitSeconds = 240 ในระหว่างที่ status เป็น running ให้เรียกใช้อีกครั้งเสมอ: ห้ามหยุดในขณะที่สถานะเป็น running หากการเรียกใช้ส่งกลับ error ให้เรียกใช้อีกครั้ง และหยุดหลังจากเกิด error ติดต่อกัน 3 ครั้งเท่านั้น เรียกใช้ได้ไม่เกิน 15 ครั้ง ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ status = status ล่าสุดที่ได้รับกลับมา; calls = จำนวนครั้งที่เรียกใช้เพื่อตรวจสอบ\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      }
+     }
+    },
+    {
+     "id": "s_review",
+     "displayName": "ตรวจสอบช่องว่างและติดตามผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักที่ทำหน้าที่ตรวจสอบผลการวิจัยของทีมก่อนจัดทำรายงาน ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nSub-questions: ${search_calls.sub_questions}\nการวิจัยบนเว็บต่อ sub-question: ${s_loop.output[*].s_web}\n\n1. ตรวจสอบความครอบคลุม: สำหรับแต่ละคำถามย่อย มีการตอบคำถามด้วยข้อค้นพบที่มีแหล่งที่มาครบถ้วนหรือไม่ บันทึกคำถามย่อยใด ๆ ที่ไม่มีหลักฐานหรือมีหลักฐานไม่เพียงพอ ช่องว่างที่ยังเปิดอยู่ตามที่ผู้ตรวจสอบรายงาน และประเด็นที่การวิจัยจำเป็นต้องมีแต่ไม่มีคำถามย่อยใดครอบคลุม\n2. ตรวจสอบคุณภาพ: ข้อกล่าวอ้างที่อิงจากแหล่งข้อมูลระดับ low-confidence เพียงแหล่งเดียว ตัวเลขที่มีความขัดแย้งกันระหว่างแหล่งข้อมูล ข้อค้นพบที่มีอายุมากกว่า 3 ปีในกรณีที่มีแนวโน้มว่ามีข้อมูลที่ใหม่กว่า และข้อกล่าวอ้างที่ไม่มีแหล่งที่มาหรือแหล่งที่มาดูไม่น่าเชื่อถือ\n   นอกจากนี้ ให้เปรียบเทียบเอกสารภายในกับแหล่งข้อมูลบนเว็บ: หากมีความเห็นไม่ตรงกัน ให้บันทึกเป็น conflict และระบุว่าฝ่ายใดเป็นปัจจุบันหรือมีความน่าเชื่อถือมากกว่า\n3. เลือกช่องว่างหรือข้อขัดแย้งที่สำคัญที่สุด 3 ถึง 6 ประเด็น แล้วแก้ไขด้วยตนเองโดยใช้ Google Search (ค้นหาบนเว็บเท่านั้น) ดำเนินการค้นหาอย่างน้อย 1 ครั้งต่อหนึ่งช่องว่าง ข้อค้นพบเพิ่มเติมต้องมาจากผลการค้นหาที่ได้รับในขั้นตอนนี้เท่านั้น หากไม่มีเครื่องมือ Google Search ให้ส่งคืน followup_findings เป็นค่าว่าง และระบุว่า 'WEB SEARCH NOT AVAILABLE' ใน conflicts ห้ามเขียนข้อค้นพบหรือลิงก์จากความทรงจำโดยเด็ดขาด\n4. ส่งคืน:\n   - `gaps`: ทุกช่องว่างหรือข้อขัดแย้งที่ตรวจพบ พร้อมด้วย `gap`, `why_it_matters`, `action` (คำที่ใช้ค้นหา), `resolved` (true/false), `note`\n   - `followup_findings`: ข้อค้นพบใหม่ 8 ถึง 20 รายการจากการค้นหาเพิ่มเติม โดยมีฟิลด์เหมือนกับข้อค้นพบของผู้ตรวจสอบ, `id` R-F1, R-F2, ..., แต่ละ `source_url` ให้คัดลอกตรงตามที่เครื่องมือค้นหาให้มาทุกประการ (ลิงก์ทั้งหมด ห้ามระบุเพียงชื่อเว็บไซต์อย่างเดียว) บันทึกเฉพาะข้อเท็จจริงที่พบจริงเท่านั้น ห้ามสร้างแหล่งข้อมูล, URL, ตัวเลข หรือวันที่ขึ้นเองโดยเด็ดขาด\n   - `conflicts`: แต่ละตัวเลขหรือข้อกล่าวอ้างที่มีความขัดแย้ง แหล่งข้อมูลของแต่ละฝ่าย และฝ่ายใดมีความน่าเชื่อถือมากกว่าพร้อมเหตุผล ให้ระบุ \"none\" หากไม่มี\n   - `weak_claims`: ข้อกล่าวอ้างที่ไม่ควรนำมาใช้ หรือควรทำเครื่องหมายว่าเป็นข้อมูลที่ไม่แน่นอน พร้อมระบุเหตุผล ให้ระบุ \"none\" หากไม่มี\nRead only: ห้ามสร้าง เปลี่ยนแปลง หรือส่งสิ่งใด ๆ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true,
+      "selectedTools": {
+       "tools": [
+        {
+         "name": "googleSearch"
+        }
+       ]
+      }
      },
      "outputSchema": {
       "properties": {
-       "status": {
-        "description": "status ล่าสุดที่ได้รับกลับมา",
+       "gaps": {
+        "description": "gaps",
+        "type": "ARRAY",
+        "items": {
+         "description": "gaps",
+         "type": "OBJECT",
+         "properties": {
+          "gap": {
+           "description": "gap",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "action": {
+           "description": "action",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "resolved": {
+           "description": "resolved",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "note": {
+           "description": "note",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "gap",
+          "why_it_matters",
+          "action",
+          "resolved",
+          "note"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "followup_findings": {
+        "description": "followup findings",
+        "type": "ARRAY",
+        "items": {
+         "description": "followup findings",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "claim": {
+           "description": "claim",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "evidence": {
+           "description": "evidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "source_title": {
+           "description": "source title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "source_url": {
+           "description": "source url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_type": {
+           "description": "source type",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "published": {
+           "description": "published",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "confidence": {
+           "description": "confidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          }
+         },
+         "required": [
+          "id",
+          "claim",
+          "evidence",
+          "source_title",
+          "source_url",
+          "source_type",
+          "published",
+          "confidence"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "conflicts": {
+        "description": "conflicts",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "weak_claims": {
+        "description": "weak claims",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "gaps",
+       "followup_findings",
+       "conflicts",
+       "weak_claims"
+      ]
+     }
+    },
+    {
+     "id": "s_synth",
+     "displayName": "เขียนรายงานการวิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักผู้จัดทำรายงานการวิจัยฉบับสมบูรณ์ ท่านไม่มีเครื่องมือใด ๆ โปรดใช้เฉพาะหลักฐานที่ระบุด้านล่างนี้เท่านั้น ห้ามเพิ่มข้อเท็จจริง ตัวเลข แหล่งข้อมูล หรือวันที่จากองค์ความรู้ของท่านเอง หากหลักฐานไม่สนับสนุนประเด็นใด ให้ละเว้นประเด็นนั้นหรือไม่ระบุ หรือระบุว่าไม่ทราบข้อมูล ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้ดำเนินการเสร็จสิ้นด้วยการส่งคืน output fields เสมอ\nบริบท: การสืบค้นประกาศรับข้อเสนอทุนวิจัยประจำสัปดาห์สำหรับนักวิจัยของมหาวิทยาลัยไทย: แต่ละประกาศประกอบด้วยชื่อโครงการ ผู้ให้ทุน ลิงก์ประกาศ กำหนดเวลาสิ้นสุดที่แน่นอน เพดานงบประมาณ ระยะเวลาดำเนินการ คุณสมบัติผู้สมัคร และเอกสารที่จำเป็น\nSub-questions: ${search_calls.sub_questions}\nการค้นคว้าทางเว็บตาม sub-question: ${s_loop.output[*].s_web}\nการติดตามผลของผู้ตรวจทาน findings: ${s_review.followup_findings}\ngaps ของผู้ตรวจทาน: ${s_review.gaps}\nข้อขัดแย้ง: ${s_review.conflicts}\nข้ออ้างที่ต้องตัดทิ้งหรือ flag: ${s_review.weak_claims}\n\nหากการค้นคว้าทางเว็บข้างต้นระบุว่า WEB SEARCH NOT AVAILABLE หรือไม่มีข้อค้นพบจากเว็บเลยแม้แต่น้อย ไม่ต้องจัดทำรายงาน: report_md = 'NO RESEARCH: web search was not available in this run', n_sources = 0\nมิฉะนั้น ให้เขียน `report_md` เป็นภาษาไทย ในรูปแบบ Markdown:\n# <title>\n## บทสรุปสำหรับผู้บริหาร  (หัวข้อย่อย 5 ถึง 8 ข้อ: คำตอบ ตัวเลขสำคัญ และข้อเสนอแนะ)\n## ข้อค้นพบสำคัญ  (แบ่งหัวข้อย่อยหนึ่งหัวข้อต่อหนึ่งประเด็น ไม่ใช่ต่อผู้ตรวจสอบ ระบุเมื่อมีประเด็นที่มาจากเอกสารภายใน)\n## การวิเคราะห์และนัยต่อการตัดสินใจ  (ความหมายของหลักฐาน เปรียบเทียบทางเลือกในจุดที่เกี่ยวข้อง)\n## ข้อเสนอแนะ  (ลำดับเลข เป็นรูปธรรม และเชื่อมโยงกับหลักฐานแต่ละข้อ ระบุผู้ปฏิบัติและขั้นตอนแรก)\n## ความเสี่ยง ความไม่แน่นอน และข้อมูลที่ขัดแย้งกัน  (ทุกข้อขัดแย้งจากการตรวจทาน พร้อมอ้างอิงข้อมูลจากทั้งสองฝ่าย)\n## ช่องว่างและข้อจำกัดของการค้นคว้า  (สิ่งที่ยังไม่ทราบและวิธีการปิดช่องว่างดังกล่าว)\nการอ้างอิง: ให้ใส่หมายเลขแหล่งข้อมูลตามลำดับที่ท่านอ้างถึงเป็นครั้งแรก: กำหนดหนึ่งหมายเลขต่อหนึ่ง source_url ที่ไม่ซ้ำกัน (ข้อค้นพบที่ใช้ลิงก์เดียวกันจะใช้หมายเลขเดียวกัน) ระบุหมายเลขของข้อค้นพบที่เป็นฐานของข้อมูลทันทีหลังจบแต่ละประโยค เช่น [3] หรือ [3, 12] ทุกประโยคที่มีข้อเท็จจริงต้องมีหมายเลขอ้างอิงอย่างน้อยหนึ่งหมายเลข ห้ามเขียน URL ลงในเนื้อหาข้อความ\nปิดท้ายรายงานด้วย \"## แหล่งอ้างอิง\": one line per number, in order: \"[n] <source_title> (<published>) - <source_url>\" โดยคัดลอก source_url จากข้อค้นพบมาอย่างถูกต้องทุกประการ ตัวอักษรต่อตัวอักษร (ห้ามย่อ ห้ามสร้างขึ้นใหม่) ระบุเฉพาะแหล่งข้อมูลที่ท่านได้อ้างอิงไว้เท่านั้น และทุกหมายเลขที่ท่านอ้างอิงจะต้องได้รับการระบุไว้ในรายการ\nใช้หลักฐานอย่างครอบคลุม: อ้างอิงทุกข้อค้นพบที่เกี่ยวข้องซึ่งไม่ได้ระบุไว้ภายใต้ \"claims to drop\" เพื่อให้รายงานอิงตามแหล่งข้อมูลที่ไม่ซ้ำกันทั้งหมดที่ทีมงานค้นพบ เมื่อหลักฐานมีลิงก์ที่ไม่ซ้ำกันตั้งแต่ 60 ลิงก์ขึ้นไป รายการแหล่งข้อมูลควรมีตั้งแต่ 60 รายการขึ้นไปตามปกติ ห้ามละเว้นแหล่งข้อมูลที่เกี่ยวข้องเพียงเพื่อให้รายการสั้นลง รักษาความยาวของเนื้อหาให้อยู่ที่ประมาณ 2,500 ถึง 4,000 คำ\nห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ในที่ใดก็ตาม แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\nนอกจากนี้ ให้ส่งคืน `n_sources` (จำนวนแหล่งข้อมูลที่มีหมายเลขกำกับในรายการ) และ `confidence` (high / medium / low สำหรับคำตอบโดยรวม พร้อมระบุเหตุผลหนึ่งประโยค)\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "report_md": {
+        "description": "report md",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
-       "calls": {
-        "description": "จำนวนครั้งที่เรียกใช้เพื่อตรวจสอบ",
+       "n_sources": {
+        "description": "n sources",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 1
         }
+       },
+       "confidence": {
+        "description": "confidence",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
        }
       },
       "required": [
-       "status",
-       "calls"
+       "report_md",
+       "n_sources",
+       "confidence"
       ]
      }
     },
     {
+     "id": "s_save",
+     "displayName": "บันทึกรายงานการวิจัย",
+     "nodeType": "MCP_NODE",
+     "mcpNode": {
+      "dataConnector": {
+       "name": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/{{DRIVE_MCP}}/dataConnector",
+       "dataSource": "custom_mcp"
+      },
+      "tool": {
+       "name": "create_file"
+      },
+      "inputParameters": {
+       "title": "ประกาศทุนใหม่ – ${find_setup.today}",
+       "contentMimeType": "text/markdown",
+       "parentId": "${find_setup.output_folder_id}",
+       "textContent": "${s_synth.report_md}"
+      }
+     },
+     "outputSchema": {
+      "properties": {
+       "output": {
+        "type": "STRING",
+        "description": "the created file (JSON with id and viewUrl)"
+       }
+      },
+      "required": []
+     }
+    },
+    {
      "id": "research_result",
-     "displayName": "อ่านผลการสืบค้นข้อมูล",
+     "displayName": "ตรวจสอบรายงานที่บันทึก",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check เพียงหนึ่งครั้ง โดยกำหนด jobId = ${search_calls.job_id} และ waitSeconds = 0 ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ ส่งกลับข้อมูลตามที่ได้รับกลับมาทุกประการ: status, doc_id, link (คือ docUrl), references (จำนวนนับ); research_ok = true ก็ต่อเมื่อ status เป็น done และ doc_id ไม่ว่างเปล่า; problems = error ดังกล่าว หรือ 'still running after the wait' หาก status เป็น running\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "รายงานผลลัพธ์ที่ได้จากการวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือใด ๆ ค่าที่ระบุในลักษณะ <no value provided for ...> หมายถึงขั้นตอนดังกล่าวไม่ได้ดำเนินการในเส้นทางนี้: ให้ถือว่าเป็นค่าว่าง\nรายงานที่บันทึกไว้ (คำตอบของเครื่องมือ Drive): ${s_save.output}\nsources ที่มีหมายเลขกำกับ: ${s_synth.n_sources}\nรายการแหล่งที่มาของ report: ${s_synth.report_md}\nการวิจัยถือว่า NOT usable เมื่อ: จำนวนแหล่งที่มาเป็น 0; รายงานขึ้นต้นด้วย 'NO RESEARCH'; หรือลิงก์ส่วนใหญ่ในรายการแหล่งที่มาดูเหมือนถูกสร้างขึ้นเอง (ลิงก์ Google Search 'grounding-api-redirect/' ที่ตามด้วยคำที่อ่านออกได้แทนที่จะเป็นรหัสสุ่มขนาดยาว) ในกรณีดังกล่าว research_ok = false และ problems = 'web search was not available, so no research was done' (หรือระบุเหตุผล)\ndoc_id = id ของไฟล์ที่บันทึก; link = viewUrl ของไฟล์ดังกล่าว (หรือ https://docs.google.com/document/d/<id>/edit); references = จำนวนแหล่งที่มา; status = 'done' หากมี id ของไฟล์ มิฉะนั้นจะเป็น 'failed';\nresearch_ok = true เฉพาะกรณีที่มี id ของไฟล์และผลการวิจัยสามารถใช้งานได้; problems = ค่าว่าง หรือระบุข้อผิดพลาดที่เกิดขึ้น (เช่น การบันทึกถูกยกเลิก)\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคคำสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "status": {
-        "description": "done / running / failed / not_found",
+        "description": "status",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "doc_id": {
-        "description": "Doc ID ของรายงาน",
+        "description": "doc id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "link": {
-        "description": "ลิงก์รายงาน",
+        "description": "link",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 2
         }
        },
        "references": {
-        "description": "แหล่งอ้างอิง",
+        "description": "references",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "research_ok": {
-        "description": "true ก็ต่อเมื่อ done พร้อมรายงานเท่านั้น",
+        "description": "research ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 4
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 5
@@ -899,7 +1379,7 @@
         "searchToolEnabled": true
        }
       ],
-      "instruction": "ประเมินประกาศทุนประจำสัปดาห์นี้เทียบกับโปรไฟล์ของนักวิจัย ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ \nอ่านรายงาน (Doc ID ${research_result.doc_id}) ด้วย read_file_content; อ่านหน้าประกาศทุนผ่านข้อความในรายงานเท่านั้น โปรไฟล์: ${find_setup.profile} ประกาศทุนที่เคยตรวจสอบแล้ว (ให้ข้าม): ${find_setup.log_rows} วันนี้ ${find_setup.today}; rule ภายใน: ${find_setup.internal_days} วันก่อนวันปิดรับของแหล่งทุน\nการตรวจสอบสถานะการเปิดรับ (ดำเนินการด้วยตนเอง ห้ามเชื่อป้ายกำกับของรายงาน เช่น 'still open' / ยังเปิดรับ เนื่องจากรายงานอาจระบุวันที่ปัจจุบันไม่ถูกต้อง): แปลงปี พ.ศ. เป็น ค.ศ. (2569 = 2026); ประกาศทุนจะเปิดรับก็ต่อเมื่อวันปิดรับของแหล่งทุนอยู่หลังวันนี้ ${find_setup.today} ประกาศทุนที่วันปิดรับอยู่ก่อนวันนี้ถือว่าปิดรับแล้ว: ให้ตัดออกจาก calls ประกาศทุนที่ไม่มีวันปิดรับที่แน่ชัด ให้ประเมินได้สูงสุดเป็น possible เท่านั้น ห้ามประเมินเป็น strong โดยให้ระบุคำเตือน 'ยังไม่ทราบวันปิดรับ'\ncalls = ประกาศทุนใหม่แต่ละรายการที่ยังเปิดรับ: title, funder, link (URL ตรงตามที่ปรากฏในรายงานทุกประการ), deadline, internal_deadline = deadline ลบด้วยจำนวนวันภายใน, budget, duration, eligibility, fit, rating (strong = หัวข้อตรงตามเกณฑ์ และมีคุณสมบัติครบถ้วน และมีเวลาเพียงพอก่อนถึงกำหนดส่งภายใน; possible = ตรงบางส่วน; not = ไม่เกี่ยวข้อง), warnings (ตามความเป็นจริง เช่น 'requires private-sector co-funding; no partner on this topic in your profile') has_strong = true หากมี strong ใดๆ strong_list = ประกาศทุนที่เป็น strong ในรูปแบบบรรทัด 'title (deadline)' has_relevant = true หากประกาศทุนใดๆ เป็น strong หรือ possible relevant_list = ประกาศทุนที่เป็น strong และ possible ในรูปแบบบรรทัด 'title (rating, deadline)' โดยเรียงลำดับ strong ก่อน\nreminders = ประกาศทุนในบันทึกที่มี status เป็น go ซึ่งมีกำหนดส่งภายในไม่เกิน 14 วัน: title, deadline, proposal folder link; has_reminders = true หากมีรายการใดๆ ห้ามสร้างประกาศทุน ลิงก์ วันที่ หรือจำนวนเงินขึ้นมาเองโดยเด็ดขาด\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: read_file_content\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "instruction": "ประเมินประกาศทุนประจำสัปดาห์นี้เทียบกับโปรไฟล์ของนักวิจัย ส่งกลับเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความแจ้งผู้ใช้ ห้ามถามคำถามใดๆ ไม่ต้องรอคำตอบ และให้สิ้นสุดด้วยการส่งกลับฟิลด์ผลลัพธ์เสมอ \nอ่านรายงาน (Doc ID ${research_result.doc_id}) ด้วย read_file_content; อ่านหน้าประกาศทุนผ่านข้อความในรายงานเท่านั้น โปรไฟล์: ${find_setup.profile} ประกาศทุนที่เคยตรวจสอบแล้ว (ให้ข้าม): ${find_setup.log_rows} วันนี้ ${find_setup.today}; rule ภายใน: ${find_setup.internal_days} วันก่อนวันปิดรับของแหล่งทุน\nการตรวจสอบสถานะการเปิดรับ (ดำเนินการด้วยตนเอง ห้ามเชื่อป้ายกำกับของรายงาน เช่น 'still open' / ยังเปิดรับ เนื่องจากรายงานอาจระบุวันที่ปัจจุบันไม่ถูกต้อง): แปลงปี พ.ศ. เป็น ค.ศ. (2569 = 2026); ประกาศทุนจะเปิดรับก็ต่อเมื่อวันปิดรับของแหล่งทุนอยู่หลังวันนี้ ${find_setup.today} ประกาศทุนที่วันปิดรับอยู่ก่อนวันนี้ถือว่าปิดรับแล้ว: ให้ตัดออกจาก calls ประกาศทุนที่ไม่มีวันปิดรับที่แน่ชัด ให้ประเมินได้สูงสุดเป็น possible เท่านั้น ห้ามประเมินเป็น strong โดยให้ระบุคำเตือน 'ยังไม่ทราบวันปิดรับ'\ncalls = ประกาศทุนใหม่แต่ละรายการที่ยังเปิดรับ: title, funder, link (URL ตรงตามที่ปรากฏในรายงานทุกประการ), deadline, internal_deadline = deadline ลบด้วยจำนวนวันภายใน, budget, duration, eligibility, fit, rating (strong = หัวข้อตรงตามเกณฑ์ และมีคุณสมบัติครบถ้วน และมีเวลาเพียงพอก่อนถึงกำหนดส่งภายใน; possible = ตรงบางส่วน; not = ไม่เกี่ยวข้อง), warnings (ตามความเป็นจริง เช่น 'requires private-sector co-funding; no partner on this topic in your profile') has_strong = true หากมี strong ใดๆ strong_list = ประกาศทุนที่เป็น strong ในรูปแบบบรรทัด 'title (deadline)' has_relevant = true หากประกาศทุนใดๆ เป็น strong หรือ possible relevant_list = ประกาศทุนที่เป็น strong และ possible ในรูปแบบบรรทัด 'title (rating, deadline)' โดยเรียงลำดับ strong ก่อน\nreminders = ประกาศทุนในบันทึกที่มี status เป็น go ซึ่งมีกำหนดส่งภายในไม่เกิน 14 วัน: title, deadline, proposal folder link; has_reminders = true หากมีรายการใดๆ ห้ามสร้างประกาศทุน ลิงก์ วันที่ หรือจำนวนเงินขึ้นมาเองโดยเด็ดขาด\n\nการคำนวณ: ให้ดำเนินการคำนวณทุกรายการในขั้นตอนนี้ (ผลรวม, ยอดรวม, ค่าเฉลี่ย, ร้อยละ, อัตราส่วน, ผลต่าง, อัตราการเติบโต, การแปลงหน่วย, การคำนวณวันที่) ด้วย code ห้ามคำนวณในใจโดยเด็ดขาด ท่านไม่สามารถรัน code ได้ด้วยตนเอง: ให้ส่งงานไปยัง code agent ของแพลตฟอร์มด้วย transfer_to_agent, agent_name \"file_and_coding_agent\" โดยระบุตัวเลข input ที่คัดลอกมาอย่างถูกต้องตรงกันทุกประการและแจ้งสิ่งที่ต้องคำนวณ ซึ่งระบบจะเขียนและรัน Python แล้วส่งผลลัพธ์ที่พิมพ์ออกมากลับคืนมา ให้สั่งให้พิมพ์แต่ละ input กำกับไว้ข้างแต่ละผลลัพธ์ ห้ามเขียนหรืออ่านไฟล์โดยเด็ดขาด: การรัน code แต่ละครั้งจะเริ่มต้นใหม่จากความว่างเปล่า ให้คัดลอกผลลัพธ์ทุกรายการให้ตรงตามที่พิมพ์ออกมา ห้ามปัดเศษหรือคำนวณใหม่ด้วยตนเอง หากการส่งต่องานล้มเหลวหรือ code เกิดข้อผิดพลาด 2 ครั้ง ให้หยุดการทำงาน: ทำเครื่องหมายค่าที่ได้รับผลกระทบเป็น not computed (-1) และระบุข้อเท็จจริงดังกล่าวใน problems หรือ flags ห้ามประมาณการโดยเด็ดขาด สำหรับกรณีการคำนวณเท่านั้น กฎข้อนี้จะมีผลบังคับใช้เหนือข้อความ 'no tools' ใด ๆ ในขั้นตอนนี้\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: read_file_content\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
@@ -2186,17 +2666,13 @@
     },
     {
      "sourceNodeId": "search_started",
-     "targetNodeId": "wait_research",
+     "targetNodeId": "s_loop",
      "routeString": "Started"
     },
     {
      "sourceNodeId": "search_started",
      "targetNodeId": "tell_not_started",
      "routeString": "Not started"
-    },
-    {
-     "sourceNodeId": "wait_research",
-     "targetNodeId": "research_result"
     },
     {
      "sourceNodeId": "research_result",
@@ -2327,6 +2803,22 @@
     {
      "sourceNodeId": "send_reminders",
      "targetNodeId": "tell_done"
+    },
+    {
+     "sourceNodeId": "s_loop",
+     "targetNodeId": "s_review"
+    },
+    {
+     "sourceNodeId": "s_review",
+     "targetNodeId": "s_synth"
+    },
+    {
+     "sourceNodeId": "s_synth",
+     "targetNodeId": "s_save"
+    },
+    {
+     "sourceNodeId": "s_save",
+     "targetNodeId": "research_result"
     }
    ]
   }

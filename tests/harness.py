@@ -174,7 +174,7 @@ class Run:
 
     def body(self, aid, text, extra=None):
         b = {"query": {"parts": [{"text": text}]}, "agentsSpec": {"agentSpecs": [{"agentId": aid, "version": "draft"}]},
-             "toolsSpec": {"vertexAiSearchSpec": {"dataStoreSpecs": self.stores}}, "answerGenerationMode": "AGENT"}
+             "toolsSpec": {"vertexAiSearchSpec": {"dataStoreSpecs": self.stores}, "webGroundingSpec": {}}, "answerGenerationMode": "AGENT"}
         b.update(extra or {})
         return b
 

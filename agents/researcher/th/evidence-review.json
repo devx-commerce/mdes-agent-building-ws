@@ -4,7 +4,7 @@
  "lang": "th",
  "display_name": "Evidence Review (TH)",
  "description": "ทบทวนหลักฐาน โดยเอเจนต์เดียว: ระบุเป้าหมายการวิจัยของท่านใน Doc 'ตั้งค่า – ทบทวนหลักฐาน' แล้วภายในหนึ่งชั่วโมงระบบจะเสนอแผนงานใน Inbox ของท่าน อ่านข้อมูลจากคลังเอกสารของท่านเป็นลำดับแรก ค้นคว้าแหล่งข้อมูลสาธารณะ จัดทำตารางหลักฐานพร้อมคำอธิบายข้อขัดแย้ง ตอบคำถามของท่าน และจัดทำสรุปย่อพร้อมระบุแหล่งที่มา ทุกวันจันทร์ตั้งแต่เวลา 07:00 น. ระบบจะตรวจสอบข้อมูลใหม่สำหรับตาราง: สัปดาห์ที่ไม่มีความเคลื่อนไหวจะเพิ่มบันทึก 1 บรรทัด ส่วนการเปลี่ยนแปลงที่สำคัญจะส่งอีเมลแจ้งและรอการตัดสินใจของท่าน (merge, ignore, follow up)",
- "_built_from": "tools/translate.py from en/evidence-review.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_evidence_review_one.py (12 Oct 2026): RES-A as one scheduled agent (TDD 4.4/4.5); hour-slot start (no start rows), changed plan shown again, one-step research wait (#282)",
+ "_built_from": "tools/research_subgraph.py (16 Oct: Deep Research MCP replaced by our research subgraph). tools/translate.py from en/evidence-review.json (gemini-3.8-flash, field names kept in English). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_evidence_review_one.py (12 Oct 2026): RES-A as one scheduled agent (TDD 4.4/4.5); hour-slot start (no start rows), changed plan shown again, one-step research wait (#282)",
  "definition": {
   "agentFlow": {
    "nodes": [
@@ -628,67 +628,122 @@
     },
     {
      "id": "propose_plan",
-     "displayName": "เสนอแผนการวิจัย",
+     "displayName": "วางแผนการวิจัย",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกเครื่องมือ Research MCP deep_research_plan เพียงครั้งเดียว โดยกำหนด sources = web และ question = \"${find_state.goal}\" ตามด้วยบริบทนี้: Context: เอกสารเชิงนโยบายสำหรับหน่วยงานภาครัฐ จัดทำโดยสถาบันวิจัยนโยบายของมหาวิทยาลัย ครอบคลุมเป้าหมายและมาตรการของทางการ การอนุมัติการลงทุนเทียบกับสิ่งที่สร้างจริง สถิติทางการแบบรายปี ประกาศของบริษัทเทียบกับการส่งมอบจริง และสิ่งอื่นใดตามที่เป้าหมายกำหนด ให้ความสำคัญกับแหล่งข้อมูลทางการของไทย (หน่วยงานภาครัฐ, BOI, กรมการขนส่งทางบก, คณะกรรมการต่าง ๆ) และรายงานข่าวที่น่าเชื่อถือ กรณีที่ตัวเลขแตกต่างกัน ให้เก็บตัวเลข วันที่ และสิ่งที่วัดผลจริงของแต่ละแหล่งข้อมูลไว้ เขียนแผนการวิจัยเป็นรายการคำถามการวิจัยแบบระบุหมายเลขสั้น ๆ บรรทัดละหนึ่งข้อ ด้วยภาษาที่เป็นกลาง โดยไม่มีคำทักทายและไม่มีคำลงท้าย\nsession_id = ตรงตามที่ส่งกลับมาทุกประการ plan_questions = หัวข้อการวิจัยของแผนในรูปแบบรายการ ตามลำดับเดิมของแผน: คำถามภาษาไทยที่เป็นกลางและสั้นหนึ่งข้อต่อหนึ่งหัวข้อ คงไว้ทุกหัวข้อและห้ามเพิ่มหัวข้อใหม่ (การ์ดต้องแสดงสิ่งที่จะทำการวิจัยอย่างถูกต้องตรงกัน) plan_text = คำถามเหล่านั้นในรูปแบบรายการระบุหมายเลข บรรทัดละหนึ่งข้อ โดยไม่มีข้อความอื่น: ไม่ต้องมีคำทักทาย ไม่มีคำลงท้าย ไม่มีคำสรรพนามแทนตัว เช่น 'ผม/ดิฉัน' ไม่มี ครับ/ค่ะ และไม่มีคำขอให้ตอบกลับ plan_ok = true ต่อเมื่อมี session_id และแผนส่งกลับมาเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยเครื่องมือเอง): Research MCP: deep_research_plan\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลัก ท่านมีหน้าที่วางแผนการวิจัย ไม่ได้เป็นผู้ลงมือวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\nการวิจัย request: \"${find_state.goal}\"\nบริบท: เอกสารเชิงนโยบายสำหรับหน่วยงานภาครัฐที่เป็นผู้รับบริการ ซึ่งจัดทำโดยสถาบันวิจัยนโยบายของมหาวิทยาลัย ครอบคลุมเป้าหมายและมาตรการที่เป็นทางการ การอนุมัติการลงทุนเทียบกับสิ่งที่สร้างขึ้นจริง สถิติทางการแบบรายปี การประกาศของบริษัทเทียบกับการส่งมอบจริง และสิ่งอื่นใดที่จำเป็นต่อเป้าหมาย ควรเลือกใช้แหล่งข้อมูลทางการของไทย (หน่วยงานภาครัฐ, BOI, กรมการขนส่งทางบก, คณะกรรมการต่าง ๆ) และรายงานข่าวที่มีความน่าเชื่อถือ ในกรณีที่ตัวเลขไม่ตรงกัน ให้ระบุตัวเลข วันที่ และสิ่งที่วัดอย่างชัดเจนของแต่ละแหล่งข้อมูลไว้\n\n1. ปรับถ้อยคำคำขอให้เป็นคำถามการวิจัยที่ชัดเจนและแม่นยำ 1 ข้อ ระบุการตัดสินใจหรือผลผลิตที่คำถามนี้รองรับ และผู้ที่จะอ่านผลลัพธ์ดังกล่าว\n   ระบุประเทศ ภาคส่วน กรอบเวลา และข้อจำกัดใด ๆ ที่ระบุไว้ในคำขอ หากไม่มีการระบุประเทศ ให้ถือว่าเป็นประเทศไทย\n2. จำแนกออกเป็น 4 ถึง 7 คำถามย่อยที่เมื่อรวมกันแล้วสามารถตอบคำถามหลักได้อย่างครบถ้วนและไม่ซ้ำซ้อนกัน ครอบคลุมประเด็นต่อไปนี้ตามความเหมาะสม: ข้อเท็จจริงและตัวเลขปัจจุบัน สิ่งที่ผู้อื่น (ประเทศอื่น จังหวัดอื่น หน่วยงานระดับเดียวกัน) ดำเนินการและผลที่ได้ สาเหตุและปัจจัยขับเคลื่อน ทางเลือก ต้นทุน ความเสี่ยงและข้อจำกัด (ด้านกฎหมาย งบประมาณ อำนาจหน้าที่) ความคืบหน้าล่าสุด (ในช่วง 12 เดือนที่ผ่านมา)\n3. แต่ละคำถามย่อยจะได้รับการวิจัยโดยนักวิจัยคนละคน ซึ่งจะเห็นเฉพาะรายการนั้นเพียงรายการเดียวเท่านั้น: ไม่เห็นคำขอหลัก และไม่เห็นคำถามย่อยอื่น ดังนั้น โปรดจัดทำแต่ละรายการให้มีความสมบูรณ์ในตัวเอง:\n   - `question`: คำถามภาษาไทยที่เฉพาะเจาะจงและหาคำตอบได้ 1 ข้อ โดยระบุประเทศ ภาคส่วน สถานที่ และกรอบเวลาอย่างชัดเจน (ห้ามใช้ \"the province\", \"this\", \"the above\" โดยเด็ดขาด)\n   - `brief`: บริบทความยาว 2 ถึง 4 ประโยค: สรุปคำขอภาพรวมในหนึ่งบรรทัด วัตถุประสงค์ของการนำคำตอบไปใช้ สิ่งที่อยู่นอกขอบเขต และกรอบเวลา\n   - `why_it_matters`: คำตอบนี้สนับสนุนผลลัพธ์สุดท้ายอย่างไร\n   - `search_terms`: คำค้นหาเว็บ 3 ถึง 6 คำ ทั้งภาษาไทยและภาษาอังกฤษ\n   - `source_types`: ประเภทของแหล่งข้อมูลที่มีความสำคัญมากที่สุด\n   - `check_internal_docs`: true หากเอกสารภายในที่ระบุไว้ที่นี่อาจมีคำตอบบางส่วน: คลังข้อมูลของนักวิจัย files: ${get_library.library_files}\n   - `id`: Q1, Q2, ...\n4. ห้ามตอบคำถามใด ๆ ด้วยตนเอง ห้ามใช้เครื่องมือใด ๆ\nนอกจากนี้ โปรดส่งคืนข้อมูลต่อไปนี้สำหรับบัตรขออนุมัติ: plan_questions = ข้อความ `question` ของคำถามย่อยในรูปแบบรายการตามลำดับ; plan_text = คำถามเหล่านั้นในรูปแบบรายการลำดับเลข บรรทัดละหนึ่งข้อ โดยไม่มีข้อความอื่นใดเพิ่มเติม (ไม่มีคำทักทาย ไม่มีคำลงท้าย ไม่ใช้คำแทนตัวเอง และไม่มีการขอให้ตอบกลับ)\nplan_ok = true เฉพาะในกรณีที่มีคำถามย่อย 4 ถึง 7 ข้อเท่านั้น; session_id = 'workflow-plan'; problems = ข้อผิดพลาดที่เกิดขึ้น หรือเว้นว่างไว้หากไม่มี\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "session_id": {
-        "description": "เซสชัน Deep Research",
+        "description": "session id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "plan_text": {
-        "description": "รายการระบุหมายเลขของคำถามตามแผน",
+        "description": "plan text",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "plan_questions": {
-        "description": "คำถาม",
+        "description": "plan questions",
         "type": "ARRAY",
+        "items": {
+         "description": "plan_questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
-        },
-        "items": {
-         "type": "STRING"
         }
        },
        "plan_ok": {
-        "description": "true หากมีแผนส่งกลับมา",
+        "description": "plan ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 4
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 5
         }
        }
       },
@@ -697,7 +752,8 @@
        "plan_text",
        "plan_questions",
        "plan_ok",
-       "problems"
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -846,67 +902,122 @@
     },
     {
      "id": "replan",
-     "displayName": "จัดทำแผนที่เปลี่ยนแปลง",
+     "displayName": "วางแผนการวิจัย",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียก deep_research_plan เพียงครั้งเดียว โดยกำหนด sources = web และ question = \"${find_state.goal}\" + ' ' + บริบทนี้: Context: เอกสารเชิงนโยบายสำหรับหน่วยงานภาครัฐ จัดทำโดยสถาบันวิจัยนโยบายของมหาวิทยาลัย ครอบคลุมเป้าหมายและมาตรการของทางการ การอนุมัติการลงทุนเทียบกับสิ่งที่สร้างจริง สถิติทางการแบบรายปี ประกาศของบริษัทเทียบกับการส่งมอบจริง และสิ่งอื่นใดตามที่เป้าหมายกำหนด ให้ความสำคัญกับแหล่งข้อมูลทางการของไทย (หน่วยงานภาครัฐ, BOI, กรมการขนส่งทางบก, คณะกรรมการต่าง ๆ) และรายงานข่าวที่น่าเชื่อถือ กรณีที่ตัวเลขแตกต่างกัน ให้เก็บตัวเลข วันที่ และสิ่งที่วัดผลจริงของแต่ละแหล่งข้อมูลไว้ เขียนแผนการวิจัยเป็นรายการคำถามการวิจัยแบบระบุหมายเลขสั้น ๆ บรรทัดละหนึ่งข้อ ด้วยภาษาที่เป็นกลาง โดยไม่มีคำทักทายและไม่มีคำลงท้าย การเปลี่ยนแปลงจาก researcher: ${check_changes.changes}\nsession_id = ตรงตามที่ส่งกลับมาทุกประการ plan_questions = หัวข้อการวิจัยของแผนในรูปแบบรายการ ตามลำดับเดิมของแผน: คำถามภาษาไทยที่เป็นกลางและสั้นหนึ่งข้อต่อหนึ่งหัวข้อ คงไว้ทุกหัวข้อและห้ามเพิ่มหัวข้อใหม่ (การ์ดต้องแสดงสิ่งที่จะทำการวิจัยอย่างถูกต้องตรงกัน) plan_text = คำถามเหล่านั้นในรูปแบบรายการระบุหมายเลข บรรทัดละหนึ่งข้อ โดยไม่มีข้อความอื่น: ไม่ต้องมีคำทักทาย ไม่มีคำลงท้าย ไม่มีคำสรรพนามแทนตัว เช่น 'ผม/ดิฉัน' ไม่มี ครับ/ค่ะ และไม่มีคำขอให้ตอบกลับ plan_ok = true ต่อเมื่อมี session_id และแผนส่งกลับมาเท่านั้น\n\nเครื่องมือสำหรับขั้นตอนนี้ (ข้อมูลนำเข้าได้รับการอธิบายโดยเครื่องมือเอง): Research MCP: deep_research_plan\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลัก ท่านมีหน้าที่วางแผนการวิจัย ไม่ได้เป็นผู้ลงมือวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\nการวิจัย request: \"${find_state.goal}\"\nบริบท: เอกสารเชิงนโยบายสำหรับหน่วยงานภาครัฐที่เป็นผู้รับบริการ ซึ่งจัดทำโดยสถาบันวิจัยนโยบายของมหาวิทยาลัย ครอบคลุมเป้าหมายและมาตรการที่เป็นทางการ การอนุมัติการลงทุนเทียบกับสิ่งที่สร้างขึ้นจริง สถิติทางการแบบรายปี การประกาศของบริษัทเทียบกับการส่งมอบจริง และสิ่งอื่นใดที่จำเป็นต่อเป้าหมาย ควรเลือกใช้แหล่งข้อมูลทางการของไทย (หน่วยงานภาครัฐ, BOI, กรมการขนส่งทางบก, คณะกรรมการต่าง ๆ) และรายงานข่าวที่มีความน่าเชื่อถือ ในกรณีที่ตัวเลขไม่ตรงกัน ให้ระบุตัวเลข วันที่ และสิ่งที่วัดอย่างชัดเจนของแต่ละแหล่งข้อมูลไว้\nการเปลี่ยนแปลงที่ผู้ใช้ร้องขอสำหรับแผนแรก (โปรดปรับใช้ตามนั้นอย่างเคร่งครัด): ${check_changes.changes}\n\n1. ปรับถ้อยคำคำขอให้เป็นคำถามการวิจัยที่ชัดเจนและแม่นยำ 1 ข้อ ระบุการตัดสินใจหรือผลผลิตที่คำถามนี้รองรับ และผู้ที่จะอ่านผลลัพธ์ดังกล่าว\n   ระบุประเทศ ภาคส่วน กรอบเวลา และข้อจำกัดใด ๆ ที่ระบุไว้ในคำขอ หากไม่มีการระบุประเทศ ให้ถือว่าเป็นประเทศไทย\n2. จำแนกออกเป็น 4 ถึง 7 คำถามย่อยที่เมื่อรวมกันแล้วสามารถตอบคำถามหลักได้อย่างครบถ้วนและไม่ซ้ำซ้อนกัน ครอบคลุมประเด็นต่อไปนี้ตามความเหมาะสม: ข้อเท็จจริงและตัวเลขปัจจุบัน สิ่งที่ผู้อื่น (ประเทศอื่น จังหวัดอื่น หน่วยงานระดับเดียวกัน) ดำเนินการและผลที่ได้ สาเหตุและปัจจัยขับเคลื่อน ทางเลือก ต้นทุน ความเสี่ยงและข้อจำกัด (ด้านกฎหมาย งบประมาณ อำนาจหน้าที่) ความคืบหน้าล่าสุด (ในช่วง 12 เดือนที่ผ่านมา)\n3. แต่ละคำถามย่อยจะได้รับการวิจัยโดยนักวิจัยคนละคน ซึ่งจะเห็นเฉพาะรายการนั้นเพียงรายการเดียวเท่านั้น: ไม่เห็นคำขอหลัก และไม่เห็นคำถามย่อยอื่น ดังนั้น โปรดจัดทำแต่ละรายการให้มีความสมบูรณ์ในตัวเอง:\n   - `question`: คำถามภาษาไทยที่เฉพาะเจาะจงและหาคำตอบได้ 1 ข้อ โดยระบุประเทศ ภาคส่วน สถานที่ และกรอบเวลาอย่างชัดเจน (ห้ามใช้ \"the province\", \"this\", \"the above\" โดยเด็ดขาด)\n   - `brief`: บริบทความยาว 2 ถึง 4 ประโยค: สรุปคำขอภาพรวมในหนึ่งบรรทัด วัตถุประสงค์ของการนำคำตอบไปใช้ สิ่งที่อยู่นอกขอบเขต และกรอบเวลา\n   - `why_it_matters`: คำตอบนี้สนับสนุนผลลัพธ์สุดท้ายอย่างไร\n   - `search_terms`: คำค้นหาเว็บ 3 ถึง 6 คำ ทั้งภาษาไทยและภาษาอังกฤษ\n   - `source_types`: ประเภทของแหล่งข้อมูลที่มีความสำคัญมากที่สุด\n   - `check_internal_docs`: true หากเอกสารภายในที่ระบุไว้ที่นี่อาจมีคำตอบบางส่วน: คลังข้อมูลของนักวิจัย files: ${get_library.library_files}\n   - `id`: Q1, Q2, ...\n4. ห้ามตอบคำถามใด ๆ ด้วยตนเอง ห้ามใช้เครื่องมือใด ๆ\nนอกจากนี้ โปรดส่งคืนข้อมูลต่อไปนี้สำหรับบัตรขออนุมัติ: plan_questions = ข้อความ `question` ของคำถามย่อยในรูปแบบรายการตามลำดับ; plan_text = คำถามเหล่านั้นในรูปแบบรายการลำดับเลข บรรทัดละหนึ่งข้อ โดยไม่มีข้อความอื่นใดเพิ่มเติม (ไม่มีคำทักทาย ไม่มีคำลงท้าย ไม่ใช้คำแทนตัวเอง และไม่มีการขอให้ตอบกลับ)\nplan_ok = true เฉพาะในกรณีที่มีคำถามย่อย 4 ถึง 7 ข้อเท่านั้น; session_id = 'workflow-plan'; problems = ข้อผิดพลาดที่เกิดขึ้น หรือเว้นว่างไว้หากไม่มี\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "session_id": {
-        "description": "เซสชัน Deep Research",
+        "description": "session id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "plan_text": {
-        "description": "รายการระบุหมายเลขของคำถามตามแผน",
+        "description": "plan text",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "plan_questions": {
-        "description": "คำถาม",
+        "description": "plan questions",
         "type": "ARRAY",
+        "items": {
+         "description": "plan_questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
-        },
-        "items": {
-         "type": "STRING"
         }
        },
        "plan_ok": {
-        "description": "true หากมีแผนส่งกลับมา",
+        "description": "plan ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 4
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 5
         }
        }
       },
@@ -915,7 +1026,8 @@
        "plan_text",
        "plan_questions",
        "plan_ok",
-       "problems"
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -1136,61 +1248,115 @@
     },
     {
      "id": "deep_research",
-     "displayName": "เริ่มการค้นคว้าข้อมูลสาธารณะ",
+     "displayName": "ใช้แผนที่ได้รับอนุมัติ",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true,
-        "mutateEnabled": true
-       }
-      ],
-      "instruction": "เริ่มการค้นคว้าข้อมูลสำหรับแผนงานที่ผู้วิจัยอนุมัติล่าสุด ค่าที่ระบุว่า <no value provided for ...> หมายถึงขั้นตอนดังกล่าวไม่ได้ทำงานในเส้นทางนี้: ให้ถือว่าเป็นค่าว่าง\nแผนงานที่มีการเปลี่ยนแปลง: เซสชัน ${replan.session_id} คำถาม ${replan.plan_questions}\nแผนงานแรก: เซสชัน ${propose_plan.session_id} คำถาม ${propose_plan.plan_questions}\nใช้แผนงานที่มีการเปลี่ยนแปลงหากเซสชันนั้นมีค่า มิฉะนั้นให้ใช้แผนงานแรก\nเรียกใช้ deep_research_run หนึ่งครั้ง ด้วย session_id ดังกล่าว, folder_id ${find_state.setup_folder_id} และชื่อเรื่อง 'รายงานการค้นคว้า – ${get_library.topic_title}' ห้ามเรียกใช้ deep_research_check (ขั้นตอนถัดไปจะรอการดำเนินการนี้)\njob_id = jobId ที่ได้รับกลับมาจากการทำงาน started = true เฉพาะกรณีที่มี jobId ส่งกลับมา questions = คำถามของแผนงานที่ใช้ ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_run\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)\nวิธีการเขียนข้อมูลในระบบนี้: ระบบจะแสดงการ์ดยืนยันให้ผู้ใช้เองทุกครั้งที่มีการเขียน ส่ง หรือแก้ไขข้อมูล ให้เรียกเครื่องมือทันทีด้วยค่าที่สมบูรณ์แล้ว ห้ามถามผู้ใช้เป็นข้อความก่อน และห้ามรอให้ผู้ใช้พิมพ์ตอบว่า 'ใช่' หากระบบแจ้งว่ายืนยันแล้วแต่ไม่ได้รับผลลัพธ์ ให้เรียกเครื่องมือเดิมอีกหนึ่งครั้งด้วยค่าเดิมทุกประการ หากถูกยกเลิกหรือยังไม่สำเร็จ ให้หยุดและส่งคืนฟิลด์ผลลัพธ์โดยกำหนดให้ฟิลด์ success เป็น false และระบุเหตุผลใน problems"
+      "model": "gemini-3.8-flash",
+      "instruction": "เลือกแผนการวิจัยที่ผู้ใช้อนุมัติล่าสุด ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้จบการทำงานโดยส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือ ค่าที่ระบุในลักษณะ <no value provided for ...> หมายถึงขั้นตอนดังกล่าวไม่ได้ทำงานในเส้นทางนี้: ให้ถือว่าเป็นค่าว่าง\nแผนที่เปลี่ยนแปลง: ok ${replan.plan_ok}; คำถามย่อย ${replan.sub_questions}\nแผนแรก: ok ${propose_plan.plan_ok}; คำถามย่อย ${propose_plan.sub_questions}\nใช้แผนที่เปลี่ยนแปลงหาก ok เป็น true มิฉะนั้นให้ใช้แผนแรก\nsub_questions = คำถามย่อยของแผนดังกล่าวที่คัดลอกมาอย่างครบถ้วน (ทุกฟิลด์); questions = ข้อความ `question` ของคำถามเหล่านั้นตามลำดับ; started = true เฉพาะเมื่อมีคำถามย่อยอย่างน้อยหนึ่งข้อ; job_id = 'workflow-research'; problems = ค่าว่าง หรือเหตุผลที่ไม่สามารถใช้แผนใดได้\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกข้อความที่เขียน (ข้อความ อีเมล เอกสาร สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "job_id": {
-        "description": "รหัสงาน Deep Research",
+        "description": "job id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "started": {
-        "description": "true เฉพาะกรณีที่งานเริ่มต้นแล้ว",
+        "description": "started",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "questions": {
-        "description": "คำถามของแผนงานที่ได้รับอนุมัติ",
+        "description": "questions",
         "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
-        },
-        "items": {
-         "type": "STRING"
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 3
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 4
         }
        }
       },
@@ -1198,7 +1364,8 @@
        "job_id",
        "started",
        "questions",
-       "problems"
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -1254,117 +1421,671 @@
      }
     },
     {
-     "id": "r_wait",
-     "displayName": "รอผลการค้นคว้า (การตรวจสอบครั้งแรก)",
-     "nodeType": "AGENT_NODE",
-     "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
+     "id": "r_loop",
+     "displayName": "วิจัยคำถามย่อยแต่ละข้อ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "deep_research.sub_questions",
+      "currentItemVariable": "sq",
+      "subAgentFlow": {
+       "nodes": [
         {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+         "id": "r_loop_start",
+         "displayName": "คำถามย่อยแต่ละข้อ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "sq": {
+            "description": "sq",
+            "type": "OBJECT",
+            "properties": {
+             "id": {
+              "description": "id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "question": {
+              "description": "question",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "brief": {
+              "description": "brief",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "why_it_matters": {
+              "description": "why it matters",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "search_terms": {
+              "description": "search terms",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "source_types": {
+              "description": "source types",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "check_internal_docs": {
+              "description": "check internal docs",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "id",
+             "question",
+             "brief",
+             "why_it_matters",
+             "search_terms",
+             "source_types",
+             "check_internal_docs"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sq"
+          ]
+         }
+        },
+        {
+         "id": "r_web",
+         "displayName": "วิจัยคำถามย่อยหนึ่งข้อบนเว็บ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ท่านคือผู้ตรวจสอบงานวิจัย ท่านทำงานกับคำถามย่อยข้อเดียว ที่ระบุไว้ด้านล่าง และไม่รับทราบข้อมูลอื่นใดเกี่ยวกับโครงการในภาพรวม ห้ามคาดเดาว่าโครงการในภาพรวมคือสิ่งใด ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามคำถามใด ๆ ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ข้อมูลผลลัพธ์เสมอ\n\nคำถามย่อย ${r_loop_start.sq.id}: ${r_loop_start.sq.question}\nบริบท: ${r_loop_start.sq.brief}\nเหตุผลที่ matters: ${r_loop_start.sq.why_it_matters}\nsearches ที่แนะนำ: ${r_loop_start.sq.search_terms}\nsources ที่ต้องการ: ${r_loop_start.sq.source_types}\n\nวิธีการ work:\n1. ค้นหาเว็บด้วย Google Search เท่านั้น: ดำเนินการค้นหาตามที่แนะนำ จากนั้นค้นหาเพิ่มเติมเพื่อติดตามผลด้วยตนเองตามข้อมูลที่ได้รับ (ค้นหาอย่างน้อย 5 ครั้ง สูงสุดไม่เกิน 12 ครั้ง) ให้ความสำคัญกับแหล่งข้อมูลปฐมภูมิและแหล่งข้อมูลทางการเป็นลำดับแรก ใช้ข่าวสารเฉพาะกับเหตุการณ์ปัจจุบันเท่านั้น ห้ามค้นหาใน Drive: เอกสารภายในจะได้รับการวิจัยแยกต่างหาก\n2. บันทึกข้อเท็จจริงที่เป็นประโยชน์แต่ละรายการเป็น finding: `id` (id ของคำถามย่อย \"-W\" และหมายเลขลำดับ: เช่น Q2-W1, Q2-W2, ...), `claim` (ประโยคเดียว), `evidence` (ตัวเลข ข้อความอ้างอิง หรือรายละเอียดที่ตรงกันอย่างแม่นยำซึ่งสนับสนุนข้อกล่าวอ้าง), `source_title` (ชื่อหน้าเว็บนั้น หรือชื่อผู้เผยแพร่พร้อมคำอธิบายสั้น ๆ ไม่ระบุเพียงแค่ชื่อเว็บไซต์),\n   `source_url`: ลิงก์ที่ EXACTLY ตามที่เครื่องมือค้นหาให้มาสำหรับผลลัพธ์นั้น โดยคัดลอกมาแบบตัวอักษรต่อตัวอักษร Google Search จะให้ลิงก์ขนาดยาวที่ขึ้นต้นด้วย https://vertexaisearch.cloud.google.com/grounding-api-redirect/ : ให้คัดลอกลิงก์ทั้งหมด ห้ามย่อลิงก์ให้เหลือเพียงชื่อเว็บไซต์ และห้ามสร้าง URL ขึ้นมาเองโดยเด็ดขาด `source_type` (government / academic / international org / industry / news), `published` (วันที่หรือปี, \"unknown\" หากไม่ปรากฏ), `confidence` (high = แหล่งข้อมูลปฐมภูมิหรือมีแหล่งข้อมูลที่สอดคล้องกันหลายแห่ง; medium = แหล่งข้อมูลที่น่าเชื่อถือหนึ่งแห่ง; low = แหล่งข้อมูลมีน้ำหนักน้อยหรือไม่ชัดเจน)\n   finding 15 ถึง 25 รายการจากหน้าเว็บที่แตกต่างกันอย่างน้อย 12 หน้า: กระจายหลักฐานให้ครอบคลุมแหล่งข้อมูลต่าง ๆ และค้นหาเพิ่มเติมเมื่อหน้าเว็บมีข้อมูลซ้ำกับที่มีอยู่แล้ว ใช้เฉพาะข้อเท็จจริงที่พบจริงในแหล่งข้อมูลเท่านั้น ห้ามสร้างแหล่งที่มา URL ตัวเลข หรือวันที่ขึ้นมาเองโดยเด็ดขาด ในกรณีที่แหล่งข้อมูลไม่สอดคล้องกัน ให้บันทึกไว้ทั้งสองฝ่าย\n3. `answer`: คำตอบโดยตรงสำหรับคำถามย่อย ความยาว 3 ถึง 6 ประโยค โดยอ้างอิง finding ตามชื่อแหล่งที่มา\n4. `open_gaps`: สิ่งที่ไม่สามารถค้นหาหรือยืนยันได้ พร้อมทั้งเหตุผล ให้เป็น \"none\" หากไม่มี\n5. `searches_run`: จำนวนครั้งที่ดำเนินการค้นหา\nNO SEARCH, NO FINDINGS: ทุก finding ต้องมาจากผลลัพธ์ของ Google Search ที่ได้รับในขั้นตอนนี้เท่านั้น หากไม่มีเครื่องมือ Google Search ในขั้นตอนนี้ ห้ามเขียน finding ใด ๆ ทั้งสิ้น: ให้ส่งคืน finding เป็นรายการว่าง ตอบ 'WEB SEARCH NOT AVAILABLE' open_gaps 'WEB SEARCH NOT AVAILABLE' และ searches_run 0 ห้ามเขียน finding ชื่อเรื่อง หรือลิงก์จากความทรงจำโดยเด็ดขาด ลิงก์ Google Search ที่แท้จริงจะต้องลงท้ายด้วยรหัสสุ่มขนาดยาว และไม่ลงท้ายด้วยคำที่อ่านออกได้\nRead only: ห้ามสร้าง แก้ไข หรือส่งข้อมูลใด ๆ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกกรณีที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          }
+         },
+         "outputSchema": {
+          "properties": {
+           "sub_question_id": {
+            "description": "sub question id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "answer": {
+            "description": "answer",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "ARRAY",
+            "items": {
+             "description": "findings",
+             "type": "OBJECT",
+             "properties": {
+              "id": {
+               "description": "id",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "claim": {
+               "description": "claim",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "source_title": {
+               "description": "source title",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              },
+              "source_url": {
+               "description": "source url",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 4
+               }
+              },
+              "source_type": {
+               "description": "source type",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 5
+               }
+              },
+              "published": {
+               "description": "published",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 6
+               }
+              },
+              "confidence": {
+               "description": "confidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 7
+               }
+              }
+             },
+             "required": [
+              "id",
+              "claim",
+              "evidence",
+              "source_title",
+              "source_url",
+              "source_type",
+              "published",
+              "confidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "open_gaps": {
+            "description": "open gaps",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "searches_run": {
+            "description": "searches run",
+            "type": "NUMBER",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "sub_question_id",
+           "answer",
+           "findings",
+           "open_gaps",
+           "searches_run"
+          ]
+         }
+        },
+        {
+         "id": "r_drive",
+         "displayName": "ตรวจสอบเอกสารภายในสำหรับคำถามย่อยหนึ่งข้อ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ท่านคือผู้ตรวจสอบการวิจัยสำหรับเอกสารภายใน ท่านปฏิบัติงานกับคำถามย่อยเพียง 1 ข้อที่ระบุด้านล่าง และท่านไม่ทราบข้อมูลอื่นใดเกี่ยวกับโครงการในภาพรวม ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\n\nคำถามย่อย ${r_loop_start.sq.id}: ${r_loop_start.sq.question}\nบริบท: ${r_loop_start.sq.brief}\nตรวจสอบภายใน documents: ${r_loop_start.sq.check_internal_docs}\nเอกสารภายในที่ท่านสามารถใช้ได้: เฉพาะคลังข้อมูลเหล่านี้ files: ${get_library.library_files} (หากว่าง แสดงว่าไม่มีเอกสาร)\n\nหาก \"Check internal documents\" เป็น false หรือไม่มีเอกสารภายใน ให้ไม่ต้องดำเนินการใด ๆ: ส่งคืน `findings` เป็นรายการว่าง, `answer` \"not checked\" และ `open_gaps` \"none\"\nมิฉะนั้น:\n1. ใช้เฉพาะเอกสารภายในข้างต้นเท่านั้น (Drive: search_files จำกัดเฉพาะเอกสารดังกล่าว, read_file_content) ห้ามค้นหาเว็บ และห้ามใช้ไฟล์อื่นโดยเด็ดขาด\n2. อ่านไฟล์ที่มีความเกี่ยวข้องมากที่สุด 1 ถึง 4 ไฟล์ฉบับเต็ม ละเว้นไฟล์ที่ไม่เกี่ยวข้องอย่างชัดเจน\n3. บันทึกข้อเท็จจริงที่เป็นประโยชน์แต่ละรายการเป็นข้อค้นพบ: `id` (id ของคำถามย่อย, \"-D\" และหมายเลขลำดับ: เช่น Q2-D1), `claim`, `evidence` (ตัวเลขที่แน่นอนหรือข้อความอ้างอิง), `source_title` (ชื่อไฟล์), `source_url` (ลิงก์ของไฟล์: https://drive.google.com/file/d/<file ID>/view), `source_type` \"internal\", `published` (วันที่ในเอกสาร หรือ \"unknown\"), `confidence`\n   เฉพาะข้อเท็จจริงที่ปรากฏในไฟล์เท่านั้น ห้ามสร้างไฟล์ ลิงก์ ตัวเลข หรือวันที่ขึ้นมาเองโดยเด็ดขาด ข้อค้นพบจำนวน 0 ถึง 12 รายการ; รายการว่างถือเป็นคำตอบที่ถูกต้อง\n4. `answer`: สิ่งที่เอกสารภายในระบุไว้เกี่ยวกับคำถามย่อยในความยาว 2 ถึง 5 ประโยค หรือ \"no relevant internal documents\"\n5. `open_gaps`: สิ่งที่เอกสารไม่ครอบคลุม \"none\" หากไม่มี\nอ่านอย่างเดียว: ห้ามสร้าง แก้ไข หรือส่งสิ่งใดโดยเด็ดขาด\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+          "outputDisplayEnabled": true,
+          "dataStoreSpecs": {
+           "specs": [
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            }
+           ]
+          },
+          "connectorToolSelections": [
+           {
+            "dataConnector": {
+             "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           }
+          ]
+         },
+         "outputSchema": {
+          "properties": {
+           "sub_question_id": {
+            "description": "sub question id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "answer": {
+            "description": "answer",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "ARRAY",
+            "items": {
+             "description": "findings",
+             "type": "OBJECT",
+             "properties": {
+              "id": {
+               "description": "id",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "claim": {
+               "description": "claim",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "source_title": {
+               "description": "source title",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              },
+              "source_url": {
+               "description": "source url",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 4
+               }
+              },
+              "source_type": {
+               "description": "source type",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 5
+               }
+              },
+              "published": {
+               "description": "published",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 6
+               }
+              },
+              "confidence": {
+               "description": "confidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 7
+               }
+              }
+             },
+             "required": [
+              "id",
+              "claim",
+              "evidence",
+              "source_title",
+              "source_url",
+              "source_type",
+              "published",
+              "confidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "open_gaps": {
+            "description": "open gaps",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           }
+          },
+          "required": [
+           "sub_question_id",
+           "answer",
+           "findings",
+           "open_gaps"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "r_loop_start",
+         "targetNodeId": "r_web"
+        },
+        {
+         "sourceNodeId": "r_web",
+         "targetNodeId": "r_drive"
         }
        ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check โดยระบุ jobId = ${deep_research.job_id} และ waitSeconds = 240 ตราบใดที่ status เป็น running ให้เรียกใช้อีกครั้งเสมอ: ห้ามหยุดทำงานในขณะที่สถานะเป็น running หากการเรียกใช้งานส่งคืนข้อผิดพลาด ให้เรียกใช้อีกครั้ง หยุดทำงานเมื่อเกิดข้อผิดพลาดติดต่อกัน 3 ครั้งเท่านั้น เรียกใช้งานได้สูงสุด 15 ครั้ง ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้เสร็จสิ้นโดยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ status = สถานะล่าสุดที่ได้รับกลับมา calls = จำนวนครั้งที่เรียกตรวจสอบ\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      }
+     }
+    },
+    {
+     "id": "r_review",
+     "displayName": "ตรวจสอบช่องว่างและติดตามผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักที่ทำหน้าที่ตรวจสอบงานวิจัยของทีมก่อนที่จะเขียนรายงาน ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามคำถามใด ๆ ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ข้อมูลผลลัพธ์เสมอ\nquestions ย่อย: ${deep_research.sub_questions}\nงานวิจัยบนเว็บต่อquestionย่อย: ${r_loop.output[*].r_web}\nเอกสารภายในต่อquestionย่อย: ${r_loop.output[*].r_drive}\n\n1. ตรวจสอบความครอบคลุม: สำหรับแต่ละคำถามย่อย ได้รับคำตอบพร้อม finding ที่มีแหล่งที่มาอ้างอิงหรือไม่ ระบุคำถามย่อยที่ไม่มีหลักฐานหรือมีหลักฐานไม่เพียงพอ ช่องว่างที่ยังเปิดอยู่ซึ่งผู้ตรวจสอบรายงานไว้ และข้อมูลจำเป็นต่องานวิจัยที่ไม่มีคำถามย่อยใดครอบคลุม\n2. ตรวจสอบคุณภาพ: ข้อกล่าวอ้างที่อิงจากแหล่งข้อมูลระดับ low-confidence เพียงแหล่งเดียว ตัวเลขที่ขัดแย้งกันระหว่างแหล่งข้อมูล finding ที่มีอายุเกิน 3 ปีซึ่งน่าจะมีข้อมูลที่ใหม่กว่า และข้อกล่าวอ้างที่ไม่มีแหล่งที่มาหรือแหล่งที่มาดูไม่น่าเชื่อถือ\n   นอกจากนี้ ให้เปรียบเทียบเอกสารภายในกับแหล่งข้อมูลบนเว็บ: หากมีความไม่สอดคล้องกัน ให้บันทึกเป็น conflict และระบุว่าฝ่ายใดเป็นปัจจุบันหรือมีความน่าเชื่อถือทางวิชาการมากกว่า\n3. เลือกช่องว่างหรือข้อขัดแย้งที่สำคัญที่สุด 3 ถึง 6 รายการ และดำเนินการปิดประเด็นด้วยตนเองผ่าน Google Search (เฉพาะบนเว็บ) ดำเนินการค้นหาอย่างน้อยหนึ่งครั้งต่อหนึ่งช่องว่าง finding เพื่อติดตามผลต้องมาจากผลลัพธ์การค้นหาที่ได้รับในขั้นตอนนี้เท่านั้น หากไม่มีเครื่องมือ Google Search ให้ส่งคืน followup_findings เป็นค่าว่าง และระบุ 'WEB SEARCH NOT AVAILABLE' ใน conflicts ห้ามเขียน finding หรือลิงก์จากความทรงจำโดยเด็ดขาด\n4. ส่งคืน:\n   - `gaps`: ทุกช่องว่างหรือข้อขัดแย้งที่พบ พร้อมทั้ง `gap`, `why_it_matters`, `action` (สิ่งที่ดำเนินการค้นหา), `resolved` (true/false), `note`\n   - `followup_findings`: finding ใหม่จำนวน 8 ถึง 20 รายการจากการค้นหาติดตามผลของท่าน โดยใช้ฟิลด์เดียวกับ finding ของผู้ตรวจสอบ กำหนด `id` เป็น R-F1, R-F2, ... และคัดลอกแต่ละ `source_url` ให้ตรงตามที่เครื่องมือค้นหาให้มาอย่างครบถ้วน (ลิงก์ทั้งหมด ห้ามระบุเพียงชื่อเว็บไซต์โดด ๆ) ใช้เฉพาะข้อเท็จจริงที่พบจริงเท่านั้น ห้ามสร้างแหล่งที่มา URL ตัวเลข หรือวันที่ขึ้นมาเองโดยเด็ดขาด\n   - `conflicts`: ตัวเลขหรือข้อกล่าวอ้างที่ขัดแย้งกันแต่ละรายการ แหล่งข้อมูลของแต่ละฝ่าย และระบุว่าแหล่งข้อมูลใดมีความน่าเชื่อถือมากกว่าพร้อมเหตุผล ให้เป็น \"none\" หากไม่มี\n   - `weak_claims`: ข้อกล่าวอ้างที่ไม่ควรนำไปใช้หรือควรระบุว่ายังไม่แน่นอน พร้อมเหตุผล ให้เป็น \"none\" หากไม่มี\nRead only: ห้ามสร้าง แก้ไข หรือส่งข้อมูลใด ๆ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกกรณีที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true,
+      "selectedTools": {
+       "tools": [
+        {
+         "name": "googleSearch"
+        }
+       ]
+      }
      },
      "outputSchema": {
       "properties": {
-       "status": {
-        "description": "สถานะล่าสุดที่ได้รับกลับมา",
+       "gaps": {
+        "description": "gaps",
+        "type": "ARRAY",
+        "items": {
+         "description": "gaps",
+         "type": "OBJECT",
+         "properties": {
+          "gap": {
+           "description": "gap",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "action": {
+           "description": "action",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "resolved": {
+           "description": "resolved",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "note": {
+           "description": "note",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "gap",
+          "why_it_matters",
+          "action",
+          "resolved",
+          "note"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "followup_findings": {
+        "description": "followup findings",
+        "type": "ARRAY",
+        "items": {
+         "description": "followup findings",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "claim": {
+           "description": "claim",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "evidence": {
+           "description": "evidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "source_title": {
+           "description": "source title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "source_url": {
+           "description": "source url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_type": {
+           "description": "source type",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "published": {
+           "description": "published",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "confidence": {
+           "description": "confidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          }
+         },
+         "required": [
+          "id",
+          "claim",
+          "evidence",
+          "source_title",
+          "source_url",
+          "source_type",
+          "published",
+          "confidence"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "conflicts": {
+        "description": "conflicts",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "weak_claims": {
+        "description": "weak claims",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "gaps",
+       "followup_findings",
+       "conflicts",
+       "weak_claims"
+      ]
+     }
+    },
+    {
+     "id": "r_synth",
+     "displayName": "เขียนรายงานการวิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักที่รับผิดชอบการเขียนรายงานการวิจัยฉบับสมบูรณ์ ท่านไม่มีเครื่องมือใดๆ (tools) ให้ใช้ โปรดใช้เฉพาะหลักฐานที่ระบุไว้ด้านล่างนี้เท่านั้น ห้ามเพิ่มข้อเท็จจริง ตัวเลข แหล่งที่มา หรือวันที่จากความรู้ของท่านเอง หากหลักฐานไม่สนับสนุนประเด็นใด ให้ตัดประเด็นนั้นออกหรือระบุว่าไม่ทราบข้อมูล ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nบริบท: เอกสารเชิงนโยบายสำหรับหน่วยงานภาครัฐที่เป็นผู้ว่าจ้าง โดยสถาบันวิจัยนโยบายของมหาวิทยาลัย ครอบคลุมเป้าหมายและมาตรการอย่างเป็นทางการ การอนุมัติการลงทุนเทียบกับสิ่งที่สร้างจริง สถิติอย่างเป็นทางการรายปี การประกาศของบริษัทเทียบกับผลการส่งมอบจริง และสิ่งอื่นใดตามที่เป้าหมายกำหนด ให้ความสำคัญเป็นลำดับแรกกับแหล่งข้อมูลทางการของไทย (หน่วยงานภาครัฐ, BOI, กรมการขนส่งทางบก, คณะกรรมการต่างๆ) และรายงานข่าวที่น่าเชื่อถือ ในกรณีที่ตัวเลขไม่ตรงกัน ให้คงตัวเลข วันที่ และสิ่งที่วัดผลอย่างแน่ชัดของแต่ละแหล่งข้อมูลไว้\nSub-questions: ${deep_research.sub_questions}\nผลการค้นคว้าทางเว็บตาม sub-question: ${r_loop.output[*].r_web}\nเอกสารภายในตาม sub-question: ${r_loop.output[*].r_drive}\nการติดตามผลของผู้ตรวจทาน findings: ${r_review.followup_findings}\ngaps ของผู้ตรวจทาน: ${r_review.gaps}\nข้อขัดแย้ง: ${r_review.conflicts}\nข้ออ้างที่ต้องตัดออกหรือ flag: ${r_review.weak_claims}\n\nหากผลการค้นคว้าทางเว็บด้านบนระบุว่า WEB SEARCH NOT AVAILABLE หรือไม่มีผลการค้นพบทางเว็บเลย ห้ามเขียนรายงาน: report_md = 'NO RESEARCH: web search was not available in this run', n_sources = 0\nมิฉะนั้น ให้เขียน `report_md` เป็นภาษาไทย ในรูปแบบ Markdown:\n# <title>\n## บทสรุปสำหรับผู้บริหาร  (5 ถึง 8 ข้อย่อย: คำตอบ, ตัวเลขสำคัญ, ข้อเสนอแนะ)\n## ข้อค้นพบสำคัญ  (หัวข้อย่อยหนึ่งหัวข้อต่อหนึ่งประเด็น ไม่ใช่ต่อผู้ตรวจสอบแต่ละคน และให้ระบุเมื่อประเด็นนั้นมาจากเอกสารภายใน)\n## การวิเคราะห์และนัยต่อการตัดสินใจ  (ความหมายของหลักฐาน เปรียบเทียบทางเลือกในจุดที่เกี่ยวข้อง)\n## ข้อเสนอแนะ  (เรียงลำดับเป็นข้อ ชัดเจนเป็นรูปธรรม แต่ละข้อผูกโยงกับหลักฐาน ระบุผู้มีหน้าที่ดำเนินการและขั้นตอนแรก)\n## ความเสี่ยง ความไม่แน่นอน และข้อมูลที่ขัดแย้งกัน  (ข้อขัดแย้งทุกประเด็นจากการตรวจทาน โดยอ้างอิงข้อมูลจากทั้งสองฝ่าย)\n## ช่องว่างและข้อจำกัดของการค้นคว้า  (สิ่งที่ยังไม่ทราบและแนวทางปิดช่องว่างดังกล่าว)\nการอ้างอิง: กำหนดหมายเลขแหล่งข้อมูลตามลำดับที่อ้างถึงเป็นครั้งแรก โดยหนึ่งหมายเลขต่อหนึ่ง source_url ที่ไม่ซ้ำกัน (ข้อค้นพบที่ใช้ลิงก์เดียวกันให้ใช้หมายเลขเดียวกัน) ให้ระบุหมายเลขของข้อค้นพบที่เป็นฐานสนับสนุนไว้ต่อท้ายแต่ละประโยคทันที เช่น [3] หรือ [3, 12] ทุกประโยคที่มีข้อเท็จจริงต้องมีหมายเลขกำกับอย่างน้อยหนึ่งหมายเลข ห้ามเขียน URL ภายในเนื้อความ\nปิดท้ายรายงานด้วย \"## แหล่งอ้างอิง\": one line per number, in order: \"[n] <source_title> (<published>) - <source_url>\" โดยคัดลอก source_url มาจากข้อค้นพบอย่างตรงกันทุกตัวอักษร EXACTLY (ห้ามย่อลิงก์ ห้ามสร้างลิงก์ขึ้นใหม่) ระบุเฉพาะแหล่งข้อมูลที่ท่านอ้างอิงเท่านั้น และทุกหมายเลขที่ท่านอ้างอิงจะต้องปรากฏอยู่ในรายการ\nใช้หลักฐานอย่างครอบคลุม: อ้างอิงข้อค้นพบที่เกี่ยวข้องทุกรายการที่ไม่ได้ระบุไว้ใต้ \"claims to drop\" เพื่อให้รายงานมีพื้นฐานมาจากแหล่งข้อมูลที่ไม่ซ้ำกันทั้งหมดที่ทีมงานค้นพบ เมื่อหลักฐานมีลิงก์ที่ไม่ซ้ำกันตั้งแต่ 60 ลิงก์ขึ้นไป รายการแหล่งข้อมูลมักจะมีตั้งแต่ 60 รายการขึ้นไปเช่นกัน ห้ามตัดแหล่งข้อมูลที่เกี่ยวข้องออกเพียงเพื่อทำให้รายการสั้นลง รักษาความยาวของเนื้อหาให้อยู่ที่ประมาณ 2,500 ถึง 4,000 คำ\nห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ไม่ว่าที่ใดก็ตาม แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวปรากฏอยู่\nนอกจากนี้ ให้ส่งคืน `n_sources` (จำนวนแหล่งข้อมูลที่มีหมายเลขกำกับในรายการ) และ `confidence` (high / medium / low สำหรับคำตอบโดยรวม พร้อมเหตุผลประกอบหนึ่งประโยค)\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "report_md": {
+        "description": "report md",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
-       "calls": {
-        "description": "จำนวนครั้งที่เรียกตรวจสอบ",
+       "n_sources": {
+        "description": "n sources",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 1
         }
+       },
+       "confidence": {
+        "description": "confidence",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
        }
       },
       "required": [
-       "status",
-       "calls"
+       "report_md",
+       "n_sources",
+       "confidence"
       ]
      }
     },
     {
+     "id": "r_save",
+     "displayName": "บันทึกรายงานการวิจัย",
+     "nodeType": "MCP_NODE",
+     "mcpNode": {
+      "dataConnector": {
+       "name": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/{{DRIVE_MCP}}/dataConnector",
+       "dataSource": "custom_mcp"
+      },
+      "tool": {
+       "name": "create_file"
+      },
+      "inputParameters": {
+       "title": "รายงานการค้นคว้า – ${get_library.topic_title}",
+       "contentMimeType": "text/markdown",
+       "parentId": "${find_state.setup_folder_id}",
+       "textContent": "${r_synth.report_md}"
+      }
+     },
+     "outputSchema": {
+      "properties": {
+       "output": {
+        "type": "STRING",
+        "description": "the created file (JSON with id and viewUrl)"
+       }
+      },
+      "required": []
+     }
+    },
+    {
      "id": "r_result",
-     "displayName": "อ่านผลการค้นคว้า",
+     "displayName": "ตรวจสอบรายงานที่บันทึก",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check เพียงหนึ่งครั้ง โดยระบุ jobId = ${deep_research.job_id} และ waitSeconds = 0 ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้เสร็จสิ้นโดยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ ส่งคืนผลลัพธ์ตามที่ได้รับกลับมาทุกประการ: status, doc_id, ลิงก์ (docUrl), references (จำนวน); research_ok = true เฉพาะกรณีที่ status เป็น done และ doc_id ไม่ว่าง; problems = ข้อผิดพลาด หรือ 'still running after the wait' หาก status เป็น running\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายไว้ในเครื่องมือแล้ว): Research MCP: deep_research_check\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "รายงานผลลัพธ์ที่ได้จากการวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามคำถามใด ๆ ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ข้อมูลผลลัพธ์เสมอ ห้ามใช้เครื่องมือใด ๆ ค่าที่ปรากฏในลักษณะ <no value provided for ...> หมายถึงขั้นตอนดังกล่าวไม่ได้ดำเนินการในเส้นทางนี้: ให้ถือว่าเป็นค่าว่าง\nรายงานที่บันทึกไว้ (คำตอบของเครื่องมือ Drive): ${r_save.output}\nsources แบบมีหมายเลขกำกับ: ${r_synth.n_sources}\nรายการแหล่งที่มาของ report: ${r_synth.report_md}\nงานวิจัยถือว่า NOT usable เมื่อ: จำนวนแหล่งที่มาเป็น 0 รายงานขึ้นต้นด้วย 'NO RESEARCH' หรือลิงก์ส่วนใหญ่ในรายการแหล่งที่มาดูเหมือนถูกสร้างขึ้นมาเอง (ลิงก์ Google Search ในรูปแบบ 'grounding-api-redirect/' ตามด้วยคำที่อ่านออกได้แทนที่จะเป็นรหัสสุ่มขนาดยาว) ในกรณีดังกล่าว research_ok = false และ problems = 'web search was not available, so no research was done' (หรือระบุเหตุผล)\ndoc_id = id ของไฟล์ที่บันทึก ลิงก์ = viewUrl ของไฟล์นั้น (หรือ https://docs.google.com/document/d/<id>/edit) references = จำนวนแหล่งที่มา status = 'done' หากมี id ของไฟล์ มิฉะนั้นให้เป็น 'failed'\nresearch_ok = true เฉพาะกรณีที่มี id ของไฟล์และงานวิจัย usable problems = ค่าว่าง หรือระบุข้อผิดพลาดที่เกิดขึ้น (เช่น การบันทึกถูกยกเลิก)\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายแสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกกรณีที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "status": {
-        "description": "done / running / failed / not_found",
+        "description": "status",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "doc_id": {
-        "description": "รหัสเอกสารรายงาน",
+        "description": "doc id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "link": {
-        "description": "ลิงก์รายงาน",
+        "description": "link",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 2
         }
        },
        "references": {
-        "description": "เอกสารอ้างอิง",
+        "description": "references",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "research_ok": {
-        "description": "true เฉพาะกรณีที่เสร็จสิ้นพร้อมรายงาน",
+        "description": "research ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 4
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 5
@@ -1455,7 +2176,7 @@
         "searchToolEnabled": true
        }
       ],
-      "instruction": "ท่านกำลังสร้างตารางหลักฐาน ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้เสร็จสิ้นโดยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\nอ่านรายงานการค้นคว้าฉบับสมบูรณ์ (รหัสเอกสาร ${r_result.doc_id}) ด้วย read_file_content ข้อเท็จจริงจากคลังข้อมูล (อ่านก่อน): ${read_library.facts}\n1. rows = หนึ่งแถวต่อหนึ่งข้อกล่าวอ้างต่อหนึ่งแหล่งข้อมูล: ข้อกล่าวอ้าง (claim), แหล่งข้อมูล (ชื่อไฟล์ในคลังข้อมูลหรือชื่อแหล่งข้อมูลของรายงาน), ค่า, วันที่, สิ่งที่วัดผล, ลิงก์ (ลิงก์ไฟล์ในคลังข้อมูล หรือ URL แหล่งข้อมูลตามที่ปรากฏในรายงานทุกประการ หรือลิงก์รายงาน ${r_result.link} หากไม่มี URL) นำข้อเท็จจริงจากคลังข้อมูลขึ้นก่อน คัดลอกตัวเลขตามจริงทุกประการ\n2. conflicts = หนึ่งรายการต่อหนึ่งข้อกล่าวอ้างที่แหล่งข้อมูลมีความแตกต่างกัน: ข้อกล่าวอ้าง, ค่าต่าง ๆ, และเหตุผลที่แตกต่างกัน (เช่น การอนุมัตินับตามกำลังการผลิตตามแผน ไม่ใช่จำนวนรถที่ผลิตจริง, ยอดจดทะเบียนเทียบกับยอดขาย, สถานีเทียบกับหัวชาร์จ, มาตรการเดิมเทียบกับมาตรการใหม่) ห้ามซ่อนหรือเลือกค่าใดค่าหนึ่ง\n3. calculations = รายการที่มีการคำนวณเพื่อสนับสนุนเป้าหมาย (เช่น อัตราการเติบโตรายปีที่จำเป็นเพื่อให้บรรลุเป้าหมายจากตัวเลขปัจจุบัน): สูตรคำนวณ, ค่าที่นำเข้าพร้อมแหล่งข้อมูล, ผลลัพธ์ คำนวณอย่างรอบคอบและแสดงขั้นตอนการคำนวณ\n4. csv = แถวหัวตาราง ตามด้วยหนึ่งบรรทัดต่อหนึ่งแถว ในรูปแบบ CSV ซึ่งทุกค่า (รวมถึงหัวตาราง) ต้องครอบด้วยเครื่องหมายอัญประกาศคู่ เช่น \"100,000 บาท/คัน\" (a comma inside quotes stays in its cell); write a double quote inside a value twice; no line breaks inside a value. Header: \"ข้อกล่าวอ้าง\",\"แหล่งที่มา\",\"ค่า\",\"วันที่\",\"สิ่งที่วัด\",\"ลิงก์\" ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: read_file_content\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "instruction": "ท่านกำลังสร้างตารางหลักฐาน ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ ให้เสร็จสิ้นโดยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\nอ่านรายงานการค้นคว้าฉบับสมบูรณ์ (รหัสเอกสาร ${r_result.doc_id}) ด้วย read_file_content ข้อเท็จจริงจากคลังข้อมูล (อ่านก่อน): ${read_library.facts}\n1. rows = หนึ่งแถวต่อหนึ่งข้อกล่าวอ้างต่อหนึ่งแหล่งข้อมูล: ข้อกล่าวอ้าง (claim), แหล่งข้อมูล (ชื่อไฟล์ในคลังข้อมูลหรือชื่อแหล่งข้อมูลของรายงาน), ค่า, วันที่, สิ่งที่วัดผล, ลิงก์ (ลิงก์ไฟล์ในคลังข้อมูล หรือ URL แหล่งข้อมูลตามที่ปรากฏในรายงานทุกประการ หรือลิงก์รายงาน ${r_result.link} หากไม่มี URL) นำข้อเท็จจริงจากคลังข้อมูลขึ้นก่อน คัดลอกตัวเลขตามจริงทุกประการ\n2. conflicts = หนึ่งรายการต่อหนึ่งข้อกล่าวอ้างที่แหล่งข้อมูลมีความแตกต่างกัน: ข้อกล่าวอ้าง, ค่าต่าง ๆ, และเหตุผลที่แตกต่างกัน (เช่น การอนุมัตินับตามกำลังการผลิตตามแผน ไม่ใช่จำนวนรถที่ผลิตจริง, ยอดจดทะเบียนเทียบกับยอดขาย, สถานีเทียบกับหัวชาร์จ, มาตรการเดิมเทียบกับมาตรการใหม่) ห้ามซ่อนหรือเลือกค่าใดค่าหนึ่ง\n3. calculations = รายการที่มีการคำนวณเพื่อสนับสนุนเป้าหมาย (เช่น อัตราการเติบโตรายปีที่จำเป็นเพื่อให้บรรลุเป้าหมายจากตัวเลขปัจจุบัน): สูตรคำนวณ, ค่าที่นำเข้าพร้อมแหล่งข้อมูล, ผลลัพธ์ คำนวณอย่างรอบคอบและแสดงขั้นตอนการคำนวณ\n4. csv = แถวหัวตาราง ตามด้วยหนึ่งบรรทัดต่อหนึ่งแถว ในรูปแบบ CSV ซึ่งทุกค่า (รวมถึงหัวตาราง) ต้องครอบด้วยเครื่องหมายอัญประกาศคู่ เช่น \"100,000 บาท/คัน\" (a comma inside quotes stays in its cell); write a double quote inside a value twice; no line breaks inside a value. Header: \"ข้อกล่าวอ้าง\",\"แหล่งที่มา\",\"ค่า\",\"วันที่\",\"สิ่งที่วัด\",\"ลิงก์\" ห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในสิ่งใดก็ตามที่สร้างหรือส่งโดยเด็ดขาด แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวก็ตาม\n\nการคำนวณ: ให้ดำเนินการคำนวณทุกรายการในขั้นตอนนี้ (ผลรวม, ยอดรวม, ค่าเฉลี่ย, ร้อยละ, อัตราส่วน, ผลต่าง, อัตราการเติบโต, การแปลงหน่วย, การคำนวณวันที่) ด้วย code ห้ามคำนวณในใจโดยเด็ดขาด ท่านไม่สามารถรัน code ได้ด้วยตนเอง: ให้ส่งงานไปยัง code agent ของแพลตฟอร์มด้วย transfer_to_agent, agent_name \"file_and_coding_agent\" โดยระบุตัวเลข input ที่คัดลอกมาอย่างถูกต้องตรงกันทุกประการและแจ้งสิ่งที่ต้องคำนวณ ซึ่งระบบจะเขียนและรัน Python แล้วส่งผลลัพธ์ที่พิมพ์ออกมากลับคืนมา ให้สั่งให้พิมพ์แต่ละ input กำกับไว้ข้างแต่ละผลลัพธ์ ห้ามเขียนหรืออ่านไฟล์โดยเด็ดขาด: การรัน code แต่ละครั้งจะเริ่มต้นใหม่จากความว่างเปล่า ให้คัดลอกผลลัพธ์ทุกรายการให้ตรงตามที่พิมพ์ออกมา ห้ามปัดเศษหรือคำนวณใหม่ด้วยตนเอง หากการส่งต่องานล้มเหลวหรือ code เกิดข้อผิดพลาด 2 ครั้ง ให้หยุดการทำงาน: ทำเครื่องหมายค่าที่ได้รับผลกระทบเป็น not computed (-1) และระบุข้อเท็จจริงดังกล่าวใน problems หรือ flags ห้ามประมาณการโดยเด็ดขาด สำหรับกรณีการคำนวณเท่านั้น กฎข้อนี้จะมีผลบังคับใช้เหนือข้อความ 'no tools' ใด ๆ ในขั้นตอนนี้\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์นำเข้ามีคำอธิบายไว้ในเครื่องมือแล้ว): Drive MCP: read_file_content\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายที่แสดงเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
@@ -1796,7 +2517,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.1-pro-preview",
-      "instruction": "ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้โดยเด็ดขาด, ห้ามถามสิ่งใด, ไม่ต้องรอคำตอบ; จบการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ คำถามจากผู้ใช้ (อาจว่างเปล่า): \"${follow_up.approval_feedback}\"\nตารางหลักฐาน rows: ${build_evidence.rows}\nข้อขัดแย้ง: ${build_evidence.conflicts}\nการคำนวณ: ${build_evidence.calculations}\nquestion_given = true เฉพาะเมื่อมีคำถามจริงเท่านั้น หากมี ให้ตอบแต่ละคำถามเป็นภาษาไทยจากแถว ข้อขัดแย้ง และการคำนวณเหล่านี้เท่านั้น (ไม่มีข้อเท็จจริงภายนอก): ให้เหตุผลจากสิ่งที่ตัวเลขแต่ละตัววัด แหล่งที่มา และวันที่ (เช่น การจดทะเบียน เทียบกับ ยอดขาย เทียบกับ การอนุมัติ) และให้คำตอบที่ชัดเจนพร้อมเหตุผล โดยระบุชื่อแต่ละแถว (claim + source) ที่ใช้ เมื่อคำตอบต้องใช้การคำนวณเลขคณิตจากตัวเลขในตาราง (ส่วนต่าง, สัดส่วน, อัตราการเติบโต เช่น อัตราการเติบโตเฉลี่ยต่อปีที่จำเป็นจากตัวเลขจริงไปยังเป้าหมาย: (target / actual)^(1 / years) - 1) ให้ดำเนินการคำนวณ: แสดงสูตร ตัวเลข และแถวที่ใช้ รวมถึงผลลัพธ์ที่ปัดเศษเป็นทศนิยม 1 ตำแหน่ง; ห้ามปฏิเสธเพียงเพราะตารางไม่มีผลลัพธ์สำเร็จรูป เฉพาะในกรณีที่ไม่มีแถวใดเกี่ยวข้องกับคำถาม ให้ระบุว่าตารางไม่ครอบคลุมคำถามดังกล่าวและต้องใช้หลักฐานใดเพิ่มเติม answers = คำถามและคำตอบเป็นข้อความธรรมดา (ว่างเปล่าหากไม่มีคำถาม) ไม่ใช้เครื่องมือ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) โดยเด็ดขาด"
+      "instruction": "ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้โดยเด็ดขาด, ห้ามถามสิ่งใด, ไม่ต้องรอคำตอบ; จบการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ คำถามจากผู้ใช้ (อาจว่างเปล่า): \"${follow_up.approval_feedback}\"\nตารางหลักฐาน rows: ${build_evidence.rows}\nข้อขัดแย้ง: ${build_evidence.conflicts}\nการคำนวณ: ${build_evidence.calculations}\nquestion_given = true เฉพาะเมื่อมีคำถามจริงเท่านั้น หากมี ให้ตอบแต่ละคำถามเป็นภาษาไทยจากแถว ข้อขัดแย้ง และการคำนวณเหล่านี้เท่านั้น (ไม่มีข้อเท็จจริงภายนอก): ให้เหตุผลจากสิ่งที่ตัวเลขแต่ละตัววัด แหล่งที่มา และวันที่ (เช่น การจดทะเบียน เทียบกับ ยอดขาย เทียบกับ การอนุมัติ) และให้คำตอบที่ชัดเจนพร้อมเหตุผล โดยระบุชื่อแต่ละแถว (claim + source) ที่ใช้ เมื่อคำตอบต้องใช้การคำนวณเลขคณิตจากตัวเลขในตาราง (ส่วนต่าง, สัดส่วน, อัตราการเติบโต เช่น อัตราการเติบโตเฉลี่ยต่อปีที่จำเป็นจากตัวเลขจริงไปยังเป้าหมาย: (target / actual)^(1 / years) - 1) ให้ดำเนินการคำนวณ: แสดงสูตร ตัวเลข และแถวที่ใช้ รวมถึงผลลัพธ์ที่ปัดเศษเป็นทศนิยม 1 ตำแหน่ง; ห้ามปฏิเสธเพียงเพราะตารางไม่มีผลลัพธ์สำเร็จรูป เฉพาะในกรณีที่ไม่มีแถวใดเกี่ยวข้องกับคำถาม ให้ระบุว่าตารางไม่ครอบคลุมคำถามดังกล่าวและต้องใช้หลักฐานใดเพิ่มเติม answers = คำถามและคำตอบเป็นข้อความธรรมดา (ว่างเปล่าหากไม่มีคำถาม) ไม่ใช้เครื่องมือ\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้คำลงท้ายสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์) โดยเด็ดขาด\nการคำนวณ: ให้ดำเนินการคำนวณทุกรายการในขั้นตอนนี้ (ผลรวม, ยอดรวม, ค่าเฉลี่ย, ร้อยละ, อัตราส่วน, ผลต่าง, อัตราการเติบโต, การแปลงหน่วย, การคำนวณวันที่) ด้วย code ห้ามคำนวณในใจโดยเด็ดขาด ท่านไม่สามารถรัน code ได้ด้วยตนเอง: ให้ส่งงานไปยัง code agent ของแพลตฟอร์มด้วย transfer_to_agent, agent_name \"file_and_coding_agent\" โดยระบุตัวเลข input ที่คัดลอกมาอย่างถูกต้องตรงกันทุกประการและแจ้งสิ่งที่ต้องคำนวณ ซึ่งระบบจะเขียนและรัน Python แล้วส่งผลลัพธ์ที่พิมพ์ออกมากลับคืนมา ให้สั่งให้พิมพ์แต่ละ input กำกับไว้ข้างแต่ละผลลัพธ์ ห้ามเขียนหรืออ่านไฟล์โดยเด็ดขาด: การรัน code แต่ละครั้งจะเริ่มต้นใหม่จากความว่างเปล่า ให้คัดลอกผลลัพธ์ทุกรายการให้ตรงตามที่พิมพ์ออกมา ห้ามปัดเศษหรือคำนวณใหม่ด้วยตนเอง หากการส่งต่องานล้มเหลวหรือ code เกิดข้อผิดพลาด 2 ครั้ง ให้หยุดการทำงาน: ทำเครื่องหมายค่าที่ได้รับผลกระทบเป็น not computed (-1) และระบุข้อเท็จจริงดังกล่าวใน problems หรือ flags ห้ามประมาณการโดยเด็ดขาด สำหรับกรณีการคำนวณเท่านั้น กฎข้อนี้จะมีผลบังคับใช้เหนือข้อความ 'no tools' ใด ๆ ในขั้นตอนนี้"
      },
      "outputSchema": {
       "properties": {
@@ -2192,57 +2913,124 @@
     },
     {
      "id": "watch_research",
-     "displayName": "เริ่มการค้นหาข้อมูลใหม่",
+     "displayName": "วางแผนการวิจัย",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "1. เรียกใช้ deep_research_plan หนึ่งครั้ง โดยกำหนด sources = web และ question: 'มีข้อมูลใหม่อะไรบ้างตั้งแต่ ${w_read.last_check} เกี่ยวกับ ${find_state.topic}: สถิติทางการใหม่ (เช่น การจดทะเบียนรายเดือน), มาตรการใหม่ของรัฐบาล, การประกาศของภาคเอกชน (โรงงานใหม่, การเลื่อนกำหนดการ), งานวิจัยใหม่ สำหรับแต่ละรายการระบุ: สิ่งที่มีการเปลี่ยนแปลง, ตัวเลขพร้อมวันที่และสิ่งที่วัดค่า, และ URL แหล่งที่มา เปรียบเทียบกับ claims ปัจจุบันเหล่านี้: ${w_read.table_rows}'\n2. เรียกใช้ deep_research_run หนึ่งครั้ง ด้วย session_id ดังกล่าว, folder_id ${find_state.setup_folder_id}, ชื่อ 'การติดตามหลักฐาน – ${find_state.topic} – ${find_state.today}' ห้ามเรียกใช้ deep_research_check (ขั้นตอนถัดไปจะรอรับข้อมูลนี้)\njob_id = jobId ที่ส่งคืนมา; started = true เฉพาะเมื่อมี jobId ส่งคืนมาเท่านั้น ห้ามเขียน ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ลงในส่วนใดก็ตามที่คุณสร้างหรือส่ง แม้ว่าแหล่งที่มาจะมีข้อความดังกล่าวอยู่ก็ตาม\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าอธิบายไว้ในตัวเครื่องมือเอง): Research MCP: deep_research_plan, deep_research_run\nระดับเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลัก มีหน้าที่วางแผนการวิจัย ไม่ใช่ผู้ลงมือปฏิบัติการวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้โดยเด็ดขาด ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนเขตข้อมูลผลลัพธ์เสมอ\nการวิจัย request: \"What is new since ${w_read.last_check} about ${find_state.topic}: new official statistics (e.g. monthly registrations), new government measures, company announcements (new plants, postponements), new research. For each item: what changed, the number with its date and what it measures, and the source URL. Compare with these current claims: ${w_read.table_rows}\"\nบริบท: การติดตามหลักฐานประจำสัปดาห์ของสถาบันวิจัยนโยบายของมหาวิทยาลัย: เฉพาะข้อมูลใหม่นับตั้งแต่การตรวจสอบครั้งล่าสุด แต่ละรายการระบุสิ่งที่เปลี่ยนแปลง ตัวเลขพร้อมวันที่ และสิ่งที่ตัวเลขนั้นวัดผล\n\n1. ปรับปรุงคำขอให้เป็นคำถามการวิจัยที่แม่นยำหนึ่งคำถาม พร้อมระบุการตัดสินใจหรือผลลัพธ์ที่คำถามนี้รองรับ รวมถึงผู้ที่จะนำผลลัพธ์ไปใช้งาน\n   ระบุประเทศ ภาคส่วน กรอบเวลา และข้อจำกัดใด ๆ ตามที่คำขอกำหนดไว้ หากไม่ระบุประเทศ ให้ถือว่าเป็นประเทศไทย\n2. จำแนกออกเป็นคำถามย่อย 4 ถึง 7 ข้อ ที่เมื่อรวมกันแล้วสามารถตอบคำถามหลักได้อย่างครบถ้วนและไม่ซ้ำซ้อนกัน โดยครอบคลุมประเด็นต่อไปนี้ตามความเหมาะสม: ข้อเท็จจริงและตัวเลขปัจจุบัน, การดำเนินการของผู้อื่น (ประเทศอื่น จังหวัดอื่น หรือหน่วยงานระดับเดียวกัน) และผลสัมฤทธิ์, สาเหตุและปัจจัยขับเคลื่อน, ทางเลือกต่าง ๆ, ต้นทุน ความเสี่ยง และข้อจำกัด (ด้านกฎหมาย งบประมาณ อำนาจหน้าที่), พัฒนาการล่าสุด (ในช่วง 12 เดือนที่ผ่านมา)\n3. แต่ละคำถามย่อยจะมีนักวิจัยแยกกันดำเนินการ โดยนักวิจัยแต่ละคนจะเห็นเฉพาะรายการนั้นเพียงรายการเดียว: จะไม่เห็นคำขอหลักและคำถามย่อยข้ออื่น ดังนั้น ให้จัดทำแต่ละรายการให้มีความสมบูรณ์ในตัวเอง:\n   - `question`: คำถามเฉพาะเจาะจงที่ตอบได้หนึ่งข้อเป็นภาษาไทย โดยระบุประเทศ ภาคส่วน สถานที่ และกรอบเวลาอย่างชัดเจน (ห้ามใช้ \"the province\", \"this\", \"the above\" โดยเด็ดขาด)\n   - `brief`: บริบทความยาว 2 ถึง 4 ประโยค: ภาพรวมของคำขอในหนึ่งบรรทัด วัตถุประสงค์การนำคำตอบไปใช้ สิ่งที่อยู่นอกขอบเขต และกรอบเวลา\n   - `why_it_matters`: ข้อมูลแสดงว่าคำตอบนี้จะสนับสนุนผลลัพธ์สุดท้ายอย่างไร\n   - `search_terms`: คำค้นหาทางเว็บ 3 ถึง 6 คำ ทั้งภาษาไทยและภาษาอังกฤษ\n   - `source_types`: ประเภทของแหล่งข้อมูลที่มีความสำคัญมากที่สุด\n   - `check_internal_docs`: กำหนดเป็น false เสมอ (การวิจัยนี้ใช้เฉพาะแหล่งข้อมูลสาธารณะเท่านั้น)\n   - `id`: Q1, Q2, ...\n4. ห้ามตอบคำถามใด ๆ ด้วยตนเอง ห้ามใช้เครื่องมือ\nส่งคืนค่าต่อไปนี้ด้วย: questions = ข้อความ `question` ของคำถามย่อยตามลำดับ; started = true เฉพาะเมื่อมีคำถามย่อย 4 ถึง 7 ข้อ; job_id = 'workflow-research'; problems = ปัญหาที่เกิดขึ้น หรือเว้นว่างไว้\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในข้อความ อีเมล เอกสาร หรืองานนำเสนอใด ๆ ที่ท่านเขียนโดยเด็ดขาด"
      },
      "outputSchema": {
       "properties": {
        "job_id": {
-        "description": "Job ID",
+        "description": "job id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "started": {
-        "description": "true เฉพาะเมื่อเริ่มต้นแล้วเท่านั้น",
+        "description": "started",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 1
         }
        },
-       "problems": {
-        "description": "ว่างหากไม่มี",
-        "type": "STRING",
+       "questions": {
+        "description": "questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "problems",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 4
         }
        }
       },
       "required": [
        "job_id",
        "started",
-       "problems"
+       "questions",
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -2298,117 +3086,530 @@
      }
     },
     {
-     "id": "w_wait",
-     "displayName": "รอผลการค้นหา (การตรวจสอบรายสัปดาห์)",
-     "nodeType": "AGENT_NODE",
-     "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
+     "id": "w_loop",
+     "displayName": "วิจัยคำถามย่อยแต่ละข้อ",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "watch_research.sub_questions",
+      "currentItemVariable": "sq",
+      "subAgentFlow": {
+       "nodes": [
         {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+         "id": "w_loop_start",
+         "displayName": "คำถามย่อยแต่ละข้อ",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "sq": {
+            "description": "sq",
+            "type": "OBJECT",
+            "properties": {
+             "id": {
+              "description": "id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "question": {
+              "description": "question",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "brief": {
+              "description": "brief",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "why_it_matters": {
+              "description": "why it matters",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "search_terms": {
+              "description": "search terms",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "source_types": {
+              "description": "source types",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "check_internal_docs": {
+              "description": "check internal docs",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "id",
+             "question",
+             "brief",
+             "why_it_matters",
+             "search_terms",
+             "source_types",
+             "check_internal_docs"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sq"
+          ]
+         }
+        },
+        {
+         "id": "w_web",
+         "displayName": "วิจัยคำถามย่อยหนึ่งข้อบนเว็บ",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "ท่านคือผู้ตรวจสอบการวิจัย ท่านทำงานกับคำถามย่อยข้อเดียว ที่ระบุไว้ด้านล่างนี้ และท่านไม่ทราบข้อมูลอื่นใดเกี่ยวกับโครงการในภาพรวม ห้ามคาดเดาว่าโครงการในภาพรวมคืออะไร ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\n\nคำถามย่อย ${w_loop_start.sq.id}: ${w_loop_start.sq.question}\nบริบท: ${w_loop_start.sq.brief}\nเหตุผลที่matters: ${w_loop_start.sq.why_it_matters}\nsearches ที่แนะนำ: ${w_loop_start.sq.search_terms}\nsources ที่กำหนดให้ใช้เป็นลำดับแรก: ${w_loop_start.sq.source_types}\n\nวิธีดำเนินwork:\n1. ค้นหาทางเว็บด้วย Google Search เท่านั้น: ดำเนินการค้นหาตามที่แนะนำ จากนั้นทำการค้นหาติดตามผลด้วยตนเองตามที่ได้เรียนรู้เพิ่มเติม (อย่างน้อย 5 ครั้ง สูงสุดไม่เกิน 12 ครั้ง) ให้ความสำคัญเป็นลำดับแรกกับแหล่งข้อมูลปฐมภูมิและแหล่งข้อมูลทางการ ใช้ข่าวสารเฉพาะสำหรับเหตุการณ์ปัจจุบันเท่านั้น ห้ามค้นหาใน Drive: เอกสารภายในจะได้รับการค้นคว้าแยกต่างหาก\n2. บันทึกข้อเท็จจริงที่เป็นประโยชน์แต่ละข้อเป็นข้อค้นพบ: `id` (id ของคำถามย่อย, \"-W\" และหมายเลขลำดับ: เช่น Q2-W1, Q2-W2, ...), `claim` (หนึ่งประโยค), `evidence` (ตัวเลข ข้อความยกมา หรือรายละเอียดที่แน่ชัดซึ่งสนับสนุนข้ออ้าง), `source_title` (ชื่อหน้าเว็บนั้นๆ หรือชื่อผู้เผยแพร่พร้อมคำอธิบายสั้นๆ ไม่ใช่เพียงแค่ชื่อเว็บไซต์),\n   `source_url`: ลิงก์ที่ EXACTLY ตามที่เครื่องมือค้นหาให้มาสำหรับผลลัพธ์นั้น โดยคัดลอกมาอย่างตรงกันทุกตัวอักษร Google Search จะให้ลิงก์ขนาดยาวที่ขึ้นต้นด้วย https://vertexaisearch.cloud.google.com/grounding-api-redirect/ : ให้คัดลอกมาทั้งลิงก์ ห้ามย่อลิงก์ให้เหลือเพียงชื่อเว็บไซต์และห้ามสร้าง URL ขึ้นเองโดยเด็ดขาด `source_type` (government / academic / international org / industry / news), `published` (วันที่หรือปี, \"unknown\" หากไม่ระบุ), `confidence` (high = แหล่งข้อมูลปฐมภูมิหรือมีหลายแหล่งข้อมูลที่ตรงกัน; medium = แหล่งข้อมูลที่น่าเชื่อถือหนึ่งแหล่ง; low = หลักฐานมีน้ำหนักน้อยหรือไม่ชัดเจนโดยอ้อม)\n   ข้อค้นพบ 15 ถึง 25 รายการจากหน้าเว็บที่แตกต่างกันอย่างน้อย 12 หน้า: กระจายหลักฐานให้ครอบคลุมหลายแหล่งข้อมูล และดำเนินการค้นหาเพิ่มเติมเมื่อหน้าเว็บให้ข้อมูลซ้ำกับที่มีอยู่แล้ว บันทึกเฉพาะข้อเท็จจริงที่พบในแหล่งข้อมูลจริงเท่านั้น ห้ามสร้างแหล่งข้อมูล, URL, ตัวเลข หรือวันที่ขึ้นเอง หากแหล่งข้อมูลมีความเห็นไม่ตรงกัน ให้บันทึกไว้ทั้งสองฝ่าย\n3. `answer`: คำตอบโดยตรงสำหรับคำถามย่อยความยาว 3 ถึง 6 ประโยค โดยอ้างอิงข้อค้นพบด้วยชื่อแหล่งข้อมูล\n4. `open_gaps`: สิ่งที่ท่านไม่สามารถค้นหาหรือยืนยันได้ และเหตุผล \"none\" หากไม่มี\n5. `searches_run`: จำนวนครั้งที่ท่านดำเนินการค้นหา\nไม่มีการค้นหา ย่อมไม่มีข้อค้นพบ: ทุกข้อค้นพบต้องมาจากผลลัพธ์ของ Google Search ที่ได้รับในขั้นตอนนี้ หากท่านไม่มีเครื่องมือ Google Search ในขั้นตอนนี้ ห้ามเขียนข้อค้นพบใดๆ ทั้งสิ้น: ให้ส่งคืนข้อค้นพบเป็นรายการว่าง ตอบ 'WEB SEARCH NOT AVAILABLE', open_gaps 'WEB SEARCH NOT AVAILABLE' และ searches_run 0 ห้ามเขียนข้อค้นพบ ชื่อ หรือลิงก์จากความทรงจำ ลิงก์ Google Search ที่แท้จริงจะลงท้ายด้วยรหัสสุ่มขนาดยาว ไม่ใช่คำที่อ่านออกได้\nอ่านอย่างเดียว: ห้ามสร้าง เปลี่ยนแปลง หรือส่งสิ่งใด\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          }
+         },
+         "outputSchema": {
+          "properties": {
+           "sub_question_id": {
+            "description": "sub question id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "answer": {
+            "description": "answer",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "ARRAY",
+            "items": {
+             "description": "findings",
+             "type": "OBJECT",
+             "properties": {
+              "id": {
+               "description": "id",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "claim": {
+               "description": "claim",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "source_title": {
+               "description": "source title",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              },
+              "source_url": {
+               "description": "source url",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 4
+               }
+              },
+              "source_type": {
+               "description": "source type",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 5
+               }
+              },
+              "published": {
+               "description": "published",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 6
+               }
+              },
+              "confidence": {
+               "description": "confidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 7
+               }
+              }
+             },
+             "required": [
+              "id",
+              "claim",
+              "evidence",
+              "source_title",
+              "source_url",
+              "source_type",
+              "published",
+              "confidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "open_gaps": {
+            "description": "open gaps",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "searches_run": {
+            "description": "searches run",
+            "type": "NUMBER",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "sub_question_id",
+           "answer",
+           "findings",
+           "open_gaps",
+           "searches_run"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "w_loop_start",
+         "targetNodeId": "w_web"
         }
        ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check โดยกำหนด jobId = ${watch_research.job_id} และ waitSeconds = 240 ในระหว่างที่ status เป็น running ให้เรียกใช้อีกครั้งเสมอ: ห้ามหยุดในขณะที่สถานะเป็น running หากการเรียกใช้งานส่งคืนข้อผิดพลาด ให้เรียกใช้อีกครั้ง หยุดเมื่อเกิดข้อผิดพลาดติดต่อกัน 3 ครั้งเท่านั้น เรียกใช้ได้สูงสุด 15 ครั้ง ส่งคืนเฉพาะข้อมูล: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ status = สถานะล่าสุดที่ส่งคืนมา; calls = จำนวนครั้งที่มีการเรียกตรวจสอบ\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าอธิบายไว้ในตัวเครื่องมือเอง): Research MCP: deep_research_check\nระดับเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      }
+     }
+    },
+    {
+     "id": "w_review",
+     "displayName": "ตรวจสอบช่องว่างและติดตามผล",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักที่ทำหน้าที่ตรวจสอบงานวิจัยของทีมก่อนการเขียนรายงาน ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nSub-questions: ${watch_research.sub_questions}\nการวิจัยทางเว็บต่อ sub-question: ${w_loop.output[*].w_web}\n\n1. ตรวจสอบความครอบคลุม: สำหรับแต่ละคำถามย่อย มีคำตอบพร้อมข้อค้นพบที่มีแหล่งอ้างอิงหรือไม่ ให้บันทึกคำถามย่อยใดก็ตามที่ไม่มีหลักฐานหรือหลักฐานมีน้ำหนักน้อย ช่องว่างที่ยังเปิดอยู่ตามที่ผู้ตรวจสอบรายงาน และสิ่งจำเป็นต่องานวิจัยที่ไม่มีคำถามย่อยใดครอบคลุม\n2. ตรวจสอบคุณภาพ: ข้อกล่าวอ้างที่พึ่งพาแหล่งข้อมูลที่มีความน่าเชื่อถือต่ำเพียงแหล่งเดียว ตัวเลขที่ขัดแย้งกันระหว่างแหล่งข้อมูล ข้อค้นพบที่มีอายุเกิน 3 ปีซึ่งน่าจะมีข้อมูลที่ใหม่กว่า และข้อกล่าวอ้างที่ไม่มีแหล่งข้อมูลหรือไม่น่าเชื่อถือ\n   นอกจากนี้ ให้เปรียบเทียบเอกสารภายในกับแหล่งข้อมูลทางเว็บ: หากไม่ตรงกัน ให้บันทึกเป็นข้อขัดแย้งและระบุว่าฝ่ายใดเป็นปัจจุบันหรือมีความน่าเชื่อถืออย่างเป็นทางการมากกว่า\n3. เลือกช่องว่างหรือข้อขัดแย้งที่สำคัญที่สุด 3 ถึง 6 รายการและดำเนินการปิดประเด็นด้วยตนเองผ่าน Google Search (เฉพาะเว็บ) ดำเนินการค้นหาอย่างน้อยหนึ่งครั้งต่อหนึ่งช่องว่าง ข้อค้นพบติดตามผลต้องมาจากผลการค้นหาที่ท่านได้รับในขั้นตอนนี้ หากท่านไม่มีเครื่องมือ Google Search ให้ส่งคืน followup_findings เป็นค่าว่างและระบุ 'WEB SEARCH NOT AVAILABLE' ใน conflicts ห้ามเขียนข้อค้นพบหรือลิงก์จากความทรงจำโดยเด็ดขาด\n4. ส่งคืน:\n   - `gaps`: ทุกช่องว่างหรือข้อขัดแย้งที่ท่านพบ พร้อม `gap`, `why_it_matters`, `action` (สิ่งที่ท่านค้นหา), `resolved` (true/false), `note`\n   - `followup_findings`: ข้อค้นพบใหม่ 8 ถึง 20 รายการจากการค้นหาติดตามผลของท่าน โดยมีฟิลด์เหมือนกับข้อค้นพบของผู้ตรวจสอบ ค่า `id` เป็น R-F1, R-F2, ... และแต่ละ `source_url` ต้องคัดลอกมาเหมือนกับที่เครื่องมือค้นหาให้มาทุกประการ (ลิงก์แบบเต็ม ห้ามระบุเพียงชื่อเว็บไซต์) เฉพาะข้อเท็จจริงที่ท่านค้นพบจริงเท่านั้น ห้ามสร้างแหล่งข้อมูล, URL, ตัวเลข หรือวันที่ขึ้นมาเองโดยเด็ดขาด\n   - `conflicts`: แต่ละตัวเลขหรือข้อกล่าวอ้างที่ขัดแย้งกัน แหล่งข้อมูลของแต่ละฝ่าย และฝ่ายใดมีความน่าเชื่อถือมากกว่าพร้อมเหตุผล \"none\" หากไม่มี\n   - `weak_claims`: ข้อกล่าวอ้างที่ไม่ควรนำมาใช้หรือควรทำเครื่องหมายว่าไม่แน่นอนพร้อมเหตุผล \"none\" หากไม่มี\nอ่านอย่างเดียว: ห้ามสร้าง แก้ไข หรือส่งสิ่งใดทั้งสิ้น\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่ท่านเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true,
+      "selectedTools": {
+       "tools": [
+        {
+         "name": "googleSearch"
+        }
+       ]
+      }
      },
      "outputSchema": {
       "properties": {
-       "status": {
-        "description": "สถานะล่าสุดที่ได้รับกลับมา",
+       "gaps": {
+        "description": "gaps",
+        "type": "ARRAY",
+        "items": {
+         "description": "gaps",
+         "type": "OBJECT",
+         "properties": {
+          "gap": {
+           "description": "gap",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "action": {
+           "description": "action",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "resolved": {
+           "description": "resolved",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "note": {
+           "description": "note",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "gap",
+          "why_it_matters",
+          "action",
+          "resolved",
+          "note"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "followup_findings": {
+        "description": "followup findings",
+        "type": "ARRAY",
+        "items": {
+         "description": "followup findings",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "claim": {
+           "description": "claim",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "evidence": {
+           "description": "evidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "source_title": {
+           "description": "source title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "source_url": {
+           "description": "source url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_type": {
+           "description": "source type",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "published": {
+           "description": "published",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "confidence": {
+           "description": "confidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          }
+         },
+         "required": [
+          "id",
+          "claim",
+          "evidence",
+          "source_title",
+          "source_url",
+          "source_type",
+          "published",
+          "confidence"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "conflicts": {
+        "description": "conflicts",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "weak_claims": {
+        "description": "weak claims",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "gaps",
+       "followup_findings",
+       "conflicts",
+       "weak_claims"
+      ]
+     }
+    },
+    {
+     "id": "w_synth",
+     "displayName": "เขียนรายงานการวิจัย",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "ท่านคือนักยุทธศาสตร์การวิจัยหลักที่ทำหน้าที่เขียนรายงานการวิจัยฉบับสมบูรณ์ ท่านไม่มีเครื่องมือใด ๆ ใช้เฉพาะหลักฐานด้านล่างนี้เท่านั้น ห้ามเพิ่มข้อเท็จจริง ตัวเลข แหล่งข้อมูล หรือวันที่จากความรู้ของท่านเอง หากหลักฐานไม่สนับสนุนประเด็นใด ให้ละเว้นไว้หรือระบุว่าไม่ทราบข้อมูล ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ\nบริบท: การติดตามหลักฐานรายสัปดาห์ของสถาบันวิจัยนโยบายของมหาวิทยาลัย: เฉพาะสิ่งที่เป็นข้อมูลใหม่นับตั้งแต่การตรวจสอบครั้งล่าสุด แต่ละรายการระบุสิ่งที่เปลี่ยนแปลง ตัวเลขพร้อมวันที่ และสิ่งที่ตัวเลขนั้นวัดผล\nSub-questions: ${watch_research.sub_questions}\nการวิจัยทางเว็บต่อ sub-question: ${w_loop.output[*].w_web}\nfindings การติดตามผลของผู้ตรวจทาน: ${w_review.followup_findings}\ngaps ของผู้ตรวจทาน: ${w_review.gaps}\nConflicts: ${w_review.conflicts}\nข้อกล่าวอ้างที่จะตัดทิ้งหรือ flag: ${w_review.weak_claims}\n\nหากการวิจัยทางเว็บด้านบนระบุว่า WEB SEARCH NOT AVAILABLE หรือไม่มีข้อค้นพบทางเว็บเลย ห้ามเขียนรายงาน: report_md = 'NO RESEARCH: web search was not available in this run', n_sources = 0\nกรณีอื่น ให้เขียน `report_md` เป็นภาษาไทย ในรูปแบบ Markdown:\n# <title>\n## บทสรุปสำหรับผู้บริหาร  (5 ถึง 8 หัวข้อย่อย: คำตอบ, ตัวเลขสำคัญ, ข้อเสนอแนะ)\n## ข้อค้นพบสำคัญ  (หนึ่งหัวข้อย่อยต่อหนึ่งประเด็นหลัก ไม่ใช่ต่อผู้ตรวจสอบ ระบุเมื่อประเด็นนั้นมาจากเอกสารภายใน)\n## การวิเคราะห์และนัยต่อการตัดสินใจ  (ความหมายของหลักฐาน เปรียบเทียบทางเลือกตามความเหมาะสม)\n## ข้อเสนอแนะ  (เรียงลำดับเป็นตัวเลข เป็นรูปธรรม แต่ละข้อเชื่อมโยงกับหลักฐาน ระบุผู้ปฏิบัติและขั้นตอนแรก)\n## ความเสี่ยง ความไม่แน่นอน และข้อมูลที่ขัดแย้งกัน  (ทุกข้อขัดแย้งจากการตรวจทาน โดยอ้างอิงทั้งสองฝ่าย)\n## ช่องว่างและข้อจำกัดของการค้นคว้า  (สิ่งที่ยังไม่ทราบและแนวทางปิดช่องว่างดังกล่าว)\nการอ้างอิง: กำหนดหมายเลขแหล่งข้อมูลตามลำดับที่ท่านอ้างอิงเป็นครั้งแรก: หนึ่งหมายเลขต่อหนึ่ง source_url ที่ไม่ซ้ำกัน (ข้อค้นพบที่ใช้ลิงก์ร่วมกันจะใช้หมายเลขเดียวกัน) ต่อท้ายแต่ละประโยคในทันที ให้อ้างอิงหมายเลขของข้อค้นพบที่เป็นฐานรองรับ เช่น [3] หรือ [3, 12] ทุกประโยคที่เป็นข้อเท็จจริงต้องมีหมายเลขกำกับอย่างน้อยหนึ่งหมายเลข ห้ามเขียน URL ภายในเนื้อหา\nปิดท้ายรายงานด้วย \"## แหล่งอ้างอิง\": one line per number, in order: \"[n] <source_title> (<published>) - <source_url>\" โดยคัดลอก source_url ให้ตรงกับข้อค้นพบทุกตัวอักษร (ห้ามย่อ ห้ามสร้างขึ้นใหม่) ระบุเฉพาะแหล่งข้อมูลที่ท่านอ้างอิงเท่านั้น ทุกหมายเลขที่ท่านอ้างอิงจะต้องปรากฏในรายการ\nใช้หลักฐานอย่างครอบคลุม: อ้างอิงทุกข้อค้นพบที่เกี่ยวข้องซึ่งไม่อยู่ใน \"claims to drop\" เพื่อให้รายงานมีพื้นฐานจากแหล่งข้อมูลที่ไม่ซ้ำกันทั้งหมดที่ทีมค้นพบ เมื่อหลักฐานมีลิงก์ที่ไม่ซ้ำกันตั้งแต่ 60 ลิงก์ขึ้นไป รายการแหล่งข้อมูลตามปกติจะต้องมีตั้งแต่ 60 รายการขึ้นไป ห้ามละเว้นแหล่งข้อมูลที่เกี่ยวข้องเพื่อทำให้รายการสั้นลง รักษาความยาวของเนื้อหาให้อยู่ที่ประมาณ 2,500 ถึง 4,000 คำ\nห้ามเขียนคำว่า ข้อมูลทดสอบ, TEST, 'TEST DATA' หรือ 'not real' ไม่ว่าจะที่ใดก็ตาม แม้ว่าแหล่งข้อมูลจะมีคำดังกล่าวอยู่ก็ตาม\nนอกจากนี้ ให้ส่งคืน `n_sources` (จำนวนแหล่งข้อมูลที่มีหมายเลขกำกับในรายการ) และ `confidence` (high / medium / low สำหรับคำตอบโดยรวม พร้อมเหตุผลหนึ่งประโยค)\nระดับภาษา: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่ท่านเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "report_md": {
+        "description": "report md",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
-       "calls": {
-        "description": "จำนวนครั้งที่เรียกตรวจสอบ",
+       "n_sources": {
+        "description": "n sources",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 1
         }
+       },
+       "confidence": {
+        "description": "confidence",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
        }
       },
       "required": [
-       "status",
-       "calls"
+       "report_md",
+       "n_sources",
+       "confidence"
       ]
      }
     },
     {
+     "id": "w_save",
+     "displayName": "บันทึกรายงานการวิจัย",
+     "nodeType": "MCP_NODE",
+     "mcpNode": {
+      "dataConnector": {
+       "name": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/{{DRIVE_MCP}}/dataConnector",
+       "dataSource": "custom_mcp"
+      },
+      "tool": {
+       "name": "create_file"
+      },
+      "inputParameters": {
+       "title": "การติดตามหลักฐาน – ${find_state.topic} – ${find_state.today}",
+       "contentMimeType": "text/markdown",
+       "parentId": "${find_state.setup_folder_id}",
+       "textContent": "${w_synth.report_md}"
+      }
+     },
+     "outputSchema": {
+      "properties": {
+       "output": {
+        "type": "STRING",
+        "description": "the created file (JSON with id and viewUrl)"
+       }
+      },
+      "required": []
+     }
+    },
+    {
      "id": "w_result",
-     "displayName": "อ่านผลการค้นคว้า",
+     "displayName": "ตรวจสอบรายงานที่บันทึก",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "เรียกใช้เครื่องมือ Research MCP deep_research_check เพียงหนึ่งครั้ง โดยกำหนด jobId = ${watch_research.job_id} และ waitSeconds = 0 ส่งคืนเฉพาะข้อมูล: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ส่งคืนสิ่งที่เป็นผลลัพธ์ตรงตามที่ได้รับมาอย่างแม่นยำ: status, doc_id, link (ที่เป็น docUrl), references (จำนวนนับ); research_ok = true เฉพาะเมื่อ status เป็น done และ doc_id ไม่ว่างเปล่า; problems = ข้อผิดพลาด หรือ 'still running after the wait' หาก status เป็น running\n\nเครื่องมือสำหรับขั้นตอนนี้ (พารามิเตอร์ขาเข้าอธิบายไว้ในตัวเครื่องมือเอง): Research MCP: deep_research_check\nระดับเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่คุณเขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
+      "model": "gemini-3.8-flash",
+      "instruction": "รายงานสิ่งที่ได้จากการวิจัย ส่งคืนเฉพาะข้อมูลเท่านั้น: ห้ามเขียนข้อความถึงผู้ใช้ ห้ามถามสิ่งใด ห้ามรอคำตอบ และต้องสิ้นสุดการทำงานด้วยการส่งคืนฟิลด์ผลลัพธ์เสมอ ห้ามใช้เครื่องมือใดๆ ค่าที่ปรากฏในลักษณะ <no value provided for ...> หมายถึงขั้นตอนดังกล่าวไม่ได้ทำงานในเส้นทางนี้: ให้ถือว่าเป็นค่าว่าง\nรายงานที่บันทึกไว้ (คำตอบของเครื่องมือ Drive): ${w_save.output}\nsources ที่มีหมายเลขกำกับ: ${w_synth.n_sources}\nรายการแหล่งข้อมูลของ report: ${w_synth.report_md}\nงานวิจัยถือว่าใช้งานไม่ได้ เมื่อ: จำนวนแหล่งข้อมูลเป็น 0 รายงานเริ่มต้นด้วย 'NO RESEARCH' หรือลิงก์ส่วนใหญ่ในรายการแหล่งข้อมูลดูเหมือนถูกสร้างขึ้นมาเอง (ลิงก์ Google Search ที่เป็น 'grounding-api-redirect/' ตามด้วยคำที่อ่านได้แทนที่จะเป็นรหัสสุ่มขนาดยาว) ในกรณีดังกล่าว research_ok = false และ problems = 'web search was not available, so no research was done' (หรือระบุเหตุผล)\ndoc_id = id ของไฟล์ที่บันทึกไว้; link = viewUrl ของไฟล์ (หรือ https://docs.google.com/document/d/<id>/edit); references = จำนวนแหล่งข้อมูล; status = 'done' หากมี id ของไฟล์ มิฉะนั้นให้เป็น 'failed';\nresearch_ok = true เฉพาะเมื่อมี id ของไฟล์และงานวิจัยสามารถใช้งานได้; problems = ค่าว่าง หรือสิ่งที่เกิดข้อผิดพลาด (เช่น การบันทึกถูกยกเลิก)\nน้ำเสียง: เป็นกลางและสุภาพ ห้ามใช้อนุภาคแสดงความสุภาพที่ระบุเพศ เช่น ครับ, ค่ะ, คะ, นะคะ หรือ นะครับ ในทุกสิ่งที่เขียน (ข้อความ, อีเมล, เอกสาร, สไลด์)"
      },
      "outputSchema": {
       "properties": {
        "status": {
-        "description": "done / running / failed / not_found",
+        "description": "status",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "doc_id": {
-        "description": "รหัสเอกสารรายงาน",
+        "description": "doc id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "link": {
-        "description": "ลิงก์รายงาน",
+        "description": "link",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 2
         }
        },
        "references": {
-        "description": "เอกสารอ้างอิง",
+        "description": "references",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "research_ok": {
-        "description": "true เฉพาะกรณีที่เสร็จสิ้นพร้อมรายงาน",
+        "description": "research ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 4
         }
        },
        "problems": {
-        "description": "ว่างหากไม่มี",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 5
@@ -3246,11 +4447,7 @@
     },
     {
      "sourceNodeId": "read_library",
-     "targetNodeId": "r_wait"
-    },
-    {
-     "sourceNodeId": "r_wait",
-     "targetNodeId": "r_result"
+     "targetNodeId": "r_loop"
     },
     {
      "sourceNodeId": "r_result",
@@ -3338,17 +4535,13 @@
     },
     {
      "sourceNodeId": "search_started",
-     "targetNodeId": "w_wait",
+     "targetNodeId": "w_loop",
      "routeString": "Started"
     },
     {
      "sourceNodeId": "search_started",
      "targetNodeId": "w_log_failed",
      "routeString": "Not started"
-    },
-    {
-     "sourceNodeId": "w_wait",
-     "targetNodeId": "w_result"
     },
     {
      "sourceNodeId": "w_result",
@@ -3433,6 +4626,38 @@
     {
      "sourceNodeId": "w_log_failed",
      "targetNodeId": "tell_watch_done"
+    },
+    {
+     "sourceNodeId": "r_loop",
+     "targetNodeId": "r_review"
+    },
+    {
+     "sourceNodeId": "r_review",
+     "targetNodeId": "r_synth"
+    },
+    {
+     "sourceNodeId": "r_synth",
+     "targetNodeId": "r_save"
+    },
+    {
+     "sourceNodeId": "r_save",
+     "targetNodeId": "r_result"
+    },
+    {
+     "sourceNodeId": "w_loop",
+     "targetNodeId": "w_review"
+    },
+    {
+     "sourceNodeId": "w_review",
+     "targetNodeId": "w_synth"
+    },
+    {
+     "sourceNodeId": "w_synth",
+     "targetNodeId": "w_save"
+    },
+    {
+     "sourceNodeId": "w_save",
+     "targetNodeId": "w_result"
     }
    ]
   }

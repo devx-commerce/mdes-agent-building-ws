@@ -4,7 +4,7 @@
  "lang": "en",
  "display_name": "Funding Calls",
  "description": "ติดตามประกาศทุน (Funding calls): every Monday 07:00 finds new calls from your funder list and the web, rates them against your profile, prepares a starter pack and calendar deadlines for strong matches, emails a weekly digest, and after your go / skip (Inbox) sets up proposal folders and reminds you of missing items before deadlines. Every morning it adds the grant results you wrote in the calls log (ได้รับทุน / ไม่ได้รับทุน in สถานะ) to your profile.",
- "_built_from": "devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
+ "_built_from": "tools/research_subgraph.py (16 Oct: Deep Research MCP replaced by our research subgraph). devx-commerce/mdes-agent @12b22d7, production settings (no test env vars): workflows-user/res/build_funding_calls.py (12 Oct 2026): RES-C as ONE agent (Funding Calls + Grant Result), daily schedule",
  "definition": {
   "agentFlow": {
    "nodes": [
@@ -572,57 +572,124 @@
     },
     {
      "id": "search_calls",
-     "displayName": "Search for new calls",
+     "displayName": "Plan the research",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "1. Call deep_research_plan ONCE with sources = web and question: 'Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.'\n2. Call deep_research_run ONCE with that session_id, folder_id ${find_setup.output_folder_id}, title 'ประกาศทุนใหม่ – ${find_setup.today}'. Do not call deep_research_check (later steps wait for it).\njob_id = the jobId returned; started = true only if a jobId came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_plan, deep_research_run.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      "model": "gemini-3.8-flash",
+      "instruction": "You are the lead research strategist. You plan research; you do not do it. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\nResearch request: \"Calls for research proposals (ประกาศรับข้อเสนอโครงการ) announced since ${find_setup.last_check} that are still open today (${find_setup.today}; the deadline must be after this date), from these funders: ${find_setup.funders}, and the wider web (Thai PMUs บพข. บพท. บพค., วช., ministries, foundations, international funders), on these topics: ${find_setup.profile}. For each call: title, funder, announcement URL, deadline (exact date), budget ceiling, duration, eligibility (e.g. private-sector co-funding, area-based), required documents.\"\nContext: a weekly scan for research funding calls for a Thai university researcher: each call with its title, funder, announcement link, exact deadline, budget ceiling, duration, eligibility and required documents.\n\n1. Restate the request as one precise research question, the decision or output it serves and who will read the result.\n   Note the country, sector, time window and any constraints the request gives. Assume Thailand when no country is given.\n2. Break it into 4 to 7 sub-questions that together answer it fully and do not overlap. Cover, where relevant: current facts and figures; what others (other countries, provinces, peers) did and what worked; causes and drivers; options; costs, risks and constraints (legal, budget, authority); recent developments (last 12 months).\n3. Each sub-question will be researched by a separate researcher who sees ONLY that one item: not the request, not the other sub-questions. So make every item self-contained:\n   - `question`: one specific, answerable question in Thai naming the country, sector, place and time window explicitly (never \"the province\", \"this\", \"the above\").\n   - `brief`: 2 to 4 sentences of context: the overall request in one line, what the answer will be used for, what is out of scope, and the time window.\n   - `why_it_matters`: how this answer feeds the final result.\n   - `search_terms`: 3 to 6 web search queries, in Thai and in English.\n   - `source_types`: the kinds of sources that count most.\n   - `check_internal_docs`: always false (this research uses public sources only)\n   - `id`: Q1, Q2, ...\n4. Do not answer any question yourself. No tools.\nAlso return: questions = the sub-questions' `question` texts in order; started = true only if there are 4 to 7 sub-questions; job_id = 'workflow-research'; problems = what went wrong, or empty.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
      },
      "outputSchema": {
       "properties": {
        "job_id": {
-        "description": "Job ID",
+        "description": "job id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "started": {
-        "description": "true only if started",
+        "description": "started",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 1
         }
        },
-       "problems": {
-        "description": "Empty if none",
-        "type": "STRING",
+       "questions": {
+        "description": "questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "questions",
+         "type": "STRING"
+        },
         "additionalProperties": {
          "display_order": 2
+        }
+       },
+       "problems": {
+        "description": "problems",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       },
+       "sub_questions": {
+        "description": "sub questions",
+        "type": "ARRAY",
+        "items": {
+         "description": "sub questions",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "question": {
+           "description": "question",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "brief": {
+           "description": "brief",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "search_terms": {
+           "description": "search terms",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_types": {
+           "description": "source types",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "check_internal_docs": {
+           "description": "check internal docs",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          }
+         },
+         "required": [
+          "id",
+          "question",
+          "brief",
+          "why_it_matters",
+          "search_terms",
+          "source_types",
+          "check_internal_docs"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 4
         }
        }
       },
       "required": [
        "job_id",
        "started",
-       "problems"
+       "questions",
+       "problems",
+       "sub_questions"
       ]
      }
     },
@@ -688,117 +755,530 @@
      }
     },
     {
-     "id": "wait_research",
-     "displayName": "Wait for the research",
-     "nodeType": "AGENT_NODE",
-     "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
+     "id": "s_loop",
+     "displayName": "Research each sub-question",
+     "nodeType": "FOR_LOOP_NODE",
+     "forLoopNode": {
+      "itemsListVariable": "search_calls.sub_questions",
+      "currentItemVariable": "sq",
+      "subAgentFlow": {
+       "nodes": [
         {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
+         "id": "s_loop_start",
+         "displayName": "Each sub-question",
+         "nodeType": "PRIVATE_TRIGGER",
+         "privateTrigger": {},
+         "outputSchema": {
+          "properties": {
+           "sq": {
+            "description": "sq",
+            "type": "OBJECT",
+            "properties": {
+             "id": {
+              "description": "id",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 0
+              }
+             },
+             "question": {
+              "description": "question",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 1
+              }
+             },
+             "brief": {
+              "description": "brief",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 2
+              }
+             },
+             "why_it_matters": {
+              "description": "why it matters",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 3
+              }
+             },
+             "search_terms": {
+              "description": "search terms",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 4
+              }
+             },
+             "source_types": {
+              "description": "source types",
+              "type": "STRING",
+              "additionalProperties": {
+               "display_order": 5
+              }
+             },
+             "check_internal_docs": {
+              "description": "check internal docs",
+              "type": "BOOLEAN",
+              "additionalProperties": {
+               "display_order": 6
+              }
+             }
+            },
+            "required": [
+             "id",
+             "question",
+             "brief",
+             "why_it_matters",
+             "search_terms",
+             "source_types",
+             "check_internal_docs"
+            ],
+            "additionalProperties": {
+             "display_order": 0
+            }
+           }
+          },
+          "required": [
+           "sq"
+          ]
+         }
+        },
+        {
+         "id": "s_web",
+         "displayName": "Research one sub-question on the web",
+         "nodeType": "AGENT_NODE",
+         "agentNode": {
+          "model": "gemini-3.8-flash",
+          "instruction": "You are a research investigator. You work on ONE sub-question, given below, and you know nothing else about the wider project. Do not guess what the wider project is. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\n\nSub-question ${s_loop_start.sq.id}: ${s_loop_start.sq.question}\nContext: ${s_loop_start.sq.brief}\nWhy it matters: ${s_loop_start.sq.why_it_matters}\nSuggested searches: ${s_loop_start.sq.search_terms}\nPreferred sources: ${s_loop_start.sq.source_types}\n\nHow to work:\n1. Search the web with Google Search only: run the suggested searches, then your own follow-up searches as you learn (at least 5 searches, up to 12). Prefer primary and official sources; use news only for recent events. Do not search Drive: internal documents are researched separately.\n2. Record each useful fact as a finding: `id` (the sub-question id, \"-W\" and a running number: e.g. Q2-W1, Q2-W2, ...), `claim` (one sentence), `evidence` (the exact figure, quote or detail that supports it), `source_title` (the page's own title or the publisher plus a short description, not just the site name),\n   `source_url`: the link EXACTLY as the search tool gave it for that result, copied character for character. Google Search gives long links that start with https://vertexaisearch.cloud.google.com/grounding-api-redirect/ : copy the whole link. Never shorten a link to a site name and never build a URL yourself. `source_type` (government / academic / international org / industry / news), `published` (date or year, \"unknown\" if not shown), `confidence` (high = primary or several agreeing sources; medium = one reputable source; low = weak or indirect).\n   15 to 25 findings from at least 12 different pages: spread the evidence across sources, and run more searches when a page repeats what you already have. Only facts you actually found in a source. Never invent a source, URL, figure or date. Where sources disagree, record both.\n3. `answer`: a direct answer to the sub-question in 3 to 6 sentences, citing findings by their source titles.\n4. `open_gaps`: what you could not find or confirm, and why. \"none\" if nothing.\n5. `searches_run`: how many searches you ran.\nNO SEARCH, NO FINDINGS: every finding must come from a Google Search result you received in this step. If you have no Google Search tool here, write no findings at all: return findings as an empty list, answer 'WEB SEARCH NOT AVAILABLE', open_gaps 'WEB SEARCH NOT AVAILABLE' and searches_run 0. Never write a finding, title or link from memory. A real Google Search link ends in a long random code, never in readable words.\nRead only: never create, change or send anything.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).",
+          "outputDisplayEnabled": true,
+          "selectedTools": {
+           "tools": [
+            {
+             "name": "googleSearch"
+            }
+           ]
+          }
+         },
+         "outputSchema": {
+          "properties": {
+           "sub_question_id": {
+            "description": "sub question id",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 0
+            }
+           },
+           "answer": {
+            "description": "answer",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 1
+            }
+           },
+           "findings": {
+            "description": "findings",
+            "type": "ARRAY",
+            "items": {
+             "description": "findings",
+             "type": "OBJECT",
+             "properties": {
+              "id": {
+               "description": "id",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 0
+               }
+              },
+              "claim": {
+               "description": "claim",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 1
+               }
+              },
+              "evidence": {
+               "description": "evidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 2
+               }
+              },
+              "source_title": {
+               "description": "source title",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 3
+               }
+              },
+              "source_url": {
+               "description": "source url",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 4
+               }
+              },
+              "source_type": {
+               "description": "source type",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 5
+               }
+              },
+              "published": {
+               "description": "published",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 6
+               }
+              },
+              "confidence": {
+               "description": "confidence",
+               "type": "STRING",
+               "additionalProperties": {
+                "display_order": 7
+               }
+              }
+             },
+             "required": [
+              "id",
+              "claim",
+              "evidence",
+              "source_title",
+              "source_url",
+              "source_type",
+              "published",
+              "confidence"
+             ]
+            },
+            "additionalProperties": {
+             "display_order": 2
+            }
+           },
+           "open_gaps": {
+            "description": "open gaps",
+            "type": "STRING",
+            "additionalProperties": {
+             "display_order": 3
+            }
+           },
+           "searches_run": {
+            "description": "searches run",
+            "type": "NUMBER",
+            "additionalProperties": {
+             "display_order": 4
+            }
+           }
+          },
+          "required": [
+           "sub_question_id",
+           "answer",
+           "findings",
+           "open_gaps",
+           "searches_run"
+          ]
+         }
+        }
+       ],
+       "edges": [
+        {
+         "sourceNodeId": "s_loop_start",
+         "targetNodeId": "s_web"
         }
        ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "Call the Research MCP tool deep_research_check with jobId = ${search_calls.job_id} and waitSeconds = 240. While the status is running, ALWAYS call it again: never stop while it is running. If a call returns an error, call it again; stop only after 3 errors in a row. At most 15 calls. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. status = the last status returned; calls = how many check calls you made.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      }
+     }
+    },
+    {
+     "id": "s_review",
+     "displayName": "Review gaps and follow up",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "You are the lead research strategist reviewing your team's research before the report is written. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\nSub-questions: ${search_calls.sub_questions}\nWeb research per sub-question: ${s_loop.output[*].s_web}\n\n1. Check coverage: for each sub-question, is it answered with sourced findings? Note any sub-question with no or weak evidence, open gaps the investigators reported, and anything the research needs that no sub-question covered.\n2. Check quality: claims that rest on one low-confidence source, figures that conflict between sources, findings older than 3 years where newer data likely exists, and claims whose source is missing or does not look real.\n   Also compare internal documents with web sources: where they disagree, record it as a conflict and say which side is more current or authoritative.\n3. Pick the 3 to 6 most important gaps or conflicts and close them yourself with Google Search (web only). Run at least one search per gap. Follow-up findings must come from search results you received in this step; if you have no Google Search tool, return followup_findings empty and say 'WEB SEARCH NOT AVAILABLE' in conflicts. Never write a finding or link from memory.\n4. Return:\n   - `gaps`: every gap or conflict you found, with `gap`, `why_it_matters`, `action` (what you searched), `resolved` (true/false), `note`.\n   - `followup_findings`: 8 to 20 new findings from your follow-up searches, same fields as the investigators' findings, `id` R-F1, R-F2, ..., each `source_url` copied exactly as the search tool gave it (whole link; never a bare site name). Only facts you actually found; never invent a source, URL, figure or date.\n   - `conflicts`: each conflicting figure or claim, the sources on each side, and which is more reliable and why. \"none\" if none.\n   - `weak_claims`: claims that should not be used or should be flagged as uncertain, and why. \"none\" if none.\nRead only: never create, change or send anything.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).",
+      "outputDisplayEnabled": true,
+      "selectedTools": {
+       "tools": [
+        {
+         "name": "googleSearch"
+        }
+       ]
+      }
      },
      "outputSchema": {
       "properties": {
-       "status": {
-        "description": "Last status returned",
+       "gaps": {
+        "description": "gaps",
+        "type": "ARRAY",
+        "items": {
+         "description": "gaps",
+         "type": "OBJECT",
+         "properties": {
+          "gap": {
+           "description": "gap",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "why_it_matters": {
+           "description": "why it matters",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "action": {
+           "description": "action",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "resolved": {
+           "description": "resolved",
+           "type": "BOOLEAN",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "note": {
+           "description": "note",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          }
+         },
+         "required": [
+          "gap",
+          "why_it_matters",
+          "action",
+          "resolved",
+          "note"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 0
+        }
+       },
+       "followup_findings": {
+        "description": "followup findings",
+        "type": "ARRAY",
+        "items": {
+         "description": "followup findings",
+         "type": "OBJECT",
+         "properties": {
+          "id": {
+           "description": "id",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 0
+           }
+          },
+          "claim": {
+           "description": "claim",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 1
+           }
+          },
+          "evidence": {
+           "description": "evidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 2
+           }
+          },
+          "source_title": {
+           "description": "source title",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 3
+           }
+          },
+          "source_url": {
+           "description": "source url",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 4
+           }
+          },
+          "source_type": {
+           "description": "source type",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 5
+           }
+          },
+          "published": {
+           "description": "published",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 6
+           }
+          },
+          "confidence": {
+           "description": "confidence",
+           "type": "STRING",
+           "additionalProperties": {
+            "display_order": 7
+           }
+          }
+         },
+         "required": [
+          "id",
+          "claim",
+          "evidence",
+          "source_title",
+          "source_url",
+          "source_type",
+          "published",
+          "confidence"
+         ]
+        },
+        "additionalProperties": {
+         "display_order": 1
+        }
+       },
+       "conflicts": {
+        "description": "conflicts",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
+       },
+       "weak_claims": {
+        "description": "weak claims",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 3
+        }
+       }
+      },
+      "required": [
+       "gaps",
+       "followup_findings",
+       "conflicts",
+       "weak_claims"
+      ]
+     }
+    },
+    {
+     "id": "s_synth",
+     "displayName": "Write the research report",
+     "nodeType": "AGENT_NODE",
+     "agentNode": {
+      "model": "gemini-3.8-flash",
+      "instruction": "You are the lead research strategist writing the final research report. You have NO tools. Use ONLY the evidence below; add no facts, figures, sources or dates from your own knowledge. If the evidence does not support a point, leave it out or say it is not known. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\nContext: a weekly scan for research funding calls for a Thai university researcher: each call with its title, funder, announcement link, exact deadline, budget ceiling, duration, eligibility and required documents.\nSub-questions: ${search_calls.sub_questions}\nWeb research per sub-question: ${s_loop.output[*].s_web}\nReviewer's follow-up findings: ${s_review.followup_findings}\nReviewer's gaps: ${s_review.gaps}\nConflicts: ${s_review.conflicts}\nClaims to drop or flag: ${s_review.weak_claims}\n\nIf the web research above says WEB SEARCH NOT AVAILABLE, or there are no web findings at all, write no report: report_md = 'NO RESEARCH: web search was not available in this run', n_sources = 0.\nOtherwise write `report_md` in Thai, in Markdown:\n# <title>\n## บทสรุปสำหรับผู้บริหาร  (5 to 8 bullets: the answer, the key numbers, the recommendation)\n## ข้อค้นพบสำคัญ  (one sub-section per theme, not per investigator; say when a point comes from internal documents)\n## การวิเคราะห์และนัยต่อการตัดสินใจ  (what the evidence means; compare options where relevant)\n## ข้อเสนอแนะ  (numbered, concrete, each tied to evidence; say who would act and the first step)\n## ความเสี่ยง ความไม่แน่นอน และข้อมูลที่ขัดแย้งกัน  (every conflict from the review, both sides cited)\n## ช่องว่างและข้อจำกัดของการค้นคว้า  (what is still unknown and how to close it)\nCitations: number the sources in the order you first cite them: one number per distinct source_url (findings that share a link share a number). Right after each sentence, cite the numbers of the findings it rests on, e.g. [3] or [3, 12]. Every factual sentence carries at least one number. Write no URLs inside the text.\nEnd the report with \"## แหล่งอ้างอิง\": one line per number, in order: \"[n] <source_title> (<published>) - <source_url>\", with the source_url copied EXACTLY from the finding, character for character (never shortened, never rebuilt). List only sources you cited; every number you cited must be listed.\nUse the evidence broadly: cite every relevant finding not listed under \"claims to drop\", so the report rests on all the distinct sources the team found. When the evidence has 60 or more distinct links, the source list normally has 60 or more entries; never leave out a relevant source to keep the list short. Keep the text to roughly 2,500 to 4,000 words.\nNever write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere, even if a source contains it.\nAlso return `n_sources` (how many numbered sources the list has) and `confidence` (high / medium / low for the overall answer, with one sentence why).\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).",
+      "outputDisplayEnabled": true
+     },
+     "outputSchema": {
+      "properties": {
+       "report_md": {
+        "description": "report md",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
-       "calls": {
-        "description": "Check calls made",
+       "n_sources": {
+        "description": "n sources",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 1
         }
+       },
+       "confidence": {
+        "description": "confidence",
+        "type": "STRING",
+        "additionalProperties": {
+         "display_order": 2
+        }
        }
       },
       "required": [
-       "status",
-       "calls"
+       "report_md",
+       "n_sources",
+       "confidence"
       ]
      }
     },
     {
+     "id": "s_save",
+     "displayName": "Save the research report",
+     "nodeType": "MCP_NODE",
+     "mcpNode": {
+      "dataConnector": {
+       "name": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/{{DRIVE_MCP}}/dataConnector",
+       "dataSource": "custom_mcp"
+      },
+      "tool": {
+       "name": "create_file"
+      },
+      "inputParameters": {
+       "title": "ประกาศทุนใหม่ – ${find_setup.today}",
+       "contentMimeType": "text/markdown",
+       "parentId": "${find_setup.output_folder_id}",
+       "textContent": "${s_synth.report_md}"
+      }
+     },
+     "outputSchema": {
+      "properties": {
+       "output": {
+        "type": "STRING",
+        "description": "the created file (JSON with id and viewUrl)"
+       }
+      },
+      "required": []
+     }
+    },
+    {
      "id": "research_result",
-     "displayName": "Read the research result",
+     "displayName": "Check the saved report",
      "nodeType": "AGENT_NODE",
      "agentNode": {
-      "model": "gemini-3.1-pro-preview",
-      "dataStoreSpecs": {
-       "specs": [
-        {
-         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{RESEARCH_MCP_STORE}}"
-        }
-       ]
-      },
-      "connectorToolSelections": [
-       {
-        "dataConnector": {
-         "name": "collections/{{RESEARCH_MCP}}/dataConnector",
-         "dataSource": "custom_mcp"
-        },
-        "enabled": true,
-        "searchToolEnabled": true
-       }
-      ],
-      "instruction": "Call the Research MCP tool deep_research_check exactly ONCE with jobId = ${search_calls.job_id} and waitSeconds = 0. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Return exactly what it returned: status, doc_id, link (the docUrl), references (count); research_ok = true only if status is done and doc_id is not empty; problems = the error or 'still running after the wait' if status is running.\n\nTools for this step (their inputs are described by the tools themselves): Research MCP: deep_research_check.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      "model": "gemini-3.8-flash",
+      "instruction": "Report what the research produced. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. Use no tools. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nSaved report (the Drive tool's answer): ${s_save.output}\nNumbered sources: ${s_synth.n_sources}\nSource list of the report: ${s_synth.report_md}\nResearch is NOT usable when: the number of sources is 0; the report starts with 'NO RESEARCH'; or most links in its source list look invented (a Google Search link 'grounding-api-redirect/' followed by readable words instead of a long random code). Then research_ok = false and problems = 'web search was not available, so no research was done' (or the reason).\ndoc_id = the saved file's id; link = its viewUrl (or https://docs.google.com/document/d/<id>/edit); references = the number of sources; status = 'done' if there is a file id, otherwise 'failed';\nresearch_ok = true only if there is a file id and the research is usable; problems = empty, or what went wrong (for example the save was cancelled).\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
      },
      "outputSchema": {
       "properties": {
        "status": {
-        "description": "done / running / failed / not_found",
+        "description": "status",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 0
         }
        },
        "doc_id": {
-        "description": "Report Doc ID",
+        "description": "doc id",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 1
         }
        },
        "link": {
-        "description": "Report link",
+        "description": "link",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 2
         }
        },
        "references": {
-        "description": "References",
+        "description": "references",
         "type": "NUMBER",
         "additionalProperties": {
          "display_order": 3
         }
        },
        "research_ok": {
-        "description": "true only if done with a report",
+        "description": "research ok",
         "type": "BOOLEAN",
         "additionalProperties": {
          "display_order": 4
         }
        },
        "problems": {
-        "description": "Empty if none",
+        "description": "problems",
         "type": "STRING",
         "additionalProperties": {
          "display_order": 5
@@ -899,7 +1379,7 @@
         "searchToolEnabled": true
        }
       ],
-      "instruction": "You rate this week's calls against the researcher's profile. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nRead the report (Doc ID ${research_result.doc_id}) with read_file_content; read an announcement page only through the report's text. Profile: ${find_setup.profile}. Calls already seen (skip them): ${find_setup.log_rows}. Today ${find_setup.today}; internal rule: ${find_setup.internal_days} days before the funder deadline.\nOpen check (do it yourself; never trust a report label such as 'still open' / ยังเปิดรับ, the report can be wrong about today's date): convert Thai Buddhist years to CE (2569 = 2026); a call is open only if its funder deadline is AFTER today ${find_setup.today}. A call whose deadline is before today is closed: leave it out of calls. A call with no exact deadline can be possible at most, never strong, with the warning 'ยังไม่ทราบวันปิดรับ (deadline unknown)'.\ncalls = each NEW call still open: title, funder, link (URL exactly as in the report), deadline, internal_deadline = deadline minus the internal days, budget, duration, eligibility, fit, rating (strong = topic fits AND she is eligible AND enough time before the internal deadline; possible = partly; not = not relevant), warnings (honest, e.g. 'requires private-sector co-funding; no partner on this topic in your profile'). has_strong = true if any strong. strong_list = the strong calls as 'title (deadline)' lines. has_relevant = true if any call is strong or possible. relevant_list = the strong and possible calls as 'title (rating, deadline)' lines, strong first.\nreminders = calls in the log with status go whose internal deadline is within 14 days: title, deadline, proposal folder link; has_reminders = true if any. Never invent a call, link, date or amount.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      "instruction": "You rate this week's calls against the researcher's profile. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nRead the report (Doc ID ${research_result.doc_id}) with read_file_content; read an announcement page only through the report's text. Profile: ${find_setup.profile}. Calls already seen (skip them): ${find_setup.log_rows}. Today ${find_setup.today}; internal rule: ${find_setup.internal_days} days before the funder deadline.\nOpen check (do it yourself; never trust a report label such as 'still open' / ยังเปิดรับ, the report can be wrong about today's date): convert Thai Buddhist years to CE (2569 = 2026); a call is open only if its funder deadline is AFTER today ${find_setup.today}. A call whose deadline is before today is closed: leave it out of calls. A call with no exact deadline can be possible at most, never strong, with the warning 'ยังไม่ทราบวันปิดรับ (deadline unknown)'.\ncalls = each NEW call still open: title, funder, link (URL exactly as in the report), deadline, internal_deadline = deadline minus the internal days, budget, duration, eligibility, fit, rating (strong = topic fits AND she is eligible AND enough time before the internal deadline; possible = partly; not = not relevant), warnings (honest, e.g. 'requires private-sector co-funding; no partner on this topic in your profile'). has_strong = true if any strong. strong_list = the strong calls as 'title (deadline)' lines. has_relevant = true if any call is strong or possible. relevant_list = the strong and possible calls as 'title (rating, deadline)' lines, strong first.\nreminders = calls in the log with status go whose internal deadline is within 14 days: title, deadline, proposal folder link; has_reminders = true if any. Never invent a call, link, date or amount.\n\nCALCULATIONS: do every calculation in this step (sums, totals, averages, percentages, ratios, differences, growth rates, unit conversions, date arithmetic) with code, never in your head. You cannot run code yourself: hand it to the platform's code agent with transfer_to_agent, agent_name \"file_and_coding_agent\", giving it the input numbers copied exactly and saying what to compute; it writes and runs the Python and returns the printed results. Ask it to print each input next to each result. Never write or read files: each code run starts empty. Copy every result exactly as printed; never round or recompute by hand. If the transfer fails or the code errors twice, stop: mark the affected values as not computed (-1) and say so in problems or flags; never estimate. For calculations only, this rule overrides any 'no tools' line in this step.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
      },
      "outputSchema": {
       "properties": {
@@ -2186,17 +2666,13 @@
     },
     {
      "sourceNodeId": "search_started",
-     "targetNodeId": "wait_research",
+     "targetNodeId": "s_loop",
      "routeString": "Started"
     },
     {
      "sourceNodeId": "search_started",
      "targetNodeId": "tell_not_started",
      "routeString": "Not started"
-    },
-    {
-     "sourceNodeId": "wait_research",
-     "targetNodeId": "research_result"
     },
     {
      "sourceNodeId": "research_result",
@@ -2327,6 +2803,22 @@
     {
      "sourceNodeId": "send_reminders",
      "targetNodeId": "tell_done"
+    },
+    {
+     "sourceNodeId": "s_loop",
+     "targetNodeId": "s_review"
+    },
+    {
+     "sourceNodeId": "s_review",
+     "targetNodeId": "s_synth"
+    },
+    {
+     "sourceNodeId": "s_synth",
+     "targetNodeId": "s_save"
+    },
+    {
+     "sourceNodeId": "s_save",
+     "targetNodeId": "research_result"
     }
    ]
   }
