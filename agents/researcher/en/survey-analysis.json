@@ -35,6 +35,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -54,9 +60,25 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "You find what this check needs in the signed-in user's Google Drive. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\n1. Data folder: the folder whose name starts with ข้อมูลแบบสอบถาม (search_files, folders only). data_files = the data files directly in it (CSV, .xlsx, Google Sheets) as name | ID | modified time, newest first.\n2. Codebook: the file whose name starts with คู่มือลงรหัส or codebook (prefer one in the data folder's parent or a sibling folder). Read the codebook (read_file_content; it may be a Doc, a Sheet, a PDF or a table) and turn it into codebook_json: a JSON array, one object per data column, with keys variable (the exact column name in the newest data file; read that file's header row with read_file_content), type (one of id, likert, integer, numeric, category, text), values (likert/integer/numeric: a range like 1-5; category: the allowed labels separated by |), missing (codes meaning no answer, separated by |; omit if none) and label (the question). Expand ranges such as q1-q12 into one object per column. Take every rule from the codebook as written; never invent one.\nAnalysis plan: the file whose name starts with แผนการวิเคราะห์ or analysis plan; plan_modified = its modified time. Read the plan (read_file_content): plan_text = its hypotheses and requested analyses as written.\n3. Log: the Google Sheet named 'บันทึกการวิเคราะห์ข้อมูล' in the data folder's parent; its ID or empty. If found, read it (get_values): last_version = the highest version number in it (0 if none); last_data_id and last_data_modified = the data file ID and modified time of the last row; last_plan_modified = the plan modified time of the last row; last_chapter_link = the chapter link of the last row.\n3b. base_chapter_id = the Doc to start the new chapter from: the chapter of the last log row (its ID from last_chapter_link); if there is no log row, her own draft: a Google Doc whose name starts with 'บทที่ 4 ผลการวิจัย' or 'บทที่ 4' in the data folder's parent; else empty. has_base = true only if base_chapter_id is not empty.\n4. newest = the newest data file. This run's slot (Asia/Bangkok): slot_end = now rounded DOWN to the half hour (minute 00 or 30; a run may start up to 5 minutes late, never early); slot_start = slot_end minus 30 minutes, except for the 08:00 run: then slot_start = yesterday 20:30 (the previous run). saved_in_slot = true only if newest's modified time or plan_modified is on or after slot_start and before slot_end (compare in Asia/Bangkok time). new_work = true only if there is a data file and saved_in_slot and (no log row yet, or newest's ID or modified time differs from the last row, or plan_modified differs from last_plan_modified). An older change is never started again here: a later run would repeat a batch whose cards are still waiting. reason = 'new data file' or 'analysis plan changed' (Thai + English); when new_work is false: why (no new file saved in this half hour, or it is the version already logged).\n5. output_folder_id = the data folder's parent; owner_email = the data folder owner's email; today = today in Asia/Bangkok.\n6. ready = data folder, codebook and analysis plan each found exactly once. stop_items = what is missing (empty if ready).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+      "instruction": "You find what this check needs in the signed-in user's Google Drive. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\n1. Data folder: the folder whose name starts with ข้อมูลแบบสอบถาม (search_files, folders only). data_files = the data files directly in it (CSV, .xlsx, Google Sheets) as name | ID | modified time, newest first.\n2. Codebook: the file whose name starts with คู่มือลงรหัส or codebook (prefer one in the data folder's parent or a sibling folder). Read the codebook (read_file_content; it may be a Doc, a Sheet, a PDF or a table) and turn it into codebook_json: a JSON array, one object per data column, with keys variable (the exact column name in the newest data file; read that file's header row with read_file_content), type (one of id, likert, integer, numeric, category, text), values (likert/integer/numeric: a range like 1-5; category: the allowed labels separated by |), missing (codes meaning no answer, separated by |; omit if none) and label (the question). Expand ranges such as q1-q12 into one object per column. Take every rule from the codebook as written; never invent one.\nAnalysis plan: the file whose name starts with แผนการวิเคราะห์ or analysis plan; plan_modified = its modified time. Read the plan (read_file_content): plan_text = its hypotheses and requested analyses as written.\n3. Log: the Google Sheet named 'บันทึกการวิเคราะห์ข้อมูล' in the data folder's parent; its ID or empty. If found, read it (get_values): last_version = the highest version number in it (0 if none); last_data_id and last_data_modified = the data file ID and modified time of the last row; last_plan_modified = the plan modified time of the last row; last_chapter_link = the chapter link of the last row.\n3b. base_chapter_id = the Doc to start the new chapter from: the chapter of the last log row (its ID from last_chapter_link); if there is no log row, her own draft: a Google Doc whose name starts with 'บทที่ 4 ผลการวิจัย' or 'บทที่ 4' in the data folder's parent; else empty. has_base = true only if base_chapter_id is not empty.\n4. newest = the newest data file. This run's slot (Asia/Bangkok): slot_end = now rounded DOWN to the half hour (minute 00 or 30; a run may start up to 5 minutes late, never early); slot_start = slot_end minus 30 minutes, except for the 08:00 run: then slot_start = yesterday 20:30 (the previous run). saved_in_slot = true only if newest's modified time or plan_modified is on or after slot_start and before slot_end (compare in Asia/Bangkok time). new_work = true only if there is a data file and saved_in_slot and (no log row yet, or newest's ID or modified time differs from the last row, or plan_modified differs from last_plan_modified). An older change is never started again here: a later run would repeat a batch whose cards are still waiting. reason = 'new data file' or 'analysis plan changed' (Thai + English); when new_work is false: why (no new file saved in this half hour, or it is the version already logged).\n5. output_folder_id = the data folder's parent; owner_email = the data folder owner's email; today = today in Asia/Bangkok.\n6. ready = data folder, codebook and analysis plan each found exactly once. stop_items = what is missing (empty if ready).\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Sheets MCP: get_spreadsheet, get_values.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
      },
      "outputSchema": {
       "properties": {
@@ -311,6 +333,12 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
         }
        ]
       },
@@ -323,9 +351,27 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "The survey analysis could not start: ${find_setup.stop_items}. Send exactly ONE email with send_message to ${find_setup.owner_email} (if empty, to = an empty string for the user to type; never invent an address). Subject: วิเคราะห์ข้อมูลแบบสอบถาม: ยังเริ่มไม่ได้ (survey analysis: cannot start). Body in short Thai with English in brackets: list ONLY the items in the line above (they are the missing ones; never list a file that was found), each with the name to give it so it is found next time, ONLY for the missing items (never the naming rule of an item that was found), chosen from: the data = a folder whose name starts with ข้อมูลแบบสอบถาม, the codebook = a file whose name starts with คู่มือลงรหัส, the analysis plan = a file whose name starts with แผนการวิเคราะห์; then one line that each data file saved there must hold ALL responses so far (the newest file is analysed). sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "The survey analysis could not start: ${find_setup.stop_items}. Send exactly ONE email with send_message to ${find_setup.owner_email} (if empty, to = an empty string for the user to type; never invent an address). Subject: วิเคราะห์ข้อมูลแบบสอบถาม: ยังเริ่มไม่ได้ (survey analysis: cannot start). Body in short Thai with English in brackets: list ONLY the items in the line above (they are the missing ones; never list a file that was found), each with the name to give it so it is found next time, ONLY for the missing items (never the naming rule of an item that was found), chosen from: the data = a folder whose name starts with ข้อมูลแบบสอบถาม, the codebook = a file whose name starts with คู่มือลงรหัส, the analysis plan = a file whose name starts with แผนการวิเคราะห์; then one line that each data file saved there must hold ALL responses so far (the newest file is analysed). sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -424,6 +470,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -444,9 +496,26 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "Log ID found: \"${find_setup.log_id}\". If not empty: call no tool; log_id = that ID. If empty: create it ONCE with Drive create_file: title 'บันทึกการวิเคราะห์ข้อมูล', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly this header line: วันที่,เวอร์ชัน,ไฟล์ข้อมูล,ID ไฟล์ข้อมูล,แก้ไขล่าสุดของไฟล์ข้อมูล,แก้ไขล่าสุดของแผน,กฎการจัดการข้อมูล,บทที่ 4,สไลด์,สรุปการเปลี่ยนแปลง ; log_id = the ID returned. Then read the log with Sheets get_spreadsheet: log_tab = the exact title of its FIRST tab (as the tool returns it; never guess or translate it).\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file | Sheets MCP: get_spreadsheet.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+      "instruction": "Log ID found: \"${find_setup.log_id}\". If not empty: call no tool; log_id = that ID. If empty: create it ONCE with Drive create_file: title 'บันทึกการวิเคราะห์ข้อมูล', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly this header line: วันที่,เวอร์ชัน,ไฟล์ข้อมูล,ID ไฟล์ข้อมูล,แก้ไขล่าสุดของไฟล์ข้อมูล,แก้ไขล่าสุดของแผน,กฎการจัดการข้อมูล,บทที่ 4,สไลด์,สรุปการเปลี่ยนแปลง ; log_id = the ID returned. Then read the log with Sheets get_spreadsheet: log_tab = the exact title of its FIRST tab (as the tool returns it; never guess or translate it).\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file | Sheets MCP: get_spreadsheet.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
      },
      "outputSchema": {
       "properties": {
@@ -619,6 +688,9 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -638,9 +710,17 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "Run the analysis plan on ${find_setup.newest_id} with the researcher's rules. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nAnalysis plan: ${find_setup.plan_text}\nIssues found: ${check_data.issues}\nThe researcher's rules (apply exactly; never add your own): \"${handling_rules.approval_feedback}\" (if this says no value provided, the data had no issues and there are no rules)\n1. Turn the rules into analyse_survey inputs: recode for value changes (e.g. South -> ภาคใต้, 9 -> missing), excludeIds only if she said to drop respondents; a variable she said to leave out of one analysis is left out of that test only.\n2. Call analyse_survey ONCE with sourceId ${find_setup.newest_id}, codebook = this JSON array exactly: ${find_setup.codebook_json}, every test in the plan (ids H1, H2, ...) and compareWithSourceId = ${find_setup.last_data_id} if it is not empty and not the same file.\n3. results = the descriptives and every test as returned (statistic, p, n, means), copied exactly. changes = in Thai with English in brackets, one or two lines: if ${find_setup.last_version} is 0 or empty: 'เวอร์ชันแรก (first version)'. Otherwise read the previous chapter ${find_setup.base_chapter_id} with Drive read_file_content and compare: name every test the plan added or removed (e.g. 'เพิ่ม H5: … (added H5)'), every result whose significance changed and every mean that moved by 0.1 or more; if the data or plan changed but no result changed, say exactly that. Never write 'first version' when last_version is 1 or more (#256). chart_csv = CSV for one chart that shows the main group comparison (header row + one row per group; numbers rounded to 2 decimals, e.g. 2.87). version = ${find_setup.last_version} + 1.\n\nTools for this step (their inputs are described by the tools themselves): Analysis MCP: check_survey_data, analyse_survey | Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      "instruction": "Run the analysis plan on ${find_setup.newest_id} with the researcher's rules. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. \nAnalysis plan: ${find_setup.plan_text}\nIssues found: ${check_data.issues}\nThe researcher's rules (apply exactly; never add your own): \"${handling_rules.approval_feedback}\" (if this says no value provided, the data had no issues and there are no rules)\n1. Turn the rules into analyse_survey inputs: recode for value changes (e.g. South -> ภาคใต้, 9 -> missing), excludeIds only if she said to drop respondents; a variable she said to leave out of one analysis is left out of that test only.\n2. Call analyse_survey ONCE with sourceId ${find_setup.newest_id}, codebook = this JSON array exactly: ${find_setup.codebook_json}, every test in the plan (ids H1, H2, ...) and compareWithSourceId = ${find_setup.last_data_id} if it is not empty and not the same file.\n3. results = the descriptives and every test as returned (statistic, p, n, means), copied exactly. changes = in Thai with English in brackets, one or two lines: if ${find_setup.last_version} is 0 or empty: 'เวอร์ชันแรก (first version)'. Otherwise read the previous chapter ${find_setup.base_chapter_id} with Drive read_file_content and compare: name every test the plan added or removed (e.g. 'เพิ่ม H5: … (added H5)'), every result whose significance changed and every mean that moved by 0.1 or more; if the data or plan changed but no result changed, say exactly that. Never write 'first version' when last_version is 1 or more (#256). chart_csv = CSV for one chart that shows the main group comparison (header row + one row per group; numbers rounded to 2 decimals, e.g. 2.87). version = ${find_setup.last_version} + 1.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Analysis MCP: check_survey_data, analyse_survey | Drive MCP: read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
      },
      "outputSchema": {
       "properties": {
@@ -835,6 +915,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -847,9 +930,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Write ONE new Google Doc with Drive create_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html', textContent = the whole HTML. Create nothing else.\nIn Thai (academic style for a TCI journal): 4.1 data and cleaning rules (${analyse.rules_applied}; n = ${check_data.n_rows}), 4.2 descriptive statistics (tables with ร้อยละ and ค่าเฉลี่ย), 4.3 hypothesis tests (each test with statistic, p and n, and whether it is supported), 4.4 summary. Use ONLY these numbers, exactly: ${analyse.results}. doc_id = the ID returned; created = true only if an ID came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Write ONE new Google Doc with Drive create_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/html', textContent = the whole HTML. Create nothing else.\nIn Thai (academic style for a TCI journal): 4.1 data and cleaning rules (${analyse.rules_applied}; n = ${check_data.n_rows}), 4.2 descriptive statistics (tables with ร้อยละ and ค่าเฉลี่ย), 4.3 hypothesis tests (each test with statistic, p and n, and whether it is supported), 4.4 summary. Use ONLY these numbers, exactly: ${analyse.results}. doc_id = the ID returned; created = true only if an ID came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -892,6 +984,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -904,9 +999,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Copy the Doc ${find_setup.base_chapter_id} with Drive copy_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}. Never change the original. Copy nothing else. doc_id = the new copy's ID; created = true only if an ID came back.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: copy_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Copy the Doc ${find_setup.base_chapter_id} with Drive copy_file: title 'บทที่ 4 ผลการวิจัย – v${analyse.version}', parentId ${find_setup.output_folder_id}. Never change the original. Copy nothing else. doc_id = the new copy's ID; created = true only if an ID came back.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: copy_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -949,6 +1053,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -961,9 +1068,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "The new chapter ${copy_chapter.doc_id} is a copy of her latest version; keep her wording, headings and order. Read it with Docs read_doc (section headings and their text). New results (use ONLY these numbers, exactly): ${analyse.results}. What changed since the previous version: ${analyse.changes}. Rules applied: ${analyse.rules_applied}; n = ${check_data.n_rows}.\nFor each section whose numbers or meaning the new results change (at most 4 sections, usually 4.1 rules/n, 4.3 tests, 4.4 summary), call Docs replace_section ONCE with that section's heading and its new content in Markdown, in Thai: keep every sentence that is still true word for word; change only the numbers and sentences the new results change; add new material only where the plan asks for it (e.g. a new hypothesis); put every changed or added sentence in **bold** followed by (ปรับปรุงใน v${analyse.version}). Do NOT add a change paragraph inside a section, and when you replace a section drop any paragraph in it that starts with 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (an old change line). The change line (#256): the copy's FIRST paragraph is the previous version's line starting 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (what changed since the previous version); replace it with Docs replace_text ONCE: find = that whole first paragraph exactly as read_doc shows it, replace = 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน (v${analyse.version}): ' + ${analyse.changes} and nothing else. If the first paragraph does not start that way, skip this call. Section 4.2 holds the previous version's chart image, and a new chart is inserted after this step: ALWAYS replace section 4.2 (its text, numbers updated if they changed, no image) so the old chart is removed (a copied chart would pile up: v6 had 3, #259). Leave other unchanged sections alone. sections = the headings you replaced; updated = true only if every replace was confirmed. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Docs MCP: read_doc, replace_text, replace_section.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "The new chapter ${copy_chapter.doc_id} is a copy of her latest version; keep her wording, headings and order. Read it with Docs read_doc (section headings and their text). New results (use ONLY these numbers, exactly): ${analyse.results}. What changed since the previous version: ${analyse.changes}. Rules applied: ${analyse.rules_applied}; n = ${check_data.n_rows}.\nFor each section whose numbers or meaning the new results change (at most 4 sections, usually 4.1 rules/n, 4.3 tests, 4.4 summary), call Docs replace_section ONCE with that section's heading and its new content in Markdown, in Thai: keep every sentence that is still true word for word; change only the numbers and sentences the new results change; add new material only where the plan asks for it (e.g. a new hypothesis); put every changed or added sentence in **bold** followed by (ปรับปรุงใน v${analyse.version}). Do NOT add a change paragraph inside a section, and when you replace a section drop any paragraph in it that starts with 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (an old change line). The change line (#256): the copy's FIRST paragraph is the previous version's line starting 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน' (what changed since the previous version); replace it with Docs replace_text ONCE: find = that whole first paragraph exactly as read_doc shows it, replace = 'สิ่งที่เปลี่ยนแปลงจากเวอร์ชันก่อน (v${analyse.version}): ' + ${analyse.changes} and nothing else. If the first paragraph does not start that way, skip this call. Section 4.2 holds the previous version's chart image, and a new chart is inserted after this step: ALWAYS replace section 4.2 (its text, numbers updated if they changed, no image) so the old chart is removed (a copied chart would pile up: v6 had 3, #259). Leave other unchanged sections alone. sections = the headings you replaced; updated = true only if every replace was confirmed. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Docs MCP: read_doc, replace_text, replace_section.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -1106,6 +1222,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -1118,9 +1237,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Create ONE Google Sheet with Drive create_file: title 'ข้อมูลกราฟ – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly ${analyse.chart_csv}. sheet_id = the ID returned.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Create ONE Google Sheet with Drive create_file: title 'ข้อมูลกราฟ – v${analyse.version}', parentId ${find_setup.output_folder_id}, contentMimeType 'text/csv', textContent = exactly ${analyse.chart_csv}. sheet_id = the ID returned.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -1147,6 +1275,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -1159,9 +1290,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Call Sheets create_chart ONCE on spreadsheet ${chart_sheet.sheet_id} (first tab, all data): a COLUMN chart titled '${analyse.chart_title}'. chart_id = the chart ID returned; made = true only if it came back.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: create_chart.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Call Sheets create_chart ONCE on spreadsheet ${chart_sheet.sheet_id} (first tab, all data): a COLUMN chart titled '${analyse.chart_title}'. chart_id = the chart ID returned; made = true only if it came back.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: create_chart.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -1196,6 +1336,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DOCS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -1208,9 +1351,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "If ${chart.made} is false, call no tool and set inserted = false. Otherwise call Docs append_to_doc ONCE on document ${chapter_ref.doc_id} with one line: 'แผนภูมิประกอบหัวข้อ 4.2 (Google Sheets): ' followed by the link https://docs.google.com/spreadsheets/d/<spreadsheet ID>/edit, where the spreadsheet ID is ${chart_sheet.sheet_id}. The chart stays in that spreadsheet: the Docs tools cannot embed a chart. inserted = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Docs MCP: append_to_doc.\nNever write a message to the user and never ask for confirmation in text: call the tool directly (the platform shows its own confirmation card).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "If ${chart.made} is false, call no tool and set inserted = false. Otherwise call Docs append_to_doc ONCE on document ${chapter_ref.doc_id} with one line: 'แผนภูมิประกอบหัวข้อ 4.2 (Google Sheets): ' followed by the link https://docs.google.com/spreadsheets/d/<spreadsheet ID>/edit, where the spreadsheet ID is ${chart_sheet.sheet_id}. The chart stays in that spreadsheet: the Docs tools cannot embed a chart. inserted = true only if confirmed.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Docs MCP: append_to_doc.\nNever write a message to the user and never ask for confirmation in text: call the tool directly (the platform shows its own confirmation card).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -1248,6 +1400,9 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -1269,9 +1424,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Create ONE new deck with Slides create_presentation_from_outline: title 'สไลด์ผลการวิจัย – v${analyse.version}', 6-8 slides in Thai for a conference: what changed since the previous version (${analyse.changes}), sample and cleaning, key descriptives, each hypothesis result, the main group comparison, summary. Use ONLY these numbers: ${analyse.results}. Never edit an earlier deck. deck_id = the ID returned; created = true only if it came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Slides MCP: create_presentation_from_outline | Drive MCP: update_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nIf the Slides tool returns an error (for example a missing permission or scope), never fail this step and never raise an error: return created = false, deck_id = '' and the tool's error in problems, so the run continues to the log and the email (the email then says the slides could not be made).\nThe Slides tool has no folder option: the deck is created in My Drive. Right after it returns the new deck's ID, call Drive update_file ONCE with fileId = that ID and parentId = ${find_setup.output_folder_id}, so the deck sits in that folder. Never pass parentId to create_presentation_from_outline."
+      "instruction": "Create ONE new deck with Slides create_presentation_from_outline: title 'สไลด์ผลการวิจัย – v${analyse.version}', 6-8 slides in Thai for a conference: what changed since the previous version (${analyse.changes}), sample and cleaning, key descriptives, each hypothesis result, the main group comparison, summary. Use ONLY these numbers: ${analyse.results}. Never edit an earlier deck. deck_id = the ID returned; created = true only if it came back. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Slides MCP: create_presentation_from_outline | Drive MCP: update_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nIf the Slides tool returns an error (for example a missing permission or scope), never fail this step and never raise an error: return created = false, deck_id = '' and the tool's error in problems, so the run continues to the log and the email (the email then says the slides could not be made).\nThe Slides tool has no folder option: the deck is created in My Drive. Right after it returns the new deck's ID, call Drive update_file ONCE with fileId = that ID and parentId = ${find_setup.output_folder_id}, so the deck sits in that folder. Never pass parentId to create_presentation_from_outline."
      },
      "outputSchema": {
       "properties": {
@@ -1314,6 +1478,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SHEETS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -1326,9 +1493,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Append ONE row to the log ${ensure_log.log_id} with Sheets append_rows, range = the tab name ${ensure_log.log_tab} in single quotes: ${find_setup.today}, ${analyse.version}, ${find_setup.newest_name}, ${find_setup.newest_id}, ${find_setup.newest_modified}, ${find_setup.plan_modified}, ${analyse.rules_applied}, https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, ${analyse.changes}. appended = true only if confirmed.\n\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Append ONE row to the log ${ensure_log.log_id} with Sheets append_rows, range = the tab name ${ensure_log.log_tab} in single quotes: ${find_setup.today}, ${analyse.version}, ${find_setup.newest_name}, ${find_setup.newest_id}, ${find_setup.newest_modified}, ${find_setup.plan_modified}, ${analyse.rules_applied}, https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, ${analyse.changes}. appended = true only if confirmed.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Sheets MCP: append_rows.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -1355,6 +1531,12 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
         }
        ]
       },
@@ -1367,9 +1549,27 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Send exactly ONE email with send_message to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ผลวิเคราะห์ข้อมูลแบบสอบถาม v${analyse.version} (survey analysis v${analyse.version}). Body in short Thai: what changed in the data (${find_setup.reason}: ${find_setup.newest_name}, ${check_data.n_rows} rows; rules: ${analyse.rules_applied}), what changed in the results (${analyse.changes}), and the new files: chapter https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, slides https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, log https://docs.google.com/spreadsheets/d/${ensure_log.log_id}/edit. Earlier versions are kept. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Send exactly ONE email with send_message to ${find_setup.owner_email} (if empty, to = an empty string for the user to type). Subject: ผลวิเคราะห์ข้อมูลแบบสอบถาม v${analyse.version} (survey analysis v${analyse.version}). Body in short Thai: what changed in the data (${find_setup.reason}: ${find_setup.newest_name}, ${check_data.n_rows} rows; rules: ${analyse.rules_applied}), what changed in the results (${analyse.changes}), and the new files: chapter https://docs.google.com/document/d/${chapter_ref.doc_id}/edit, slides https://docs.google.com/presentation/d/${make_slides.deck_id}/edit, log https://docs.google.com/spreadsheets/d/${ensure_log.log_id}/edit. Earlier versions are kept. sent = true only if the tool returned a message ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {

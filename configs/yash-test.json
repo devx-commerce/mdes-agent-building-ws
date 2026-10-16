@@ -22,7 +22,12 @@
   "SHEETS_MCP": "mdesx-sheets",
   "SLIDES_MCP": "mdesx-slides",
   "RESEARCH_MCP": "research_1791202778609",
-  "ANALYSIS_MCP": "analysis_1791202937992"
+  "ANALYSIS_MCP": "analysis_1791202937992",
+  "OUTLOOK_MAIL_MCP": "mdesm-outlook-mail",
+  "OUTLOOK_CONTACTS_MCP": "mdesm-outlook-contacts",
+  "OUTLOOK_CALENDAR_MCP": "mdesm-outlook-calendar",
+  "ONEDRIVE_MCP": "mdesm-onedrive",
+  "EXCEL_MCP": "mdesm-excel"
  },
  "agents": {
   "GOV-A": {

@@ -1,5 +1,5 @@
 {
- "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed. 14 Oct: published and shared with ALL_USERS with manual triggers (no schedules) until MCPs are connected; then set manual_triggers false and redeploy. 16 Oct: Drive/Gmail/Slides connectors filled (Kenil's servers, registered by Vishal). Calendar/Docs/Sheets registered 16 Oct by Navya (nprd-calendar, nprd-docs, nprd-sheets). Research MCP no longer used (research subgraph). Only Drive is attached to the app; the API refuses to add more stores to a single-store app.",
+ "_note": "Non-prod (HI): aip-nprd-ge, us, Navya's app thai-citizen-app. No MCP connectors exist here yet (servers planned in aip-nprd-agent-mcp): steps are deployed without connectors (drop_missing_connectors) and cannot run until the connector IDs are filled in and the agents redeployed. 14 Oct: published and shared with ALL_USERS with manual triggers (no schedules) until MCPs are connected; then set manual_triggers false and redeploy. 16 Oct: Drive/Gmail/Slides connectors filled (Kenil's servers, registered by Vishal). Calendar/Docs/Sheets registered 16 Oct by Navya (nprd-calendar, nprd-docs, nprd-sheets). Research MCP no longer used (research subgraph). Only Drive is attached to the app; the API refuses to add more stores to a single-store app. Microsoft connectors registered 16 Oct (nprd-outlook-mail, -calendar, -contacts, nprd-onedrive, nprd-excel).",
  "user": "navya.agarwal@devxlabs.ai",
  "project": "aip-nprd-ge",
  "project_number": "651811839369",
@@ -21,7 +21,12 @@
   "SHEETS_MCP": "nprd-sheets",
   "SLIDES_MCP": "nprd-slides",
   "RESEARCH_MCP": "",
-  "ANALYSIS_MCP": ""
+  "ANALYSIS_MCP": "",
+  "OUTLOOK_MAIL_MCP": "nprd-outlook-mail",
+  "OUTLOOK_CONTACTS_MCP": "nprd-outlook-contacts",
+  "OUTLOOK_CALENDAR_MCP": "nprd-outlook-calendar",
+  "ONEDRIVE_MCP": "nprd-onedrive",
+  "EXCEL_MCP": "nprd-excel"
  },
  "agents": {
   "GOV-A": {

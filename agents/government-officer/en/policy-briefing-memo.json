@@ -38,6 +38,15 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
         }
        ]
       },
@@ -57,9 +66,33 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "You prepare this run from the user's message and the user's own earlier memos; nothing has to be set up before. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nThe user's message: \"${start.raw_query}\"\n\n1. request = what to research, exactly as written (Thai or English), without links, email addresses and the words that only say where to save or where the internal documents are (for example บันทึกในโฟลเดอร์ <name>, save to <link>). request_given = true only if it has words.\n2. Report link (restart). A Google Drive link carries the file ID: drive.google.com/drive/folders/<ID>, drive.google.com/file/d/<ID>/..., docs.google.com/document|spreadsheets|presentation/d/<ID>/... Take the ID from the link and check it with get_file_metadata. If the message links a Google Doc whose name starts with 'รายงานการค้นคว้าฉบับเต็ม – ' (a research report this agent saved before), report_doc_id = its ID and from_report = true; otherwise both empty/false.\n3. topic_title = a short Thai title for the request (at most 8 words), for file names; when from_report and there is no request, the words after 'รายงานการค้นคว้าฉบับเต็ม – ' in the report's name.\n4. Folders given in the message (link or name, for example โฟลเดอร์ <name> or folder <name>; find a name with search_files, folders only, including folders shared with the user). A folder the message calls internal documents (เอกสารภายใน, หนังสือเวียน, บันทึกเดิม, internal) is the internal documents folder; any other folder is the save folder. For each: found = exactly one folder the user can see; ambiguous = more than one (list each as name + link); missing = given but not found; none = not given.\ninternal_folder_id = the internal documents folder's ID, or empty.\n5. Save folder. If the message gives one: that folder (save_folder_source = message). Otherwise find the user's last memo: Google Docs whose name starts with 'บันทึกข้อความ – ' (search_files), the most recently modified one; save_folder_id = its parent folder (get_file_metadata), save_folder_source = last memo. If there is none: save_folder_id = root, save_folder_source = My Drive. save_folder_name = the folder's name (or My Drive).\n6. Head's email. If the message has an email address: head_email = it, head_email_source = message. Otherwise search the user's sent mail (search_threads, query in:sent subject:\"บันทึกข้อความ –\") and take the newest email whose subject starts with 'บันทึกข้อความ – ': head_email = its To address (get_thread to read it), head_email_source = last memo email. If none: empty.\n7. ready = true only if (request_given or from_report) and no folder is ambiguous or missing. stop_items = plain data, one line per item that stops the run (item | not found / found more than once | options as name + link); empty if ready.\nUse only names, IDs, links and addresses the tools return; never make one up.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Gmail MCP: search_threads, get_thread.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+      "instruction": "You prepare this run from the user's message and the user's own earlier memos; nothing has to be set up before. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields. You only read; you change nothing.\nThe user's message: \"${start.raw_query}\"\n\n1. request = what to research, exactly as written (Thai or English), without links, email addresses and the words that only say where to save or where the internal documents are (for example บันทึกในโฟลเดอร์ <name>, save to <link>). request_given = true only if it has words.\n2. Report link (restart). A Google Drive link carries the file ID: drive.google.com/drive/folders/<ID>, drive.google.com/file/d/<ID>/..., docs.google.com/document|spreadsheets|presentation/d/<ID>/... Take the ID from the link and check it with get_file_metadata. If the message links a Google Doc whose name starts with 'รายงานการค้นคว้าฉบับเต็ม – ' (a research report this agent saved before), report_doc_id = its ID and from_report = true; otherwise both empty/false.\n3. topic_title = a short Thai title for the request (at most 8 words), for file names; when from_report and there is no request, the words after 'รายงานการค้นคว้าฉบับเต็ม – ' in the report's name.\n4. Folders given in the message (link or name, for example โฟลเดอร์ <name> or folder <name>; find a name with search_files, folders only, including folders shared with the user). A folder the message calls internal documents (เอกสารภายใน, หนังสือเวียน, บันทึกเดิม, internal) is the internal documents folder; any other folder is the save folder. For each: found = exactly one folder the user can see; ambiguous = more than one (list each as name + link); missing = given but not found; none = not given.\ninternal_folder_id = the internal documents folder's ID, or empty.\n5. Save folder. If the message gives one: that folder (save_folder_source = message). Otherwise find the user's last memo: Google Docs whose name starts with 'บันทึกข้อความ – ' (search_files), the most recently modified one; save_folder_id = its parent folder (get_file_metadata), save_folder_source = last memo. If there is none: save_folder_id = root, save_folder_source = My Drive. save_folder_name = the folder's name (or My Drive).\n6. Head's email. If the message has an email address: head_email = it, head_email_source = message. Otherwise search the user's sent mail (search_threads, query in:sent subject:\"บันทึกข้อความ –\") and take the newest email whose subject starts with 'บันทึกข้อความ – ': head_email = its To address (get_thread to read it), head_email_source = last memo email. If none: empty.\n7. ready = true only if (request_given or from_report) and no folder is ambiguous or missing. stop_items = plain data, one line per item that stops the run (item | not found / found more than once | options as name + link); empty if ready.\nUse only names, IDs, links and addresses the tools return; never make one up.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata | Gmail MCP: search_threads, get_thread.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
      },
      "outputSchema": {
       "properties": {
@@ -1194,12 +1227,15 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "You are a research investigator for internal documents. You work on ONE sub-question, given below, and you know nothing else about the wider project. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\n\nSub-question ${r_loop_start.sq.id}: ${r_loop_start.sq.question}\nContext: ${r_loop_start.sq.brief}\nCheck internal documents: ${r_loop_start.sq.check_internal_docs}\nInternal documents you may use: only the files directly in the Drive folder ${get_ready.internal_folder_id} (if that is empty, there are none)\n\nIf \"Check internal documents\" is false, or there are no internal documents, do nothing: return `findings` as an empty list, `answer` \"not checked\" and `open_gaps` \"none\".\nOtherwise:\n1. Use only the internal documents above (Drive: search_files limited to them, read_file_content). Never search the web, and never use other files.\n2. Read the 1 to 4 most relevant files in full. Ignore files that are clearly unrelated.\n3. Record each useful fact as a finding: `id` (the sub-question id, \"-D\" and a running number: e.g. Q2-D1), `claim`, `evidence` (exact figure or quote), `source_title` (the file name), `source_url` (the file's link: https://drive.google.com/file/d/<file ID>/view), `source_type` \"internal\", `published` (the date in the document, or \"unknown\"), `confidence`.\n   Only facts that are in the files. Never invent a file, link, figure or date. 0 to 12 findings; an empty list is a valid answer.\n4. `answer`: what the internal documents say about the sub-question in 2 to 5 sentences, or \"no relevant internal documents\".\n5. `open_gaps`: what the documents do not cover. \"none\" if nothing.\nRead only: never create, change or send anything.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).",
+          "instruction": "You are a research investigator for internal documents. You work on ONE sub-question, given below, and you know nothing else about the wider project. Return data only: never write a message to the user, never ask anything, never wait for an answer; always finish by returning the output fields.\n\nSub-question ${r_loop_start.sq.id}: ${r_loop_start.sq.question}\nContext: ${r_loop_start.sq.brief}\nCheck internal documents: ${r_loop_start.sq.check_internal_docs}\nInternal documents you may use: only the files directly in the Drive folder ${get_ready.internal_folder_id} (if that is empty, there are none)\n\nIf \"Check internal documents\" is false, or there are no internal documents, do nothing: return `findings` as an empty list, `answer` \"not checked\" and `open_gaps` \"none\".\nOtherwise:\n1. Use only the internal documents above (Drive: search_files limited to them, read_file_content). Never search the web, and never use other files.\n2. Read the 1 to 4 most relevant files in full. Ignore files that are clearly unrelated.\n3. Record each useful fact as a finding: `id` (the sub-question id, \"-D\" and a running number: e.g. Q2-D1), `claim`, `evidence` (exact figure or quote), `source_title` (the file name), `source_url` (the file's link: https://drive.google.com/file/d/<file ID>/view), `source_type` \"internal\", `published` (the date in the document, or \"unknown\"), `confidence`.\n   Only facts that are in the files. Never invent a file, link, figure or date. 0 to 12 findings; an empty list is a valid answer.\n4. `answer`: what the internal documents say about the sub-question in 2 to 5 sentences, or \"no relevant internal documents\".\n5. `open_gaps`: what the documents do not cover. \"none\" if nothing.\nRead only: never create, change or send anything.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
             {
              "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
             }
            ]
           },
@@ -1207,6 +1243,14 @@
            {
             "dataConnector": {
              "name": "collections/{{DRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
              "dataSource": "custom_mcp"
             },
             "enabled": true,
@@ -1717,6 +1761,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -1728,9 +1775,17 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "Settle which research report the memo uses. Return data only. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nSaved report from the message: ${get_ready.report_doc_id}. This run's research: Doc ${research_result.doc_id}, link ${research_result.link}; questions ${deep_research.questions}.\nIf the saved report ID has a value: doc_id = it; link = its link (get_file_metadata); read it (read_file_content) and questions = the report's main questions or section topics (4 to 8, short Thai). Otherwise: doc_id, link and questions from this run's research.\nok = true only if doc_id has a value and the file can be read.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: get_file_metadata, read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
+      "instruction": "Settle which research report the memo uses. Return data only. A value that reads like <no value provided for ...> means that step did not run on this path: treat it as empty.\nSaved report from the message: ${get_ready.report_doc_id}. This run's research: Doc ${research_result.doc_id}, link ${research_result.link}; questions ${deep_research.questions}.\nIf the saved report ID has a value: doc_id = it; link = its link (get_file_metadata); read it (read_file_content) and questions = the report's main questions or section topics (4 to 8, short Thai). Otherwise: doc_id, link and questions from this run's research.\nok = true only if doc_id has a value and the file can be read.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: get_file_metadata, read_file_content.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nFinding files by name (HOW-WE-BUILD rule 6, #251): Drive search only finds names that CONTAIN a text, so check every result yourself. 'Starts with X' means the name's very first characters are exactly X. A name with anything before X – 'Copy of ', 'สำเนาของ ' (copy of), '(old) ', '(renamed …) ', a number, a bracket or a space – is NOT a match, even if the rest is identical. If no name passes this check, the file is missing (say so); never fall back to a name that only contains X."
      },
      "outputSchema": {
       "properties": {
@@ -1853,6 +1908,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -1864,9 +1922,17 @@
         },
         "enabled": true,
         "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
        }
       ],
-      "instruction": "You only read; you change nothing. Return data only.\n1. Read the FULL research report (Doc ID ${report_ready.doc_id}) with read_file_content.\n2. Internal documents folder: ${get_ready.internal_folder_id}. If it is empty, read NOTHING else: no search, no other file; internal_used = false; skip to 3. Otherwise read the documents directly in that folder and use only those about the request \"${get_ready.request}\"; internal_used = true if at least one was used; unrelated_documents = the titles of the others (never use their facts or numbers).\nThe report in step 1 is THIS memo's research: always use it as the main source. Never use any OTHER file that is this agent's own earlier output, wherever it is: files whose names start with 'รายงานการค้นคว้าฉบับเต็ม – ' or 'บันทึกข้อความ – ' (other than Doc ${report_ready.doc_id}).\n3. For each question in ${report_ready.questions} give a short Thai answer with its sources (exact URL from the report, or the internal document's title). Never invent a URL or a number.\n4. conflicts: only about the request's topic: whenever two of the sources used above give different numbers for the same thing, one row with both values and both sources. Do not pick one. Empty if there are none.\n5. not_found = what could not be found. memo_format = the heading structure of a past memo in the internal folder (not one of this agent's own outputs), or empty when there is no internal folder. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
+      "instruction": "You only read; you change nothing. Return data only.\n1. Read the FULL research report (Doc ID ${report_ready.doc_id}) with read_file_content.\n2. Internal documents folder: ${get_ready.internal_folder_id}. If it is empty, read NOTHING else: no search, no other file; internal_used = false; skip to 3. Otherwise read the documents directly in that folder and use only those about the request \"${get_ready.request}\"; internal_used = true if at least one was used; unrelated_documents = the titles of the others (never use their facts or numbers).\nThe report in step 1 is THIS memo's research: always use it as the main source. Never use any OTHER file that is this agent's own earlier output, wherever it is: files whose names start with 'รายงานการค้นคว้าฉบับเต็ม – ' or 'บันทึกข้อความ – ' (other than Doc ${report_ready.doc_id}).\n3. For each question in ${report_ready.questions} give a short Thai answer with its sources (exact URL from the report, or the internal document's title). Never invent a URL or a number.\n4. conflicts: only about the request's topic: whenever two of the sources used above give different numbers for the same thing, one row with both values and both sources. Do not pick one. Empty if there are none.\n5. not_found = what could not be found. memo_format = the heading structure of a past memo in the internal folder (not one of this agent's own outputs), or empty when there is no internal folder. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, read_file_content, get_file_metadata.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides)."
      },
      "outputSchema": {
       "properties": {
@@ -2019,6 +2085,9 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{DRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
         }
        ]
       },
@@ -2031,9 +2100,18 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Write ONE Google Doc: an internal memo (บันทึกข้อความ) of about 2 pages for the head of the office.\nRequest: \"${get_ready.request}\" (topic ${get_ready.topic_title}). Research answers: ${read_research.answers}. Conflicting figures: ${read_research.conflicts}. Not found: ${read_research.not_found}. Past memo structure (follow it if given): ${read_research.memo_format}. Full research report link: ${report_ready.link}\nHeadings exactly: 1. ความเป็นมา 2. ข้อเท็จจริง 3. ข้อกฎหมาย/ระเบียบที่เกี่ยวข้อง 4. ข้อพิจารณา 5. ข้อเสนอ. Recommendations only within the province's own authority. Every fact links to its source (hyperlink) when the answers give one. Include a small table of the conflicting figures with both sources (or say there were none). Link the full research report. Internal documents used: ${read_research.internal_used}; if false, add one line under the headings: ที่มาของข้อมูล: แหล่งข้อมูลสาธารณะเท่านั้น ไม่ได้ใช้เอกสารภายใน (Sources: public sources only; no internal documents were used).\nTitle: look directly in folder ${get_ready.save_folder_id} for Docs whose name starts with 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง'. If none, the title is 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง)'; otherwise add the next number, for example (ร่าง 2).\nHOW: call create_file ONCE with that title, parentId ${get_ready.save_folder_id}, contentMimeType 'text/html', textContent = the whole HTML (no other content field). Create nothing else; do not share, move, update or trash anything. memo_file_id = the ID the tool returns; memo_link = its link; created = true only if the tool returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Write ONE Google Doc: an internal memo (บันทึกข้อความ) of about 2 pages for the head of the office.\nRequest: \"${get_ready.request}\" (topic ${get_ready.topic_title}). Research answers: ${read_research.answers}. Conflicting figures: ${read_research.conflicts}. Not found: ${read_research.not_found}. Past memo structure (follow it if given): ${read_research.memo_format}. Full research report link: ${report_ready.link}\nHeadings exactly: 1. ความเป็นมา 2. ข้อเท็จจริง 3. ข้อกฎหมาย/ระเบียบที่เกี่ยวข้อง 4. ข้อพิจารณา 5. ข้อเสนอ. Recommendations only within the province's own authority. Every fact links to its source (hyperlink) when the answers give one. Include a small table of the conflicting figures with both sources (or say there were none). Link the full research report. Internal documents used: ${read_research.internal_used}; if false, add one line under the headings: ที่มาของข้อมูล: แหล่งข้อมูลสาธารณะเท่านั้น ไม่ได้ใช้เอกสารภายใน (Sources: public sources only; no internal documents were used).\nTitle: look directly in folder ${get_ready.save_folder_id} for Docs whose name starts with 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง'. If none, the title is 'บันทึกข้อความ – ${get_ready.topic_title} (ร่าง)'; otherwise add the next number, for example (ร่าง 2).\nHOW: call create_file ONCE with that title, parentId ${get_ready.save_folder_id}, contentMimeType 'text/html', textContent = the whole HTML (no other content field). Create nothing else; do not share, move, update or trash anything. memo_file_id = the ID the tool returns; memo_link = its link; created = true only if the tool returned an ID. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Drive MCP: search_files, get_file_metadata, create_file.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {
@@ -2173,6 +2251,12 @@
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
         }
        ]
       },
@@ -2185,9 +2269,27 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ],
-      "instruction": "Call send_message exactly ONCE. to = ${get_ready.head_email} (from the user's message or the user's last memo email); if that is empty, to = an empty string: the user types the Head's email on the confirm card. Never invent or guess an address. No CC/BCC.\nSubject: บันทึกข้อความ – ${get_ready.topic_title}\nBody in polite, formal Thai (first line exactly: เรียน หัวหน้าสำนักงาน – no ellipsis, no placeholder): the memo and the full research report are ready; memo ${write_memo.memo_link} ; full report ${report_ready.link} ; the official version will be submitted through e-Saraban by the analyst. Links, not attachments: never write แนบ. Gender-neutral (no ครับ or ค่ะ); close with จึงเรียนมาเพื่อโปรดทราบ. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
+      "instruction": "Call send_message exactly ONCE. to = ${get_ready.head_email} (from the user's message or the user's last memo email); if that is empty, to = an empty string: the user types the Head's email on the confirm card. Never invent or guess an address. No CC/BCC.\nSubject: บันทึกข้อความ – ${get_ready.topic_title}\nBody in polite, formal Thai (first line exactly: เรียน หัวหน้าสำนักงาน – no ellipsis, no placeholder): the memo and the full research report are ready; memo ${write_memo.memo_link} ; full report ${report_ready.link} ; the official version will be submitted through e-Saraban by the analyst. Links, not attachments: never write แนบ. Gender-neutral (no ครับ or ค่ะ); close with จึงเรียนมาเพื่อโปรดทราบ. Never write ข้อมูลทดสอบ, TEST, 'TEST DATA' or 'not real' anywhere in what you create or send, even if a source contains it.\n\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.\nTools for this step (their inputs are described by the tools themselves): Gmail MCP: send_message.\nTone: neutral and polite. Never use the gendered polite particles ครับ, ค่ะ, คะ, นะคะ or นะครับ in anything you write (messages, emails, documents, slides).\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems."
      },
      "outputSchema": {
       "properties": {

@@ -28,7 +28,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Meetings folder ID {{EXE_C_FOLDER_ID}}. Today's date and time (Asia/Bangkok) are now.\n1. Open the \"Setup\" doc in the folder: the CEO's name, email and calendar ID (usually her email), and the list of sensitive meetings (whose action lists the CEO approves herself).\n2. List the meeting folders (direct subfolders, one per recurring meeting). In each, open the sheet \"Action tracker\" (columns action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes) if it exists, and list the files.\n3. new_minutes: every file in a meeting folder whose title contains \"minutes\", \"notes\" or \"รายงานการประชุม\" and whose file ID is not in the minutes_id column of that folder's tracker, whenever it arrived. Per file: file ID, title, folder ID, tracker ID (blank if none), sensitive (its meeting is in the sensitive list).\n4. waiting_owner: tracker rows with stage \"awaiting approval\" (not yet sent; from earlier days too), as actions (action_id, meeting, what = action, owner_email, deadline, needs_clarification = notes say so, tracker_id).\n5. ceo_threads: distinct thread_subject values of rows with stage \"awaiting CEO\", each with its tracker ID.\n6. window_start = now; window_end = now + 24 hours (Asia/Bangkok, YYYY-MM-DD HH:MM). Pre-reads cover the CEO's meetings in that window, whatever time this run starts.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.",
+      "instruction": "Meetings folder ID {{EXE_C_FOLDER_ID}}. Today's date and time (Asia/Bangkok) are now.\n1. Open the \"Setup\" doc in the folder: the CEO's name, email and calendar ID (usually her email), and the list of sensitive meetings (whose action lists the CEO approves herself).\n2. List the meeting folders (direct subfolders, one per recurring meeting). In each, open the sheet \"Action tracker\" (columns action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes) if it exists, and list the files.\n3. new_minutes: every file in a meeting folder whose title contains \"minutes\", \"notes\" or \"รายงานการประชุม\" and whose file ID is not in the minutes_id column of that folder's tracker, whenever it arrived. Per file: file ID, title, folder ID, tracker ID (blank if none), sensitive (its meeting is in the sensitive list).\n4. waiting_owner: tracker rows with stage \"awaiting approval\" (not yet sent; from earlier days too), as actions (action_id, meeting, what = action, owner_email, deadline, needs_clarification = notes say so, tracker_id).\n5. ceo_threads: distinct thread_subject values of rows with stage \"awaiting CEO\", each with its tracker ID.\n6. window_start = now; window_end = now + 24 hours (Asia/Bangkok, YYYY-MM-DD HH:MM). Pre-reads cover the CEO's meetings in that window, whatever time this run starts.\nRead only. Never guess. Return data only: never fail, never ask the user anything, never wait. If a tool is missing or fails, or a required file or doc is not found, still finish: return ready=false and in stop_reason say plainly what is missing and how to fix it (for example \"Google Drive is not connected: connect the Drive tools in Gemini Enterprise, then run again\"). Otherwise ready=true.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -43,6 +43,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -74,6 +80,22 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -326,7 +348,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "List the CEO's calendar events (calendar ID ${read_state.ceo_calendar_id}, shared with me) starting between ${read_state.window_start} and ${read_state.window_end} (Asia/Bangkok), skipping declined events, all-day events and private blocks with no attendees.\nFor each: title, start time, attendees, description, and Drive links in it. Match a meeting to a meeting folder under {{EXE_C_FOLDER_ID}} ONLY if the meeting's title contains that folder's name (for example a meeting \"ExCom (ประชุมคณะกรรมการบริหาร)\" and the folder \"ExCom\"); then return the folder ID and the ID of its \"Action tracker\" sheet. The meeting folders are ONLY the direct subfolders of {{EXE_C_FOLDER_ID}}: list them by name first. A title that does not contain one of those names word for word (for example \"Team Sync\" or \"Daily Sync - MDES\" against the folder \"ExCom\") gets a blank folder ID and tracker ID, even if a folder with a similar name exists elsewhere in Drive: never guess a folder. Return an empty list if there are none. Read only.",
+      "instruction": "List the CEO's calendar events (calendar ID ${read_state.ceo_calendar_id}, shared with me) starting between ${read_state.window_start} and ${read_state.window_end} (Asia/Bangkok), skipping declined events, all-day events and private blocks with no attendees.\nFor each: title, start time, attendees, description, and Drive links in it. Match a meeting to a meeting folder under {{EXE_C_FOLDER_ID}} ONLY if the meeting's title contains that folder's name (for example a meeting \"ExCom (ประชุมคณะกรรมการบริหาร)\" and the folder \"ExCom\"); then return the folder ID and the ID of its \"Action tracker\" sheet. The meeting folders are ONLY the direct subfolders of {{EXE_C_FOLDER_ID}}: list them by name first. A title that does not contain one of those names word for word (for example \"Team Sync\" or \"Daily Sync - MDES\" against the folder \"ExCom\") gets a blank folder ID and tracker ID, even if a folder with a similar name exists elsewhere in Drive: never guess a folder. Return an empty list if there are none. Read only.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -344,6 +366,15 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CALENDAR_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -383,6 +414,30 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CALENDAR_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -548,7 +603,7 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "Meeting: ${each_meeting_start.m.title} at ${each_meeting_start.m.time}; attendees ${each_meeting_start.m.attendees}; invite notes ${each_meeting_start.m.description}; meeting folder ${each_meeting_start.m.folder_id}; tracker ${each_meeting_start.m.tracker_id}.\nGather: the agenda and attachments (Gmail: messages mentioning this meeting's title in the last 7 days, their attachments, and Drive files linked in them; Drive files linked in the invite), the previous minutes in the meeting folder, open rows of the action tracker, and actions just extracted from new minutes of this meeting's folder (${extract.actions}; show them as \"pending approval\").\nWrite a one-page pre-read (Markdown): purpose and who attends; items for decision (เรื่องเพื่อพิจารณา) separated from items for information (เรื่องเพื่อทราบ); key numbers from the documents; what changed since the last meeting on this topic; open actions from last time and whether each is done (from the tracker's status); three suggested questions.\nIf materials have not arrived, say so plainly at the top, for example \"No documents received for the 14:00 meeting. Agenda only.\" Read only. Never invent numbers. Write in English. Return folder_id exactly as given above (${each_meeting_start.m.folder_id}, which may be blank); never look for or return any other folder.",
+          "instruction": "Meeting: ${each_meeting_start.m.title} at ${each_meeting_start.m.time}; attendees ${each_meeting_start.m.attendees}; invite notes ${each_meeting_start.m.description}; meeting folder ${each_meeting_start.m.folder_id}; tracker ${each_meeting_start.m.tracker_id}.\nGather: the agenda and attachments (Gmail: messages mentioning this meeting's title in the last 7 days, their attachments, and Drive files linked in them; Drive files linked in the invite), the previous minutes in the meeting folder, open rows of the action tracker, and actions just extracted from new minutes of this meeting's folder (${extract.actions}; show them as \"pending approval\").\nWrite a one-page pre-read (Markdown): purpose and who attends; items for decision (เรื่องเพื่อพิจารณา) separated from items for information (เรื่องเพื่อทราบ); key numbers from the documents; what changed since the last meeting on this topic; open actions from last time and whether each is done (from the tracker's status); three suggested questions.\nIf materials have not arrived, say so plainly at the top, for example \"No documents received for the 14:00 meeting. Agenda only.\" Read only. Never invent numbers. Write in English. Return folder_id exactly as given above (${each_meeting_start.m.folder_id}, which may be blank); never look for or return any other folder.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
@@ -569,6 +624,21 @@
             },
             {
              "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CALENDAR_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
             }
            ]
           },
@@ -616,6 +686,46 @@
            {
             "dataConnector": {
              "name": "collections/{{SLIDES_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{EXCEL_MCP}}/dataConnector",
              "dataSource": "custom_mcp"
             },
             "enabled": true,
@@ -678,7 +788,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Pre-reads: ${each_meeting.output[*].preread}.\nSave a pre-read only for a meeting that has a folder_id in this list from the calendar step: ${meetings.meetings}. Use that folder_id, never a folder ID found anywhere else, and never write outside the subfolders of {{EXE_C_FOLDER_ID}}. For each such meeting, create the Google Doc \"Pre-read <meeting date> <time> <title>\" (Markdown) in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder). Meetings with no folder are only in the email. If there is nothing to save, write nothing.\nReturn how many were saved. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+      "instruction": "Pre-reads: ${each_meeting.output[*].preread}.\nSave a pre-read only for a meeting that has a folder_id in this list from the calendar step: ${meetings.meetings}. Use that folder_id, never a folder ID found anywhere else, and never write outside the subfolders of {{EXE_C_FOLDER_ID}}. For each such meeting, create the Google Doc \"Pre-read <meeting date> <time> <title>\" (Markdown) in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder). Meetings with no folder are only in the email. If there is nothing to save, write nothing.\nReturn how many were saved. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -693,6 +803,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -732,6 +848,24 @@
         "enabled": true,
         "searchToolEnabled": true,
         "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
        }
       ]
      },
@@ -756,12 +890,18 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: Pre-reads: your meetings in the next 24 hours (${read_state.today}). Body: If there are no meetings, the single line \"No meetings in the next 24 hours.\" Otherwise all pre-reads ${each_meeting.output[*].preread} in time order, each under its meeting title and time. Nothing else..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+      "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: Pre-reads: your meetings in the next 24 hours (${read_state.today}). Body: If there are no meetings, the single line \"No meetings in the next 24 hours.\" Otherwise all pre-reads ${each_meeting.output[*].preread} in time order, each under its meeting title and time. Nothing else..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
         }
        ]
       },
@@ -769,6 +909,24 @@
        {
         "dataConnector": {
          "name": "collections/{{GMAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -859,7 +1017,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "New minutes files: ${read_state.new_minutes}. If the list is empty, return empty lists.\nOpen each file by ID. Extract its decisions (มติที่ประชุม) and every action item: what, owner (email if the minutes or that folder's earlier tracker rows give it), deadline (YYYY-MM-DD). action_id = \"<minutes date>-<meeting short name>-<n>\". Carry the file's tracker_id, folder_id, minutes file ID and sensitive flag on each action.\nIf the owner or deadline is vague or missing (\"Finance to look into this\", \"date to be agreed\"), leave it blank and set needs_clarification=true. Never guess an owner or a date.\n`sensitive_lists`: one entry per sensitive meeting: its subject \"Action list to check: <meeting> <minutes date>\", and a card: the decisions, then one line per action \"action_id) what - owner - deadline\" with \"NEEDS CLARIFICATION\" where it applies.\n`no_action_minutes`: minutes files (ID, folder, tracker) with no actions. Read only.",
+      "instruction": "New minutes files: ${read_state.new_minutes}. If the list is empty, return empty lists.\nOpen each file by ID. Extract its decisions (มติที่ประชุม) and every action item: what, owner (email if the minutes or that folder's earlier tracker rows give it), deadline (YYYY-MM-DD). action_id = \"<minutes date>-<meeting short name>-<n>\". Carry the file's tracker_id, folder_id, minutes file ID and sensitive flag on each action.\nIf the owner or deadline is vague or missing (\"Finance to look into this\", \"date to be agreed\"), leave it blank and set needs_clarification=true. Never guess an owner or a date.\n`sensitive_lists`: one entry per sensitive meeting: its subject \"Action list to check: <meeting> <minutes date>\", and a card: the decisions, then one line per action \"action_id) what - owner - deadline\" with \"NEEDS CLARIFICATION\" where it applies.\n`no_action_minutes`: minutes files (ID, folder, tracker) with no actions. Read only.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -874,6 +1032,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -905,6 +1069,22 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -1126,12 +1306,18 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: ${ceo_start.l.subject}. Body: This is a sensitive meeting, so she checks the action list herself: ${ceo_start.l.card}. Ask her to confirm or correct owners and deadlines, and fill in items marked NEEDS CLARIFICATION if she can. Example reply: \"Fine, but item 2 is the CFO by 20 Oct\". Say that after her reply each person gets a calendar invite for their own actions, and nothing is sent before then. Warm, plain sentences, under 150 words; written by Khun Nok's meeting assistant..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+          "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: ${ceo_start.l.subject}. Body: This is a sensitive meeting, so she checks the action list herself: ${ceo_start.l.card}. Ask her to confirm or correct owners and deadlines, and fill in items marked NEEDS CLARIFICATION if she can. Example reply: \"Fine, but item 2 is the CFO by 20 Oct\". Say that after her reply each person gets a calendar invite for their own actions, and nothing is sent before then. Warm, plain sentences, under 150 words; written by Khun Nok's meeting assistant..\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
             {
              "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
             }
            ]
           },
@@ -1139,6 +1325,24 @@
            {
             "dataConnector": {
              "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
              "dataSource": "custom_mcp"
             },
             "enabled": true,
@@ -1178,7 +1382,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Threads waiting for the CEO: ${read_state.ceo_threads}. For each, search Gmail for that subject and read the latest reply from ${read_state.ceo_email} only (ignore anyone else); open its tracker rows (stage \"awaiting CEO\") as the action list.\nRead each reply as a person would. approved = she is clearly happy for the actions to go out: apply her corrections (an item with owner and deadline is no longer needs_clarification) and return those actions in `ceo_approved`, with tracker_id.\nA reply that is unclear or asks a question: put a short reply asking exactly what you need in `clarify` (subject and text). No reply yet: nothing for that thread. Silence or \"maybe\" is never approval. Read only.",
+      "instruction": "Threads waiting for the CEO: ${read_state.ceo_threads}. For each, search Gmail for that subject and read the latest reply from ${read_state.ceo_email} only (ignore anyone else); open its tracker rows (stage \"awaiting CEO\") as the action list.\nRead each reply as a person would. approved = she is clearly happy for the actions to go out: apply her corrections (an item with owner and deadline is no longer needs_clarification) and return those actions in `ceo_approved`, with tracker_id.\nA reply that is unclear or asks a question: put a short reply asking exactly what you need in `clarify` (subject and text). No reply yet: nothing for that thread. Silence or \"maybe\" is never approval. Read only.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1196,6 +1400,18 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -1235,6 +1451,38 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -1408,12 +1656,18 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: Re: ${clar_start.c.subject}. Body: ${clar_start.c.text}.\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+          "instruction": "Send exactly one email with Gmail (tool send_message), then stop. To: ${read_state.ceo_email}. Subject: Re: ${clar_start.c.subject}. Body: ${clar_start.c.text}.\nMake one send call only. Answers like 'Action Confirmed' or 'Review completed' mean it was already sent: do not ask again and do not send again. Return sent=true.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
             {
              "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{GMAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_MAIL_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CONTACTS_MCP_STORE}}"
             }
            ]
           },
@@ -1421,6 +1675,24 @@
            {
             "dataConnector": {
              "name": "collections/{{GMAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_MAIL_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_CONTACTS_MCP}}/dataConnector",
              "dataSource": "custom_mcp"
             },
             "enabled": true,
@@ -1882,12 +2154,15 @@
          "nodeType": "AGENT_NODE",
          "agentNode": {
           "model": "gemini-3.8-flash",
-          "instruction": "Action ${inv_start.a.action_id}: ${inv_start.a.what} (${inv_start.a.meeting}); owner ${inv_start.a.owner_email}; deadline ${inv_start.a.deadline}; needs clarification ${inv_start.a.needs_clarification}.\nIf needs clarification is true, or owner or deadline is blank: do nothing, created=false.\nOtherwise look for an event on the deadline whose title contains [${inv_start.a.action_id}]; if found, do nothing. Else create one all-day event on the deadline titled \"Due: <what> [<action_id>]\", with the owner as attendee (send the invitation), a reminder one day before, and a description: the action, the meeting it came from, the deadline, and \"Reply to this invitation if the deadline is not workable\". Create it once only.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+          "instruction": "Action ${inv_start.a.action_id}: ${inv_start.a.what} (${inv_start.a.meeting}); owner ${inv_start.a.owner_email}; deadline ${inv_start.a.deadline}; needs clarification ${inv_start.a.needs_clarification}.\nIf needs clarification is true, or owner or deadline is blank: do nothing, created=false.\nOtherwise look for an event on the deadline whose title contains [${inv_start.a.action_id}]; if found, do nothing. Else create one all-day event on the deadline titled \"Due: <what> [<action_id>]\", with the owner as attendee (send the invitation), a reminder one day before, and a description: the action, the meeting it came from, the deadline, and \"Reply to this invitation if the deadline is not workable\". Create it once only.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
           "outputDisplayEnabled": true,
           "dataStoreSpecs": {
            "specs": [
             {
              "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{CALENDAR_MCP_STORE}}"
+            },
+            {
+             "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{OUTLOOK_CALENDAR_MCP_STORE}}"
             }
            ]
           },
@@ -1895,6 +2170,15 @@
            {
             "dataConnector": {
              "name": "collections/{{CALENDAR_MCP}}/dataConnector",
+             "dataSource": "custom_mcp"
+            },
+            "enabled": true,
+            "searchToolEnabled": true,
+            "mutateEnabled": true
+           },
+           {
+            "dataConnector": {
+             "name": "collections/{{OUTLOOK_CALENDAR_MCP}}/dataConnector",
              "dataSource": "custom_mcp"
             },
             "enabled": true,
@@ -1942,7 +2226,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else, for actions in ${final.actions}: stage = \"needs clarification\" and notified=\"no\" if its action_id is in \"${final.held}\", otherwise stage=\"sent\", notified=\"yes\", with the corrected owner, deadline and action; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): every earlier action in ${final.actions} that was sent or held, with the same values.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else, for actions in ${final.actions}: stage = \"needs clarification\" and notified=\"no\" if its action_id is in \"${final.held}\", otherwise stage=\"sent\", notified=\"yes\", with the corrected owner, deadline and action; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): every earlier action in ${final.actions} that was sent or held, with the same values.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -1957,6 +2241,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -1991,6 +2281,24 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -2020,7 +2328,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; for actions in ${to_send.for_owner}: stage=\"rejected\", notes=\"rejected by Khun Nok ${read_state.today}: ${gate.approval_feedback}\".\n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; for actions in ${to_send.for_owner}: stage=\"rejected\", notes=\"rejected by Khun Nok ${read_state.today}: ${gate.approval_feedback}\".\n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -2035,6 +2343,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -2069,6 +2383,24 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
@@ -2098,7 +2430,7 @@
      "nodeType": "AGENT_NODE",
      "agentNode": {
       "model": "gemini-3.8-flash",
-      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.",
+      "instruction": "Write each meeting's \"Action tracker\" once for this run. If there is nothing below to write, write nothing.\n- New rows (append_rows, per tracker; create the sheet \"Action tracker\" in that meeting folder with create_file (only after search_files finds no file with that exact name in that folder) first if its tracker ID is blank, header action_id,meeting,minutes_id,action,owner_email,deadline,status,stage,notified,thread_subject,notes):\n  every new action in ${extract.actions}: action_id, meeting, minutes_id, action, owner_email, deadline, status=\"open\", notified=\"no\", thread_subject (its sensitive list's subject, else blank), notes; stage = \"awaiting CEO\" if sensitive; else \"awaiting approval\"; \n  and for minutes with no actions (${extract.no_action_minutes}): action_id=\"<minutes_id>-none\", minutes_id, stage=\"done\", notes=\"no actions in minutes\".\n- Existing rows (update_rows_by_key, key column action_id): none.\nDo nothing else. Search the folder for the exact title first; use create_file (only after search_files finds no file with that exact name in that folder) so a second run never makes a second copy. Never retry a write that was confirmed.\nHow writes work here: the platform shows every write, send or update to the user as a confirmation card by itself. Call the tool directly with the final values. Never ask the user in text first and never wait for a typed 'yes'. If the platform says the action was confirmed but you got no result, call the same tool once more with exactly the same values. If it is cancelled or fails, stop and return your output fields with the success field false and the reason in problems.\nGOOGLE OR MICROSOFT: the user may keep their files, mail and calendar in Google Workspace or in Microsoft 365, and both kinds of tools are offered in this step. Use the Google tools (Drive, Docs, Sheets, Gmail, Google Calendar) by default. Use the Microsoft tool for the same job (OneDrive for files and Word or PowerPoint documents, Excel for spreadsheets, Outlook for mail and contacts, Outlook Calendar for events) when what this step needs is in Microsoft 365: a OneDrive or SharePoint link or file, an earlier step that found it there, or the Google tool is not connected for this user. Keep each file in the place it came from: never copy a user's file from one to the other.",
       "outputDisplayEnabled": true,
       "dataStoreSpecs": {
        "specs": [
@@ -2113,6 +2445,12 @@
         },
         {
          "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{SLIDES_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{ONEDRIVE_MCP_STORE}}"
+        },
+        {
+         "dataStore": "projects/{{PROJECT_NUMBER}}/locations/{{LOCATION}}/collections/default_collection/dataStores/{{EXCEL_MCP_STORE}}"
         }
        ]
       },
@@ -2147,6 +2485,24 @@
        {
         "dataConnector": {
          "name": "collections/{{SLIDES_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{ONEDRIVE_MCP}}/dataConnector",
+         "dataSource": "custom_mcp"
+        },
+        "enabled": true,
+        "searchToolEnabled": true,
+        "mutateEnabled": true
+       },
+       {
+        "dataConnector": {
+         "name": "collections/{{EXCEL_MCP}}/dataConnector",
          "dataSource": "custom_mcp"
         },
         "enabled": true,
